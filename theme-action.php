@@ -168,15 +168,13 @@ switch ($action) {
         if (!$isEditor) {
             redirectWith($redirect, 'danger', 'Nemate ovlasti');
         }
-        
-        $stmt = $db->prepare("DELETE FROM theme_comments WHERE theme_id = ?");
-        $stmt->execute([$id]);
-        
-        $stmt = $db->prepare("DELETE FROM themes WHERE id = ?");
-        $stmt->execute([$id]);
-        
+
+        // Umjesto brisanja, postavi status na odbijeno
+        $stmt = $db->prepare("UPDATE themes SET status = 'odbijeno', rejection_reason = 'Obrisano', approved_by = ? WHERE id = ?");
+        $stmt->execute([$userId, $id]);
+
         logActivity('theme_delete', 'theme', $id);
-        redirectWith($redirect, 'success', 'Tema je obrisana');
+        redirectWith($redirect, 'success', 'Tema je premještena u odbijene');
         break;
         
     default:
