@@ -29,7 +29,7 @@ function fetchRSS($url) {
     return $response;
 }
 
-function parseRSS($xml, $limit = 5) {
+function parseRSS($xml, $limit = 8) {
     $items = [];
     if (!$xml) return $items;
 
@@ -39,8 +39,26 @@ function parseRSS($xml, $limit = 5) {
     $count = 0;
     foreach ($feed->channel->item as $item) {
         if ($count >= $limit) break;
+
+        // Odvoji nadnaslov od naslova (delimiter: – - | :)
+        $fullTitle = (string)$item->title;
+        $nadnaslov = '';
+        $naslov = $fullTitle;
+
+        // Probaj različite delimitere
+        $delimiters = [' – ', ' - ', ' | ', ': '];
+        foreach ($delimiters as $del) {
+            if (strpos($fullTitle, $del) !== false) {
+                $parts = explode($del, $fullTitle, 2);
+                $nadnaslov = trim($parts[0]);
+                $naslov = trim($parts[1]);
+                break;
+            }
+        }
+
         $items[] = [
-            'title' => (string)$item->title,
+            'title' => $naslov,
+            'nadnaslov' => $nadnaslov,
             'link' => (string)$item->link,
             'pubDate' => (string)$item->pubDate,
             'description' => strip_tags((string)$item->description)
@@ -50,12 +68,12 @@ function parseRSS($xml, $limit = 5) {
     return $items;
 }
 
-// Dohvati zadnje vijesti iz RSS-a (5 od svakog = 10 ukupno)
+// Dohvati zadnje vijesti iz RSS-a (8 od svakog = 16 ukupno)
 $zagorjeRSS = fetchRSS('https://www.zagorje-international.hr/index.php/feed/');
-$zagorjeLatest = parseRSS($zagorjeRSS, 5);
+$zagorjeLatest = parseRSS($zagorjeRSS, 8);
 
 $stubicaRSS = fetchRSS('https://radio-stubica.hr/feed/');
-$stubicaLatest = parseRSS($stubicaRSS, 5);
+$stubicaLatest = parseRSS($stubicaRSS, 8);
 
 // ============================================
 // FEEDLY API - trending po engagementu
@@ -393,15 +411,14 @@ include 'includes/header.php';
             <?php if (empty($zagorjeLatest)): ?>
             <p class="text-muted text-center" style="padding: 1rem;">Nema vijesti</p>
             <?php else: ?>
-            <div class="list-items">
+            <div class="rss-list">
                 <?php foreach ($zagorjeLatest as $item): ?>
-                <a href="<?= e($item['link']) ?>" target="_blank" class="list-item">
-                    <div class="list-item-content">
-                        <div class="list-item-title"><?= e($item['title']) ?></div>
-                        <div class="list-item-meta">
-                            <span><?= $item['pubDate'] ? timeAgo(date('Y-m-d H:i:s', strtotime($item['pubDate']))) : '' ?></span>
-                        </div>
-                    </div>
+                <a href="<?= e($item['link']) ?>" target="_blank" class="rss-item">
+                    <?php if ($item['nadnaslov']): ?>
+                    <span class="rss-kicker"><?= e($item['nadnaslov']) ?></span>
+                    <?php endif; ?>
+                    <span class="rss-title"><?= e($item['title']) ?></span>
+                    <span class="rss-time"><?= $item['pubDate'] ? timeAgo(date('Y-m-d H:i:s', strtotime($item['pubDate']))) : '' ?></span>
                 </a>
                 <?php endforeach; ?>
             </div>
@@ -418,15 +435,14 @@ include 'includes/header.php';
             <?php if (empty($stubicaLatest)): ?>
             <p class="text-muted text-center" style="padding: 1rem;">Nema vijesti</p>
             <?php else: ?>
-            <div class="list-items">
+            <div class="rss-list">
                 <?php foreach ($stubicaLatest as $item): ?>
-                <a href="<?= e($item['link']) ?>" target="_blank" class="list-item">
-                    <div class="list-item-content">
-                        <div class="list-item-title"><?= e($item['title']) ?></div>
-                        <div class="list-item-meta">
-                            <span><?= $item['pubDate'] ? timeAgo(date('Y-m-d H:i:s', strtotime($item['pubDate']))) : '' ?></span>
-                        </div>
-                    </div>
+                <a href="<?= e($item['link']) ?>" target="_blank" class="rss-item">
+                    <?php if ($item['nadnaslov']): ?>
+                    <span class="rss-kicker"><?= e($item['nadnaslov']) ?></span>
+                    <?php endif; ?>
+                    <span class="rss-title"><?= e($item['title']) ?></span>
+                    <span class="rss-time"><?= $item['pubDate'] ? timeAgo(date('Y-m-d H:i:s', strtotime($item['pubDate']))) : '' ?></span>
                 </a>
                 <?php endforeach; ?>
             </div>
@@ -575,6 +591,48 @@ include 'includes/header.php';
     align-items: center;
 }
 .mt-1 { margin-top: 0.25rem; }
+
+/* Kompaktni RSS prikaz */
+.rss-list {
+    display: flex;
+    flex-direction: column;
+}
+.rss-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--dark);
+    text-decoration: none;
+    font-size: 0.85rem;
+    line-height: 1.3;
+}
+.rss-item:hover {
+    background: var(--gray-50);
+}
+.rss-item:last-child {
+    border-bottom: none;
+}
+.rss-kicker {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--primary);
+    background: rgba(37, 99, 235, 0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.rss-title {
+    font-weight: 500;
+    flex: 1;
+}
+.rss-time {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+    white-space: nowrap;
+}
 </style>
 
 <?php include 'includes/footer.php'; ?>
