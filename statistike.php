@@ -88,6 +88,19 @@ while ($d <= $end) {
     $d->modify('+1 day');
 }
 
+// Boje po osobama
+function getUserColorClass($name) {
+    $name = mb_strtolower($name);
+    if (strpos($name, 'elvis') !== false) return 'user-elvis';
+    if (strpos($name, 'ivek') !== false || strpos($name, 'ivan') !== false) return 'user-ivek';
+    if (strpos($name, 'jakov') !== false) return 'user-jakov';
+    if (strpos($name, 'marta') !== false) return 'user-marta';
+    if (strpos($name, 'patrik') !== false) return 'user-patrik';
+    if (strpos($name, 'rikard') !== false) return 'user-rikard';
+    if (strpos($name, 'sabina') !== false) return 'user-sabina';
+    return '';
+}
+
 require_once 'includes/header.php';
 ?>
 
@@ -96,12 +109,12 @@ require_once 'includes/header.php';
 .stat-table th, .stat-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border-color); text-align: left; }
 .stat-table th { background: var(--bg-secondary); font-weight: 600; font-size: 0.75rem; }
 .stat-table td.num { text-align: center; font-weight: 500; }
-.stat-table tr:hover { background: var(--bg-secondary); }
+.stat-table tr:hover { opacity: 0.9; }
 .j { color: #b45309; }
 .p { color: #1d4ed8; }
 .v { color: #4338ca; }
 .week-header { font-size: 0.7rem; color: var(--text-muted); }
-.event-list { font-size: 0.75rem; color: var(--text-secondary); margin: 0; padding-left: 1rem; }
+.event-list { font-size: 0.75rem; margin: 0; padding-left: 1rem; }
 .event-list li { margin: 2px 0; }
 .compact-filter { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; padding: 0.5rem; }
 .compact-filter select, .compact-filter button { font-size: 0.8rem; padding: 0.3rem 0.5rem; }
@@ -110,6 +123,13 @@ require_once 'includes/header.php';
 .view-toggle a:first-child { border-radius: 4px 0 0 4px; }
 .view-toggle a:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
 .view-toggle a.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+.user-elvis { background: #fce7f3; }
+.user-ivek { background: #dcfce7; }
+.user-jakov { background: #d7ccc8; }
+.user-marta { background: #fecaca; }
+.user-patrik { background: #fef9c3; }
+.user-rikard { background: #fed7aa; }
+.user-sabina { background: #dbeafe; }
 </style>
 
 <div class="page-header" style="margin-bottom: 0.5rem;">
@@ -160,7 +180,7 @@ require_once 'includes/header.php';
                 if (!$stats) continue;
                 $total = $stats['total']['j'] + $stats['total']['p'] + $stats['total']['v'];
             ?>
-            <tr>
+            <tr class="<?= getUserColorClass($user['full_name']) ?>">
                 <td><?= e($user['full_name']) ?></td>
                 <?php if ($view == 'week'): ?>
                     <?php foreach ($weeks as $w):
@@ -196,7 +216,7 @@ require_once 'includes/header.php';
                 $events = $eventList[$user['id']] ?? [];
                 if (!$count) continue;
             ?>
-            <tr>
+            <tr class="<?= getUserColorClass($user['full_name']) ?>">
                 <td><?= e($user['full_name']) ?></td>
                 <td class="num"><strong><?= $count ?></strong></td>
                 <td>
