@@ -367,72 +367,84 @@ include 'includes/header.php';
 </div>
 
 <!-- Lista događaja -->
+<?php
+// Hrvatski nazivi dana za listu
+$daysHrFull = [
+    'Monday' => 'Ponedjeljak', 'Tuesday' => 'Utorak', 'Wednesday' => 'Srijeda',
+    'Thursday' => 'Četvrtak', 'Friday' => 'Petak', 'Saturday' => 'Subota', 'Sunday' => 'Nedjelja'
+];
+?>
 <div class="card mt-2">
     <div class="card-header">
         <h2 class="card-title">Svi događaji - <?= $monthName ?></h2>
     </div>
-    <?php if (empty($events)): ?>
+    <?php if (empty($eventsByDate)): ?>
     <div class="card-body">
         <p class="text-muted text-center">Nema događaja za ovaj mjesec</p>
     </div>
     <?php else: ?>
-    <div class="table-responsive">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Datum</th>
-                    <th>Događaj</th>
-                    <th>Lokacija</th>
-                    <th>Tko ide</th>
-                    <th>Napomena</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($events as $evt): ?>
-                <tr class="<?= !empty($evt['skip_coverage']) ? 'row-skipped' : '' ?>">
-                    <td style="white-space: nowrap;">
-                        <strong><?= date('j.n.', strtotime($evt['event_date'])) ?></strong>
-                        <?php if ($evt['event_time']): ?>
-                        <br><span class="text-muted"><?= date('H:i', strtotime($evt['event_time'])) ?></span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <a href="event-edit.php?id=<?= $evt['id'] ?>"><strong><?= e($evt['title']) ?></strong></a>
-                        <br>
-                        <span class="badge badge-<?= eventTypeColor($evt['event_type']) ?>"><?= translateEventType($evt['event_type']) ?></span>
-                        <?php if ($evt['importance'] !== 'normal'): ?>
-                        <span class="badge badge-<?= $evt['importance'] === 'must_cover' ? 'danger' : 'warning' ?>">
-                            <?= $evt['importance'] === 'must_cover' ? 'OBAVEZNO' : 'VAŽNO' ?>
-                        </span>
-                        <?php endif; ?>
-                    </td>
-                    <td><?= e($evt['location'] ?: '-') ?></td>
-                    <td>
-                        <?php if (!empty($evt['skip_coverage'])): ?>
-                            <span class="text-muted">—</span>
-                        <?php elseif ($evt['assigned_people']): ?>
-                            <?= e($evt['assigned_people']) ?>
-                        <?php else: ?>
-                            <span class="text-danger">⚠️ Nitko</span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="text-muted" style="max-width: 200px;">
-                        <?= e($evt['notes'] ? truncate($evt['notes'], 80) : '-') ?>
-                    </td>
-                    <td>
-                        <?php if (!empty($evt['skip_coverage'])): ?>
-                            <span class="badge badge-secondary">Ne idemo</span>
-                        <?php elseif ($evt['assigned_count']): ?>
-                            <span class="badge badge-success">OK</span>
-                        <?php else: ?>
-                            <span class="badge badge-warning">Čeka</span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div class="card-body" style="padding: 0;">
+        <?php foreach ($eventsByDate as $date => $dayEvents):
+            $dayName = $daysHrFull[date('l', strtotime($date))] ?? '';
+            $dateFormatted = date('j.n.', strtotime($date));
+
+            // Kompaktna dežurstva
+            $shiftsCompact = '';
+            $regularEvents = [];
+            foreach ($dayEvents as $evt) {
+                if ($evt['event_type'] === 'dezurstvo') {
+                    $title = $evt['title'] ?? '';
+                    $firstName = '';
+                    if (!empty($evt['assigned_people'])) {
+                        $firstName = explode(' ', $evt['assigned_people'])[0];
+                    } elseif (strpos($title, ' - ') !== false) {
+                        $parts = explode(' - ', $title);
+                        $firstName = explode(' ', end($parts))[0];
+                    }
+                    if (stripos($title, 'jutarn') !== false && $firstName) $shiftsCompact .= "J-$firstName ";
+                    elseif (stripos($title, 'popodnevn') !== false && $firstName) $shiftsCompact .= "P-$firstName ";
+                    elseif ((stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) && $firstName) $shiftsCompact .= "V-$firstName ";
+                } else {
+                    $regularEvents[] = $evt;
+                }
+            }
+        ?>
+        <div class="all-events-day-header">
+            <span class="all-events-day-name"><?= $dayName ?>, <?= $dateFormatted ?></span>
+            <?php if ($shiftsCompact): ?>
+            <span class="all-events-shifts"><?= trim($shiftsCompact) ?></span>
+            <?php endif; ?>
+        </div>
+        <?php foreach ($regularEvents as $evt): ?>
+        <a href="event-edit.php?id=<?= $evt['id'] ?>" class="all-events-item <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?>">
+            <div class="all-events-item-content">
+                <div class="all-events-item-title">
+                    <?php if ($evt['importance'] === 'must_cover'): ?>
+                    <span class="badge badge-danger">!</span>
+                    <?php elseif ($evt['importance'] === 'important'): ?>
+                    <span class="badge badge-warning">!</span>
+                    <?php endif; ?>
+                    <?= e($evt['title']) ?>
+                </div>
+                <div class="all-events-item-meta">
+                    <?php if ($evt['event_time']): ?>
+                    <span>🕐 <?= date('H:i', strtotime($evt['event_time'])) ?></span>
+                    <?php endif; ?>
+                    <?php if ($evt['location']): ?>
+                    <span>📍 <?= e(truncate($evt['location'], 20)) ?></span>
+                    <?php endif; ?>
+                    <?php if (!empty($evt['skip_coverage'])): ?>
+                    <span class="badge badge-secondary">Ne idemo</span>
+                    <?php elseif ($evt['assigned_people']): ?>
+                    <span>👥 <?= e($evt['assigned_people']) ?></span>
+                    <?php else: ?>
+                    <span class="text-danger">⚠️ Nitko</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </a>
+        <?php endforeach; ?>
+        <?php endforeach; ?>
     </div>
     <?php endif; ?>
 </div>
@@ -710,6 +722,54 @@ include 'includes/header.php';
 .row-skipped {
     opacity: 0.6;
     background: var(--gray-50);
+}
+/* Svi događaji - po danima */
+.all-events-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--gray-100);
+    border-bottom: 1px solid var(--gray-200);
+}
+.all-events-day-name {
+    font-weight: 600;
+    color: var(--gray-700);
+}
+.all-events-shifts {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #0ca678;
+    background: rgba(32, 201, 151, 0.15);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+.all-events-item {
+    display: flex;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--gray-100);
+    color: var(--dark);
+    text-decoration: none;
+}
+.all-events-item:hover {
+    background: var(--gray-50);
+}
+.all-events-item.skipped {
+    opacity: 0.5;
+}
+.all-events-item-content {
+    flex: 1;
+}
+.all-events-item-title {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+.all-events-item-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--gray-600);
 }
 </style>
 
