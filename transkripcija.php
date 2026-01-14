@@ -16,8 +16,61 @@ if (file_exists(__DIR__ . '/config.local.php')) {
 requireLogin();
 
 $transcription = null;
+$correctedText = null;
 $error = null;
 $duration = null;
+
+// GPT-4 - ispravljanje teksta
+function correctTranscription($text) {
+    if (!defined('OPENAI_API_KEY')) {
+        return ['error' => 'API ključ nije konfiguriran'];
+    }
+
+    $ch = curl_init('https://api.openai.com/v1/chat/completions');
+
+    $prompt = "Ispravi sljedeću transkripciju na hrvatskom jeziku. Popravi:
+- Pravopisne greške
+- Interpunkciju (točke, zareze, upitnike)
+- Velika slova na početku rečenica i za vlastita imena
+- Očite pogreške u riječima prema kontekstu
+- Razdvoji u odlomke gdje ima smisla
+
+Zadrži originalni smisao, samo ispravi greške. Vrati SAMO ispravljeni tekst bez objašnjenja.
+
+Transkripcija:
+$text";
+
+    $postFields = json_encode([
+        'model' => 'gpt-4o-mini',
+        'messages' => [
+            ['role' => 'user', 'content' => $prompt]
+        ],
+        'temperature' => 0.3
+    ]);
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . OPENAI_API_KEY
+        ],
+        CURLOPT_POSTFIELDS => $postFields
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    if ($httpCode !== 200) {
+        return ['error' => $data['error']['message'] ?? 'Greška pri ispravljanju'];
+    }
+
+    return ['text' => $data['choices'][0]['message']['content'] ?? $text];
+}
 
 // Whisper API - transkripcija
 function transcribeAudio($filePath, $fileName) {
@@ -60,8 +113,23 @@ function transcribeAudio($filePath, $fileName) {
     ];
 }
 
+// Obrada ispravljanja teksta
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'correct' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+    $rawText = $_POST['raw_text'] ?? '';
+    if (!empty($rawText)) {
+        $result = correctTranscription($rawText);
+        if (isset($result['error'])) {
+            $error = $result['error'];
+            $transcription = $rawText;
+        } else {
+            $correctedText = $result['text'];
+            $transcription = $rawText;
+        }
+    }
+}
+
 // Obrada uploada
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     if (empty($_FILES['audio']['tmp_name'])) {
         $error = 'Odaberite audio datoteku';
     } else {
@@ -137,7 +205,7 @@ include 'includes/header.php';
 <?php if ($transcription): ?>
 <div class="card mt-2">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-        <h2 class="card-title">Transkript</h2>
+        <h2 class="card-title">Transkript <?= $correctedText ? '(original)' : '' ?></h2>
         <?php if ($duration): ?>
         <span class="badge badge-secondary"><?= gmdate('H:i:s', (int)$duration) ?></span>
         <?php endif; ?>
@@ -146,12 +214,26 @@ include 'includes/header.php';
         <div class="transcription-text" id="transcriptText"><?= nl2br(e($transcription)) ?></div>
 
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <?php if (!$correctedText): ?>
+            <form method="POST" style="display: inline;" id="correctForm">
+                <?= csrfField() ?>
+                <input type="hidden" name="action" value="correct">
+                <input type="hidden" name="raw_text" value="<?= e($transcription) ?>">
+                <button type="submit" class="btn btn-primary" id="correctBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    Ispravi greške (AI)
+                </button>
+            </form>
+            <?php endif; ?>
             <button onclick="copyTranscript()" class="btn btn-success">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                 </svg>
-                Kopiraj tekst
+                Kopiraj
             </button>
             <button onclick="downloadTranscript()" class="btn btn-outline">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -159,7 +241,36 @@ include 'includes/header.php';
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
-                Preuzmi .txt
+                Preuzmi
+            </button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($correctedText): ?>
+<div class="card mt-2">
+    <div class="card-header" style="background: #dcfce7;">
+        <h2 class="card-title" style="color: #166534;">Ispravljeni tekst</h2>
+    </div>
+    <div class="card-body">
+        <div class="transcription-text" id="correctedText"><?= nl2br(e($correctedText)) ?></div>
+
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button onclick="copyCorrected()" class="btn btn-success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                Kopiraj ispravljeno
+            </button>
+            <button onclick="downloadCorrected()" class="btn btn-outline">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Preuzmi ispravljeno
             </button>
         </div>
     </div>
@@ -201,10 +312,17 @@ include 'includes/header.php';
 </style>
 
 <script>
-// Loading state
-document.querySelector('form').addEventListener('submit', function() {
+// Loading state za upload formu
+document.querySelector('form[enctype]')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
     btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Transkribiram...';
+    btn.disabled = true;
+});
+
+// Loading state za ispravljanje
+document.getElementById('correctForm')?.addEventListener('submit', function() {
+    const btn = document.getElementById('correctBtn');
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Ispravljam...';
     btn.disabled = true;
 });
 
@@ -215,6 +333,13 @@ function copyTranscript() {
     });
 }
 
+function copyCorrected() {
+    const text = <?= json_encode($correctedText ?? '') ?>;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Ispravljeni tekst kopiran!');
+    });
+}
+
 function downloadTranscript() {
     const text = <?= json_encode($transcription ?? '') ?>;
     const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
@@ -222,6 +347,17 @@ function downloadTranscript() {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'transkript-<?= date('Y-m-d-His') ?>.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function downloadCorrected() {
+    const text = <?= json_encode($correctedText ?? '') ?>;
+    const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transkript-ispravljen-<?= date('Y-m-d-His') ?>.txt';
     a.click();
     URL.revokeObjectURL(url);
 }
