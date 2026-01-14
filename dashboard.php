@@ -75,6 +75,35 @@ $zagorjeLatest = parseRSS($zagorjeRSS, 8);
 $stubicaRSS = fetchRSS('https://radio-stubica.hr/feed/');
 $stubicaLatest = parseRSS($stubicaRSS, 8);
 
+// ============================================
+// FEEDLY API - Općine i gradovi
+// ============================================
+define('FEEDLY_TOKEN', 'REDACTED_FEEDLY_TOKEN');
+
+function feedlyFetch($streamId, $count = 10) {
+    $url = 'https://cloud.feedly.com/v3/streams/contents?' . http_build_query([
+        'streamId' => $streamId,
+        'count' => $count
+    ]);
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . FEEDLY_TOKEN
+        ],
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => false
+    ]);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode($response, true);
+    return $data['items'] ?? [];
+}
+
+// Općine i gradovi
+$opcineFeedlyItems = feedlyFetch('user/6e135c2a-75fe-4109-8be8-6b52fa6866e6/category/svetikri%C5%BE', 10);
+
 // Taskovi za sve (assigned_to IS NULL)
 $stmt = $db->query("
     SELECT t.*, u.full_name as creator_name
@@ -526,6 +555,32 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     </div>
 </div>
 
+<!-- Općine i gradovi (Feedly) -->
+<?php if (!empty($opcineFeedlyItems)): ?>
+<div class="card mt-2">
+    <div class="card-header" style="background: #7b1fa2; color: white;">
+        <h2 class="card-title" style="color: white;">🏛️ Općine i gradovi</h2>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="rss-list">
+            <?php foreach ($opcineFeedlyItems as $item):
+                $link = $item['alternate'][0]['href'] ?? $item['originId'] ?? '#';
+                $title = $item['title'] ?? 'Bez naslova';
+                $source = $item['origin']['title'] ?? '';
+                $published = $item['published'] ?? 0;
+            ?>
+            <a href="<?= e($link) ?>" target="_blank" class="rss-item">
+                <?php if ($source): ?>
+                <span class="rss-kicker"><?= e($source) ?></span>
+                <?php endif; ?>
+                <span class="rss-title"><?= e($title) ?></span>
+                <span class="rss-time"><?= $published ? timeAgo(date('Y-m-d H:i:s', $published/1000)) : '' ?></span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <style>
 .section-title {
