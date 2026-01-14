@@ -18,27 +18,6 @@ requireLogin();
 $transcription = null;
 $error = null;
 $duration = null;
-$compressed = false;
-
-// Kompresija audio datoteke pomoću FFmpeg
-function compressAudio($inputPath, $outputPath) {
-    // FFmpeg komanda: mono, 64kbps, mp3 format
-    $cmd = sprintf(
-        'ffmpeg -i %s -ac 1 -b:a 64k -y %s 2>&1',
-        escapeshellarg($inputPath),
-        escapeshellarg($outputPath)
-    );
-
-    exec($cmd, $output, $returnCode);
-
-    return $returnCode === 0 && file_exists($outputPath);
-}
-
-// Provjeri da li je FFmpeg dostupan
-function ffmpegAvailable() {
-    exec('ffmpeg -version 2>&1', $output, $returnCode);
-    return $returnCode === 0;
-}
 
 // Whisper API - transkripcija
 function transcribeAudio($filePath, $fileName) {
@@ -88,9 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     } else {
         $file = $_FILES['audio'];
 
-        // Provjeri veličinu (max 100MB, kompresira se ako treba)
-        if ($file['size'] > 100 * 1024 * 1024) {
-            $error = 'Datoteka je prevelika (max 100MB)';
+        // Provjeri veličinu (max 24MB za Whisper API)
+        if ($file['size'] > 24 * 1024 * 1024) {
+            $error = 'Datoteka je prevelika (max 24MB). Koristite online alate ispod za kompresiju.';
         } else {
             // Dozvoljeni formati
             $allowedExts = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'mpeg', 'mpga', 'ogg', 'flac'];
@@ -99,46 +78,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             if (!in_array($ext, $allowedExts)) {
                 $error = 'Nedozvoljeni format. Dozvoljeni: ' . implode(', ', $allowedExts);
             } else {
-                $fileToProcess = $file['tmp_name'];
-                $tempCompressed = null;
+                $result = transcribeAudio($file['tmp_name'], $file['name']);
 
-                // Ako je veće od 24MB, kompresiraj
-                if ($file['size'] > 24 * 1024 * 1024) {
-                    if (!ffmpegAvailable()) {
-                        $error = 'Datoteka je prevelika (>24MB) i FFmpeg nije dostupan za kompresiju. Smanjite datoteku ručno ili instalirajte FFmpeg.';
-                    } else {
-                        $tempCompressed = sys_get_temp_dir() . '/compressed_' . uniqid() . '.mp3';
-
-                        if (compressAudio($file['tmp_name'], $tempCompressed)) {
-                            // Provjeri da li je kompresirana verzija manja od 25MB
-                            if (filesize($tempCompressed) > 25 * 1024 * 1024) {
-                                unlink($tempCompressed);
-                                $error = 'Datoteka je i nakon kompresije prevelika. Pokušajte s kraćim snimkom.';
-                            } else {
-                                $fileToProcess = $tempCompressed;
-                                $compressed = true;
-                            }
-                        } else {
-                            $error = 'Greška pri kompresiji datoteke. Provjerite FFmpeg instalaciju.';
-                        }
-                    }
-                }
-
-                if (!$error) {
-                    $result = transcribeAudio($fileToProcess, $file['name']);
-
-                    if (isset($result['error'])) {
-                        $error = $result['error'];
-                    } else {
-                        $transcription = $result['text'];
-                        $duration = $result['duration'];
-                        logActivity('audio_transcribe', 'ai', null);
-                    }
-                }
-
-                // Očisti temp datoteku
-                if ($tempCompressed && file_exists($tempCompressed)) {
-                    unlink($tempCompressed);
+                if (isset($result['error'])) {
+                    $error = $result['error'];
+                } else {
+                    $transcription = $result['text'];
+                    $duration = $result['duration'];
+                    logActivity('audio_transcribe', 'ai', null);
                 }
             }
         }
@@ -163,7 +110,7 @@ include 'includes/header.php';
             <div class="form-group">
                 <label class="form-label">Audio datoteka *</label>
                 <input type="file" name="audio" class="form-control" accept=".mp3,.mp4,.m4a,.wav,.webm,.mpeg,.mpga,.ogg,.flac" required>
-                <small class="form-text">Dozvoljeni formati: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC (max 100MB, automatska kompresija ako treba)</small>
+                <small class="form-text">Dozvoljeni formati: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC (max 24MB)</small>
             </div>
 
             <div class="form-group">
@@ -189,16 +136,11 @@ include 'includes/header.php';
 
 <?php if ($transcription): ?>
 <div class="card mt-2">
-    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
         <h2 class="card-title">Transkript</h2>
-        <div style="display: flex; gap: 0.5rem;">
-            <?php if ($compressed): ?>
-            <span class="badge badge-info">Kompresirana</span>
-            <?php endif; ?>
-            <?php if ($duration): ?>
-            <span class="badge badge-secondary"><?= gmdate('H:i:s', (int)$duration) ?></span>
-            <?php endif; ?>
-        </div>
+        <?php if ($duration): ?>
+        <span class="badge badge-secondary"><?= gmdate('H:i:s', (int)$duration) ?></span>
+        <?php endif; ?>
     </div>
     <div class="card-body">
         <div class="transcription-text" id="transcriptText"><?= nl2br(e($transcription)) ?></div>
@@ -226,25 +168,22 @@ include 'includes/header.php';
 
 <div class="card mt-2">
     <div class="card-header">
-        <h2 class="card-title">Savjeti</h2>
+        <h2 class="card-title">Ako je datoteka prevelika</h2>
     </div>
     <div class="card-body">
-        <ul style="margin: 0; padding-left: 1.25rem; color: var(--gray-600);">
-            <li>Kvalitetniji audio = točnija transkripcija</li>
-            <li>Izbjegavajte pozadinsku buku</li>
-            <li>Dulje datoteke traju duže za obradu</li>
-            <li>Datoteke veće od 24MB automatski se kompresiraju (treba FFmpeg)</li>
-            <li>Whisper automatski prepoznaje hrvatski jezik</li>
-            <li>Radi i s video datotekama (MP4, WEBM)</li>
-        </ul>
-        <div style="margin-top: 0.75rem; padding: 0.5rem; background: var(--gray-100); border-radius: 4px; font-size: 0.85rem;">
-            <strong>FFmpeg status:</strong>
-            <?php if (ffmpegAvailable()): ?>
-            <span style="color: #16a34a;">Dostupan</span>
-            <?php else: ?>
-            <span style="color: #dc2626;">Nije dostupan</span> - datoteke moraju biti manje od 24MB
-            <?php endif; ?>
+        <p style="margin-bottom: 0.75rem; color: var(--gray-600);">Datoteka mora biti manja od 24MB. Za kompresiju koristi:</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <a href="https://www.freeconvert.com/audio-compressor" target="_blank" class="btn btn-outline">
+                FreeConvert
+            </a>
+            <a href="https://online-audio-converter.com/" target="_blank" class="btn btn-outline">
+                Online Audio Converter
+            </a>
+            <a href="https://mp3smaller.com/" target="_blank" class="btn btn-outline">
+                MP3 Smaller
+            </a>
         </div>
+        <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--gray-500);">Preporučeno: MP3 format, 64-96 kbps, mono</p>
     </div>
 </div>
 
