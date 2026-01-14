@@ -58,6 +58,28 @@ foreach ($events as $event) {
     $eventsByDate[$date][] = $event;
 }
 
+// Dohvati dežurstva za mjesec (za mobilni prikaz)
+$stmtShifts = $db->prepare("
+    SELECT s.*, u.full_name
+    FROM shifts s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.shift_date BETWEEN ? AND ?
+    ORDER BY s.shift_date, s.shift_type
+");
+$stmtShifts->execute([$monthStart, $monthEnd]);
+$shiftsAll = $stmtShifts->fetchAll();
+
+// Grupiraj dežurstva po datumu
+$shiftsByDate = [];
+foreach ($shiftsAll as $shift) {
+    $date = $shift['shift_date'];
+    if (!isset($shiftsByDate[$date])) {
+        $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
+    }
+    $firstName = explode(' ', $shift['full_name'])[0];
+    $shiftsByDate[$date][$shift['shift_type']] = $firstName;
+}
+
 // Kalendar podaci
 $firstDayOfMonth = date('N', strtotime($monthStart)); // 1=Pon, 7=Ned
 $daysInMonth = date('t', strtotime($monthStart));
@@ -141,15 +163,23 @@ include 'includes/header.php';
         </div>
     </div>
     <?php else: ?>
-    <?php 
+    <?php
     $currentDate = '';
-    foreach ($events as $evt): 
+    foreach ($events as $evt):
         $evtDate = $evt['event_date'];
         if ($evtDate !== $currentDate):
             $currentDate = $evtDate;
+            $dayShifts = $shiftsByDate[$evtDate] ?? null;
     ?>
-    <div style="font-weight: 600; color: var(--gray-600); padding: 0.5rem 0; border-bottom: 2px solid var(--primary); margin-top: 0.5rem;">
-        <?= date('l, j.n.', strtotime($evtDate)) ?>
+    <div class="mobile-day-header">
+        <span class="mobile-day-date"><?= date('l, j.n.', strtotime($evtDate)) ?></span>
+        <?php if ($dayShifts && ($dayShifts['morning'] || $dayShifts['afternoon'] || $dayShifts['full'])): ?>
+        <span class="mobile-shifts">
+            <?php if ($dayShifts['morning']): ?>J-<?= e($dayShifts['morning']) ?> <?php endif; ?>
+            <?php if ($dayShifts['afternoon']): ?>P-<?= e($dayShifts['afternoon']) ?> <?php endif; ?>
+            <?php if ($dayShifts['full']): ?>C-<?= e($dayShifts['full']) ?><?php endif; ?>
+        </span>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
     
@@ -401,6 +431,26 @@ include 'includes/header.php';
     min-width: 900px;
 }
 
+.mobile-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 2px solid var(--primary);
+    margin-top: 0.5rem;
+    gap: 0.5rem;
+}
+.mobile-day-date {
+    font-weight: 600;
+    color: var(--gray-600);
+}
+.mobile-shifts {
+    font-size: 0.7rem;
+    color: var(--gray-500);
+    background: rgba(32, 201, 151, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
 .mobile-event-card {
     background: var(--white);
     border-radius: var(--radius);
