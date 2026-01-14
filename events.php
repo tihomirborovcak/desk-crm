@@ -154,34 +154,33 @@ include 'includes/header.php';
     <?php endif; ?>
     
     <div class="mobile-event-card type-<?= $evt['event_type'] ?> <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?>">
-        <div class="mobile-event-title">
-            <?php if (!empty($evt['skip_coverage'])): ?>
-            <span class="badge badge-secondary">NE IDEMO</span>
-            <?php elseif ($evt['importance'] === 'must_cover'): ?>
-            <span class="badge badge-danger">OBAVEZNO</span>
-            <?php elseif ($evt['importance'] === 'important'): ?>
-            <span class="badge badge-warning">VAŽNO</span>
+        <div class="mobile-event-header">
+            <div class="mobile-event-title">
+                <?php if (!empty($evt['skip_coverage'])): ?>
+                <span class="badge badge-secondary">NE IDEMO</span>
+                <?php elseif ($evt['importance'] === 'must_cover'): ?>
+                <span class="badge badge-danger">OBAVEZNO</span>
+                <?php elseif ($evt['importance'] === 'important'): ?>
+                <span class="badge badge-warning">VAŽNO</span>
+                <?php endif; ?>
+                <a href="event-edit.php?id=<?= $evt['id'] ?>"><?= e($evt['title']) ?></a>
+            </div>
+            <?php if ($isEditorRole): ?>
+            <a href="event-edit.php?id=<?= $evt['id'] ?>&delete=1" class="btn-delete-evt" data-confirm="Obrisati događaj?" title="Obriši">×</a>
             <?php endif; ?>
-            <a href="event-edit.php?id=<?= $evt['id'] ?>"><?= e($evt['title']) ?></a>
         </div>
-        
+
         <div class="mobile-event-meta">
             <?php if ($evt['event_time']): ?>
-            <div>🕐 <?= date('H:i', strtotime($evt['event_time'])) ?><?= $evt['end_time'] ? ' - ' . date('H:i', strtotime($evt['end_time'])) : '' ?></div>
+            <span>🕐 <?= date('H:i', strtotime($evt['event_time'])) ?><?= $evt['end_time'] ? '-' . date('H:i', strtotime($evt['end_time'])) : '' ?></span>
             <?php endif; ?>
-            
             <?php if ($evt['location']): ?>
-            <div>📍 <?= e($evt['location']) ?></div>
+            <span>📍 <?= e(truncate($evt['location'], 20)) ?></span>
             <?php endif; ?>
-            
             <?php if ($evt['assigned_people'] && empty($evt['skip_coverage'])): ?>
-            <div>👥 <?= e($evt['assigned_people']) ?></div>
+            <span>👥 <?= e($evt['assigned_people']) ?></span>
             <?php elseif (empty($evt['skip_coverage']) && !$evt['assigned_count']): ?>
-            <div class="text-danger">⚠️ Nitko nije dodijeljen!</div>
-            <?php endif; ?>
-            
-            <?php if ($evt['notes']): ?>
-            <div>📝 <?= e(truncate($evt['notes'], 60)) ?></div>
+            <span class="text-danger">⚠️ Nitko</span>
             <?php endif; ?>
         </div>
     </div>
@@ -253,25 +252,12 @@ include 'includes/header.php';
             <?php if (!empty($regularEvents)): ?>
             <div class="calendar-events">
                 <?php foreach ($regularEvents as $evt): ?>
-                <a href="event-edit.php?id=<?= $evt['id'] ?>" 
-                   class="calendar-event <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> type-<?= $evt['event_type'] ?>">
-                    <div class="event-title">
-                        <?php if ($evt['event_time']): ?>
-                        <span class="event-time"><?= date('H:i', strtotime($evt['event_time'])) ?></span>
-                        <?php endif; ?>
-                        <?= e($evt['title']) ?>
-                        <?php if (!empty($evt['skip_coverage'])): ?>
-                        <span class="skip-badge">✗</span>
-                        <?php elseif (!$evt['assigned_count']): ?>
-                        <span class="warn-badge">!</span>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ($evt['assigned_people'] && empty($evt['skip_coverage'])): ?>
-                    <div class="event-people">👥 <?= e($evt['assigned_people']) ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($evt['notes'])): ?>
-                    <div class="event-notes">📝 <?= e(truncate($evt['notes'], 50)) ?></div>
-                    <?php endif; ?>
+                <a href="event-edit.php?id=<?= $evt['id'] ?>"
+                   class="calendar-event <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> type-<?= $evt['event_type'] ?>" title="<?= e($evt['assigned_people'] ?: 'Nitko dodijeljen') ?>">
+                    <?php if ($evt['event_time']): ?><span class="evt-time"><?= date('H:i', strtotime($evt['event_time'])) ?></span><?php endif; ?>
+                    <span class="evt-name"><?= e(truncate($evt['title'], 25)) ?></span>
+                    <?php if (!empty($evt['skip_coverage'])): ?><span class="evt-badge skip">✗</span>
+                    <?php elseif (!$evt['assigned_count']): ?><span class="evt-badge warn">!</span><?php endif; ?>
                 </a>
                 <?php endforeach; ?>
             </div>
@@ -403,9 +389,26 @@ include 'includes/header.php';
 .mobile-event-card {
     background: var(--white);
     border-radius: var(--radius);
-    padding: 0.75rem;
+    padding: 0.5rem 0.75rem;
     box-shadow: var(--shadow);
     border-left: 4px solid var(--gray-400);
+}
+.mobile-event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+.btn-delete-evt {
+    color: #dc3545;
+    font-size: 1.2rem;
+    font-weight: bold;
+    line-height: 1;
+    padding: 0 0.25rem;
+    text-decoration: none;
+}
+.btn-delete-evt:hover {
+    color: #a71d2a;
 }
 .mobile-event-card.type-press { border-left-color: #dc3545; }
 .mobile-event-card.type-sport { border-left-color: #28a745; }
@@ -431,10 +434,11 @@ include 'includes/header.php';
     color: var(--dark);
 }
 .mobile-event-meta {
-    font-size: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.75rem;
     color: var(--gray-600);
-}
-.mobile-event-meta > div {
     margin-top: 0.25rem;
 }
 .calendar-header {
@@ -500,45 +504,45 @@ include 'includes/header.php';
 .calendar-events {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
 .calendar-event {
-    display: block;
-    padding: 4px 6px;
-    font-size: 0.75rem;
-    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 4px;
+    font-size: 0.65rem;
+    border-radius: 3px;
     text-decoration: none;
-    position: relative;
-    border-left: 3px solid;
+    border-left: 2px solid;
+    white-space: nowrap;
+    overflow: hidden;
 }
 .calendar-event:hover {
-    opacity: 0.9;
+    opacity: 0.85;
     text-decoration: none;
 }
 .calendar-event.skipped {
     opacity: 0.5;
 }
-.calendar-event.skipped .event-title {
+.calendar-event.skipped .evt-name {
     text-decoration: line-through;
 }
-.event-title {
+.evt-time {
     font-weight: 600;
-    line-height: 1.2;
+    flex-shrink: 0;
 }
-.event-time {
-    margin-right: 4px;
+.evt-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.event-people {
-    font-size: 0.7rem;
-    opacity: 0.9;
-    margin-top: 2px;
+.evt-badge {
+    flex-shrink: 0;
+    font-weight: bold;
+    font-size: 0.6rem;
 }
-.event-notes {
-    font-size: 0.65rem;
-    opacity: 0.85;
-    font-style: italic;
-    margin-top: 1px;
-}
+.evt-badge.warn { color: #ffc107; }
+.evt-badge.skip { opacity: 0.7; }
 .type-press { background: rgba(220, 53, 69, 0.1); color: #a71d2a; border-left-color: #dc3545; }
 .type-sport { background: rgba(40, 167, 69, 0.1); color: #1e7e34; border-left-color: #28a745; }
 .type-kultura { background: rgba(111, 66, 193, 0.1); color: #5a32a3; border-left-color: #6f42c1; }
