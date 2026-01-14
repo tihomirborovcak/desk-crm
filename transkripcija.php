@@ -15,6 +15,9 @@ if (file_exists(__DIR__ . '/config.local.php')) {
 
 requireLogin();
 
+// Produlji vrijeme izvršavanja za duže transkripcije
+set_time_limit(300);
+
 $transcription = null;
 $correctedText = null;
 $error = null;
