@@ -169,15 +169,17 @@ include 'includes/header.php';
         <?php endif; ?>
         
         <div class="mobile-card-meta">
-            <?php if ($task['assigned_name']): ?>
             <span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                     <circle cx="12" cy="7" r="4"/>
                 </svg>
+                <?php if ($task['assigned_name']): ?>
                 <?= e($task['assigned_name']) ?>
+                <?php else: ?>
+                <span class="badge badge-info">Svi</span>
+                <?php endif; ?>
             </span>
-            <?php endif; ?>
             <?php if ($task['due_date']): ?>
             <span class="<?= strtotime($task['due_date']) < time() && $task['status'] !== 'done' ? 'text-danger' : '' ?>">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
