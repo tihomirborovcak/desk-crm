@@ -108,10 +108,21 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     </svg>
                     Fotografije
                 </a>
-                
-                <?php if (isAdmin()): ?>
+
+                <?php if (isEditor()): ?>
                 <div class="nav-divider"></div>
-                
+
+                <a href="statistike.php" class="nav-item <?= $currentPage === 'statistike' ? 'active' : '' ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                    Statistike
+                </a>
+                <?php endif; ?>
+
+                <?php if (isAdmin()): ?>
                 <a href="users.php" class="nav-item <?= $currentPage === 'users' ? 'active' : '' ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
