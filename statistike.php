@@ -123,13 +123,13 @@ require_once 'includes/header.php';
 .view-toggle a:first-child { border-radius: 4px 0 0 4px; }
 .view-toggle a:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
 .view-toggle a.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-.user-elvis { background: #fce7f3; }
-.user-ivek { background: #dcfce7; }
-.user-jakov { background: #d7ccc8; }
-.user-marta { background: #fecaca; }
-.user-patrik { background: #fef9c3; }
-.user-rikard { background: #fed7aa; }
-.user-sabina { background: #dbeafe; }
+.user-elvis { background: #fce7f3 !important; }
+.user-ivek { background: #dcfce7 !important; }
+.user-jakov { background: #d7ccc8 !important; }
+.user-marta { background: #fecaca !important; }
+.user-patrik { background: #fef9c3 !important; }
+.user-rikard { background: #fed7aa !important; }
+.user-sabina { background: #dbeafe !important; }
 </style>
 
 <div class="page-header" style="margin-bottom: 0.5rem;">
