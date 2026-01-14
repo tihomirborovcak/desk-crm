@@ -178,7 +178,10 @@ $stmt = $db->prepare("
 $stmt->execute([$userId]);
 $myEvents = $stmt->fetchAll();
 
-// Danas na dežurstvu (iz events tablice)
+// Danas na dežurstvu - iz OBJE tablice (events i shifts)
+$todayShifts = [];
+
+// 1. Iz events tablice (event_type='dezurstvo')
 $stmt = $db->query("
     SELECT e.*, GROUP_CONCAT(u.full_name SEPARATOR ', ') as assigned_people
     FROM events e
@@ -189,6 +192,27 @@ $stmt = $db->query("
     ORDER BY e.event_time
 ");
 $todayShifts = $stmt->fetchAll();
+
+// 2. Iz shifts tablice (ako postoji)
+try {
+    $stmtOldShifts = $db->query("
+        SELECT s.*, u.full_name
+        FROM shifts s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.shift_date = CURDATE()
+        ORDER BY s.shift_type
+    ");
+    $oldShifts = $stmtOldShifts->fetchAll();
+    foreach ($oldShifts as $os) {
+        $todayShifts[] = [
+            'title' => ($os['shift_type'] === 'morning' ? '☀️ Jutarnja' : ($os['shift_type'] === 'afternoon' ? '🌤️ Popodnevna' : '🌙 Večernja')) . ' - ' . $os['full_name'],
+            'assigned_people' => $os['full_name'],
+            'shift_type_old' => $os['shift_type']
+        ];
+    }
+} catch (Exception $e) {
+    // Shifts tablica možda ne postoji - ignoriraj
+}
 
 // Statistike
 $stmt = $db->prepare("SELECT COUNT(*) FROM tasks WHERE assigned_to = ? AND status IN ('pending', 'in_progress')");
@@ -217,13 +241,19 @@ foreach ($todayShifts as $s) {
         $firstName = explode(' ', end($parts))[0];
     }
 
-    // Odredi tip smjene iz naslova
+    // Odredi tip smjene - prvo iz shift_type_old (stara tablica), pa iz naslova
     $shiftType = '';
-    if (stripos($title, 'jutarn') !== false) $shiftType = 'morning';
-    elseif (stripos($title, 'popodnevn') !== false) $shiftType = 'afternoon';
-    elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) $shiftType = 'full';
+    if (!empty($s['shift_type_old'])) {
+        $shiftType = $s['shift_type_old'];
+    } elseif (stripos($title, 'jutarn') !== false) {
+        $shiftType = 'morning';
+    } elseif (stripos($title, 'popodnevn') !== false) {
+        $shiftType = 'afternoon';
+    } elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false || stripos($title, 'cijeli') !== false) {
+        $shiftType = 'full';
+    }
 
-    if ($shiftType && $firstName) {
+    if ($shiftType && $firstName && !$shiftsCompact[$shiftType]) {
         $shiftsCompact[$shiftType] = $firstName;
     }
 }
@@ -237,25 +267,6 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
 <?php endif; ?>
 </p>
 
-<!-- Statistike -->
-<div class="stats-grid">
-    <div class="stat-card primary">
-        <div class="stat-value"><?= $taskCount ?></div>
-        <div class="stat-label">Aktivnih taskova</div>
-    </div>
-    <div class="stat-card success">
-        <div class="stat-value"><?= $eventCount ?></div>
-        <div class="stat-label">Mojih evenata</div>
-    </div>
-    <div class="stat-card warning">
-        <div class="stat-value"><?= count($todayShifts) ?></div>
-        <div class="stat-label">Danas dežura</div>
-    </div>
-    <div class="stat-card info">
-        <div class="stat-value"><?= count($zagorjeLatest) + count($stubicaLatest) ?></div>
-        <div class="stat-label">Novih vijesti</div>
-    </div>
-</div>
 
 <!-- Brze akcije -->
 <div class="card">
@@ -292,23 +303,6 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     </div>
 </div>
 
-<!-- Danas na dežurstvu -->
-<?php if (!empty($todayShifts)): ?>
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title">🟢 Danas na dežurstvu</h2>
-    </div>
-    <div class="card-body">
-        <div class="d-flex flex-wrap gap-1">
-            <?php foreach ($todayShifts as $shift): ?>
-            <span class="badge badge-<?= $shift['shift_type'] === 'morning' ? 'warning' : ($shift['shift_type'] === 'afternoon' ? 'info' : 'success') ?>">
-                <?= e($shift['full_name']) ?> - <?= translateShift($shift['shift_type']) ?>
-            </span>
-            <?php endforeach; ?>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
 
 <div class="row-2-col">
     <!-- Moji taskovi -->
@@ -573,11 +567,12 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     font-weight: 600;
 }
 .today-shifts {
-    font-size: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
     color: #0ca678;
     background: rgba(32, 201, 151, 0.15);
-    padding: 1px 5px;
-    border-radius: 3px;
+    padding: 3px 10px;
+    border-radius: 4px;
     margin-left: 0.5rem;
     white-space: nowrap;
 }
