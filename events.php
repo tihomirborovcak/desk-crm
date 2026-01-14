@@ -357,18 +357,28 @@ include 'includes/header.php';
 
 <style>
 /* Desktop kalendar - sakrij na mobitelu */
+/* Mobilna lista - samo na mobitelu */
+.mobile-events-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Desktop kalendar */
 .calendar-wrapper {
     overflow-x: auto;
     display: none;
 }
+
 @media (min-width: 768px) {
     .calendar-wrapper {
         display: block;
     }
     .mobile-events-list {
-        display: none;
+        display: none !important;
     }
 }
+
 .calendar {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -380,12 +390,6 @@ include 'includes/header.php';
     min-width: 900px;
 }
 
-/* Mobilna lista */
-.mobile-events-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
 .mobile-event-card {
     background: var(--white);
     border-radius: var(--radius);
