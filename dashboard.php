@@ -589,75 +589,6 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     </div>
 </div>
 
-<!-- TRENDING VIJESTI (Feedly) -->
-<h2 class="section-title">🔥 Trending (najpopularnije)</h2>
-<div class="row-2-col">
-    <!-- Zagorje International - trending -->
-    <div class="card">
-        <div class="card-header" style="background: #c0392b; color: white;">
-            <h2 class="card-title" style="color: white;">🌍 Zagorje International</h2>
-        </div>
-        <div class="card-body" style="padding: 0;">
-            <?php if (empty($zagorjeTrendingItems)): ?>
-            <p class="text-muted text-center" style="padding: 1rem;">Nema trending vijesti</p>
-            <?php else: ?>
-            <div class="list-items">
-                <?php foreach ($zagorjeTrendingItems as $item): 
-                    $link = $item['alternate'][0]['href'] ?? $item['originId'] ?? '#';
-                    $title = $item['title'] ?? 'Bez naslova';
-                    $published = $item['published'] ?? 0;
-                    $engagement = $item['engagement'] ?? 0;
-                ?>
-                <a href="<?= e($link) ?>" target="_blank" class="list-item">
-                    <div class="list-item-content">
-                        <div class="list-item-title"><?= e($title) ?></div>
-                        <div class="list-item-meta">
-                            <span><?= $published ? timeAgo(date('Y-m-d H:i:s', $published/1000)) : '' ?></span>
-                            <?php if ($engagement > 0): ?>
-                            <span class="engagement-badge">🔥 <?= $engagement >= 1000 ? round($engagement/1000, 1).'K' : $engagement ?></span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </a>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- Radio Stubica - trending -->
-    <div class="card">
-        <div class="card-header" style="background: #e67e22; color: white;">
-            <h2 class="card-title" style="color: white;">📻 Radio Stubica</h2>
-        </div>
-        <div class="card-body" style="padding: 0;">
-            <?php if (empty($stubicaTrendingItems)): ?>
-            <p class="text-muted text-center" style="padding: 1rem;">Nema trending vijesti</p>
-            <?php else: ?>
-            <div class="list-items">
-                <?php foreach ($stubicaTrendingItems as $item): 
-                    $link = $item['alternate'][0]['href'] ?? $item['originId'] ?? '#';
-                    $title = $item['title'] ?? 'Bez naslova';
-                    $published = $item['published'] ?? 0;
-                    $engagement = $item['engagement'] ?? 0;
-                ?>
-                <a href="<?= e($link) ?>" target="_blank" class="list-item">
-                    <div class="list-item-content">
-                        <div class="list-item-title"><?= e($title) ?></div>
-                        <div class="list-item-meta">
-                            <span><?= $published ? timeAgo(date('Y-m-d H:i:s', $published/1000)) : '' ?></span>
-                            <?php if ($engagement > 0): ?>
-                            <span class="engagement-badge">🔥 <?= $engagement >= 1000 ? round($engagement/1000, 1).'K' : $engagement ?></span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </a>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
 
 <style>
 .section-title {
@@ -740,6 +671,18 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     }
     .section-title {
         font-size: 0.95rem;
+    }
+    .upcoming-day-header {
+        padding: 0.35rem 0.5rem;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    .upcoming-day-name {
+        font-size: 0.8rem;
+    }
+    .upcoming-shifts {
+        font-size: 0.7rem;
+        padding: 1px 5px;
     }
 }
 .list-items {
