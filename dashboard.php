@@ -624,8 +624,8 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
 }
 .upcoming-day-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: var(--gray-100);
     border-bottom: 1px solid var(--gray-200);
