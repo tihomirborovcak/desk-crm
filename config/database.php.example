@@ -1,0 +1,48 @@
+<?php
+/**
+ * Konfiguracija baze podataka
+ * Kopiraj ovu datoteku kao database.php i prilagodi postavke
+ */
+
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'portal_cms');
+define('DB_USER', 'your_username');
+define('DB_PASS', 'your_password');
+define('DB_CHARSET', 'utf8mb4');
+
+// Putanja do uploada
+define('UPLOAD_PATH', __DIR__ . '/../uploads/');
+define('UPLOAD_URL', 'uploads/');
+
+// Maksimalna veličina uploada (5MB)
+define('MAX_UPLOAD_SIZE', 5 * 1024 * 1024);
+
+// Dozvoljene ekstenzije za slike
+define('ALLOWED_EXTENSIONS', ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+
+// Timeout sesije (2 sata)
+define('SESSION_TIMEOUT', 7200);
+
+// Timezone
+date_default_timezone_set('Europe/Zagreb');
+
+// PDO konekcija
+function getDB() {
+    static $pdo = null;
+
+    if ($pdo === null) {
+        try {
+            $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+        } catch (PDOException $e) {
+            die('Greška spajanja na bazu: ' . $e->getMessage());
+        }
+    }
+
+    return $pdo;
+}
