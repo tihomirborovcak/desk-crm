@@ -189,7 +189,9 @@ include 'includes/header.php';
         <?php endif; ?>
     </div>
     <?php endif; ?>
-    
+
+    <?php if ($evt['event_type'] === 'dezurstvo') continue; // Dežurstva su prikazana kompaktno u headeru ?>
+
     <div class="mobile-event-card type-<?= $evt['event_type'] ?> <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?>">
         <div class="mobile-event-header">
             <div class="mobile-event-title">
