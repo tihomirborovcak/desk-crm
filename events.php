@@ -251,11 +251,22 @@ include 'includes/header.php';
             
             <?php if (!empty($regularEvents)): ?>
             <div class="calendar-events">
-                <?php foreach ($regularEvents as $evt): ?>
+                <?php foreach ($regularEvents as $evt):
+                    // Izvuci samo prva imena
+                    $firstNames = '';
+                    if ($evt['assigned_people']) {
+                        $names = explode(', ', $evt['assigned_people']);
+                        $firstOnly = array_map(function($n) {
+                            return explode(' ', trim($n))[0];
+                        }, $names);
+                        $firstNames = implode(', ', $firstOnly);
+                    }
+                ?>
                 <a href="event-edit.php?id=<?= $evt['id'] ?>"
                    class="calendar-event <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> type-<?= $evt['event_type'] ?>" title="<?= e($evt['assigned_people'] ?: 'Nitko dodijeljen') ?>">
                     <?php if ($evt['event_time']): ?><span class="evt-time"><?= date('H:i', strtotime($evt['event_time'])) ?></span><?php endif; ?>
-                    <span class="evt-name"><?= e(truncate($evt['title'], 25)) ?></span>
+                    <span class="evt-name"><?= e(truncate($evt['title'], 20)) ?></span>
+                    <?php if ($firstNames && empty($evt['skip_coverage'])): ?><span class="evt-person"><?= e($firstNames) ?></span><?php endif; ?>
                     <?php if (!empty($evt['skip_coverage'])): ?><span class="evt-badge skip">✗</span>
                     <?php elseif (!$evt['assigned_count']): ?><span class="evt-badge warn">!</span><?php endif; ?>
                 </a>
@@ -539,6 +550,11 @@ include 'includes/header.php';
 .evt-name {
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.evt-person {
+    font-size: 0.6rem;
+    opacity: 0.8;
+    font-weight: 400;
 }
 .evt-badge {
     flex-shrink: 0;
