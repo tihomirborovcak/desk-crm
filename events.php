@@ -127,6 +127,19 @@ $today = date('Y-m-d');
 // Hrvatski dani
 $daysHr = ['Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub', 'Ned'];
 
+// Boje po osobama
+function getUserColorClass($name) {
+    $name = mb_strtolower($name);
+    if (strpos($name, 'elvis') !== false) return 'user-elvis';
+    if (strpos($name, 'ivek') !== false || strpos($name, 'ivan') !== false) return 'user-ivek';
+    if (strpos($name, 'jakov') !== false) return 'user-jakov';
+    if (strpos($name, 'marta') !== false) return 'user-marta';
+    if (strpos($name, 'patrik') !== false) return 'user-patrik';
+    if (strpos($name, 'rikard') !== false) return 'user-rikard';
+    if (strpos($name, 'sabina') !== false) return 'user-sabina';
+    return '';
+}
+
 include 'includes/header.php';
 ?>
 
@@ -224,7 +237,7 @@ include 'includes/header.php';
 
     <?php if ($evt['event_type'] === 'dezurstvo') continue; // Dežurstva su prikazana kompaktno u headeru ?>
 
-    <div class="mobile-event-card type-<?= $evt['event_type'] ?> <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?>">
+    <div class="mobile-event-card type-<?= $evt['event_type'] ?> <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> <?= getUserColorClass($evt['assigned_people'] ?? '') ?>">
         <div class="mobile-event-header">
             <div class="mobile-event-title">
                 <?php if (!empty($evt['skip_coverage'])): ?>
@@ -334,7 +347,7 @@ include 'includes/header.php';
                     }
                 ?>
                 <a href="event-edit.php?id=<?= $evt['id'] ?>"
-                   class="calendar-event <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> type-<?= $evt['event_type'] ?>" title="<?= e($evt['assigned_people'] ?: 'Nitko dodijeljen') ?>">
+                   class="calendar-event <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> type-<?= $evt['event_type'] ?> <?= getUserColorClass($evt['assigned_people'] ?? '') ?>" title="<?= e($evt['assigned_people'] ?: 'Nitko dodijeljen') ?>">
                     <?php if ($evt['event_time']): ?><span class="evt-time"><?= date('H:i', strtotime($evt['event_time'])) ?></span><?php endif; ?>
                     <span class="evt-name"><?= e(truncate($evt['title'], 20)) ?></span>
                     <?php if ($firstNames && empty($evt['skip_coverage'])): ?><span class="evt-person"><?= e($firstNames) ?></span><?php endif; ?>
@@ -416,7 +429,7 @@ $daysHrFull = [
             <?php endif; ?>
         </div>
         <?php foreach ($regularEvents as $evt): ?>
-        <a href="event-edit.php?id=<?= $evt['id'] ?>" class="all-events-item <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?>">
+        <a href="event-edit.php?id=<?= $evt['id'] ?>" class="all-events-item <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> <?= getUserColorClass($evt['assigned_people'] ?? '') ?>">
             <div class="all-events-item-content">
                 <div class="all-events-item-title">
                     <?php if ($evt['importance'] === 'must_cover'): ?>
@@ -771,6 +784,14 @@ $daysHrFull = [
     font-size: 0.8rem;
     color: var(--gray-600);
 }
+/* Boje po osobama */
+.user-elvis { background: #fce7f3 !important; }
+.user-ivek { background: #dcfce7 !important; }
+.user-jakov { background: #d7ccc8 !important; }
+.user-marta { background: #fecaca !important; }
+.user-patrik { background: #fef9c3 !important; }
+.user-rikard { background: #fed7aa !important; }
+.user-sabina { background: #dbeafe !important; }
 </style>
 
 <?php include 'includes/footer.php'; ?>
