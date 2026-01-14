@@ -75,69 +75,6 @@ $zagorjeLatest = parseRSS($zagorjeRSS, 8);
 $stubicaRSS = fetchRSS('https://radio-stubica.hr/feed/');
 $stubicaLatest = parseRSS($stubicaRSS, 8);
 
-// ============================================
-// FEEDLY API - trending po engagementu
-// ============================================
-define('FEEDLY_TOKEN', 'REDACTED_FEEDLY_TOKEN');
-define('FEEDLY_USER_ID', '6e135c2a-75fe-4109-8be8-6b52fa6866e6');
-define('FEEDLY_API_URL', 'https://cloud.feedly.com/v3');
-
-function feedlyRequest($endpoint, $params = []) {
-    $url = FEEDLY_API_URL . $endpoint;
-    if (!empty($params)) {
-        $url .= '?' . http_build_query($params);
-    }
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . FEEDLY_TOKEN,
-            'Content-Type: application/json'
-        ],
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_SSL_VERIFYPEER => false
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($httpCode !== 200) return ['error' => "HTTP $httpCode"];
-    return json_decode($response, true);
-}
-
-function getFeedlyArticles($streamId, $count = 20) {
-    $params = [
-        'streamId' => $streamId,
-        'count' => $count,
-        'ranked' => 'engagement'
-    ];
-    return feedlyRequest('/streams/contents', $params);
-}
-
-// Filtriraj samo članke s engagementom i sortiraj
-function filterTrending($items, $limit = 5) {
-    // Filtriraj samo one s engagement > 0
-    $trending = array_filter($items, function($item) {
-        return isset($item['engagement']) && $item['engagement'] > 0;
-    });
-    // Sortiraj po engagementu (najviši prvi)
-    usort($trending, function($a, $b) {
-        return ($b['engagement'] ?? 0) - ($a['engagement'] ?? 0);
-    });
-    // Vrati prvih N
-    return array_slice($trending, 0, $limit);
-}
-
-// Dohvati trending iz Feedlyja
-$zagorjeStream = 'feed/https://www.zagorje-international.hr/index.php/feed/';
-$stubicaStream = 'feed/https://radio-stubica.hr/feed/';
-
-$zagorjeTrending = getFeedlyArticles($zagorjeStream, 20);
-$zagorjeTrendingItems = filterTrending($zagorjeTrending['items'] ?? [], 5);
-
-$stubicaTrending = getFeedlyArticles($stubicaStream, 20);
-$stubicaTrendingItems = filterTrending($stubicaTrending['items'] ?? [], 5);
-
 // Taskovi za sve (assigned_to IS NULL)
 $stmt = $db->query("
     SELECT t.*, u.full_name as creator_name

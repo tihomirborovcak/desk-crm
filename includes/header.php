@@ -89,7 +89,7 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     </svg>
                     Teme ZL
                 </a>
-                
+
                 <a href="events.php" class="nav-item <?= $currentPage === 'events' || $currentPage === 'event-edit' ? 'active' : '' ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
