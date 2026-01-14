@@ -1,0 +1,32 @@
+# Uploads (user generated content)
+uploads/*
+!uploads/.gitkeep
+
+# IDE and tools
+.claude/
+.idea/
+.vscode/
+*.sublime-*
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Config with sensitive data
+config/database.php
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
