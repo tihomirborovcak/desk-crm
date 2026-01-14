@@ -110,6 +110,10 @@ function openModal(modalId) {
 }
 
 function closeModal(modal) {
+    // Ako je string (ID), dohvati element
+    if (typeof modal === 'string') {
+        modal = document.getElementById(modal);
+    }
     if (modal) {
         modal.classList.remove('active');
         document.body.style.overflow = '';
