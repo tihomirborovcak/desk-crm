@@ -138,13 +138,26 @@ $zagorjeTrendingItems = filterTrending($zagorjeTrending['items'] ?? [], 5);
 $stubicaTrending = getFeedlyArticles($stubicaStream, 20);
 $stubicaTrendingItems = filterTrending($stubicaTrending['items'] ?? [], 5);
 
+// Taskovi za sve (assigned_to IS NULL)
+$stmt = $db->query("
+    SELECT t.*, u.full_name as creator_name
+    FROM tasks t
+    LEFT JOIN users u ON t.created_by = u.id
+    WHERE t.assigned_to IS NULL AND t.status IN ('pending', 'in_progress')
+    ORDER BY
+        CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+        t.due_date ASC
+    LIMIT 5
+");
+$tasksForAll = $stmt->fetchAll();
+
 // Moji taskovi (pending i in_progress)
 $stmt = $db->prepare("
-    SELECT t.*, u.full_name as creator_name 
-    FROM tasks t 
+    SELECT t.*, u.full_name as creator_name
+    FROM tasks t
     LEFT JOIN users u ON t.created_by = u.id
     WHERE t.assigned_to = ? AND t.status IN ('pending', 'in_progress')
-    ORDER BY 
+    ORDER BY
         CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
         t.due_date ASC
     LIMIT 5
@@ -303,6 +316,44 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     </div>
 </div>
 
+
+<!-- Taskovi za sve -->
+<?php if (!empty($tasksForAll)): ?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📢 Taskovi za sve</h2>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="list-items">
+            <?php foreach ($tasksForAll as $task): ?>
+            <a href="task-edit.php?id=<?= $task['id'] ?>" class="list-item">
+                <div class="list-item-content">
+                    <div class="list-item-title">
+                        <?php if ($task['priority'] === 'urgent'): ?>
+                        <span class="badge badge-danger">!</span>
+                        <?php elseif ($task['priority'] === 'high'): ?>
+                        <span class="badge badge-warning">!</span>
+                        <?php endif; ?>
+                        <?= e($task['title']) ?>
+                    </div>
+                    <div class="list-item-meta">
+                        <span class="badge badge-<?= taskStatusColor($task['status']) ?>">
+                            <?= translateTaskStatus($task['status']) ?>
+                        </span>
+                        <?php if ($task['due_date']): ?>
+                        <span><?= formatDate($task['due_date'], 'j.n.') ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="row-2-col">
     <!-- Moji taskovi -->
