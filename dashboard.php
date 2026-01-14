@@ -14,7 +14,7 @@ $db = getDB();
 $userId = $_SESSION['user_id'];
 
 // ============================================
-// 1. OBIČNI RSS - zadnje vijesti iz baze
+// RSS - zadnje vijesti
 // ============================================
 function fetchRSS($url) {
     $ch = curl_init();
@@ -32,10 +32,10 @@ function fetchRSS($url) {
 function parseRSS($xml, $limit = 5) {
     $items = [];
     if (!$xml) return $items;
-    
+
     $feed = @simplexml_load_string($xml);
     if (!$feed) return $items;
-    
+
     $count = 0;
     foreach ($feed->channel->item as $item) {
         if ($count >= $limit) break;
@@ -50,7 +50,7 @@ function parseRSS($xml, $limit = 5) {
     return $items;
 }
 
-// Dohvati zadnje vijesti iz RSS-a
+// Dohvati zadnje vijesti iz RSS-a (5 od svakog = 10 ukupno)
 $zagorjeRSS = fetchRSS('https://www.zagorje-international.hr/index.php/feed/');
 $zagorjeLatest = parseRSS($zagorjeRSS, 5);
 
@@ -58,7 +58,7 @@ $stubicaRSS = fetchRSS('https://radio-stubica.hr/feed/');
 $stubicaLatest = parseRSS($stubicaRSS, 5);
 
 // ============================================
-// 2. FEEDLY API - trending po engagementu
+// FEEDLY API - trending po engagementu
 // ============================================
 define('FEEDLY_TOKEN', 'REDACTED_FEEDLY_TOKEN');
 define('FEEDLY_USER_ID', '6e135c2a-75fe-4109-8be8-6b52fa6866e6');
@@ -87,7 +87,7 @@ function feedlyRequest($endpoint, $params = []) {
     return json_decode($response, true);
 }
 
-function getFeedlyArticles($streamId, $count = 5) {
+function getFeedlyArticles($streamId, $count = 20) {
     $params = [
         'streamId' => $streamId,
         'count' => $count,
@@ -96,15 +96,29 @@ function getFeedlyArticles($streamId, $count = 5) {
     return feedlyRequest('/streams/contents', $params);
 }
 
+// Filtriraj samo članke s engagementom i sortiraj
+function filterTrending($items, $limit = 5) {
+    // Filtriraj samo one s engagement > 0
+    $trending = array_filter($items, function($item) {
+        return isset($item['engagement']) && $item['engagement'] > 0;
+    });
+    // Sortiraj po engagementu (najviši prvi)
+    usort($trending, function($a, $b) {
+        return ($b['engagement'] ?? 0) - ($a['engagement'] ?? 0);
+    });
+    // Vrati prvih N
+    return array_slice($trending, 0, $limit);
+}
+
 // Dohvati trending iz Feedlyja
 $zagorjeStream = 'feed/https://www.zagorje-international.hr/index.php/feed/';
 $stubicaStream = 'feed/https://radio-stubica.hr/feed/';
 
-$zagorjeTrending = getFeedlyArticles($zagorjeStream, 5);
-$zagorjeTrendingItems = $zagorjeTrending['items'] ?? [];
+$zagorjeTrending = getFeedlyArticles($zagorjeStream, 20);
+$zagorjeTrendingItems = filterTrending($zagorjeTrending['items'] ?? [], 5);
 
-$stubicaTrending = getFeedlyArticles($stubicaStream, 5);
-$stubicaTrendingItems = $stubicaTrending['items'] ?? [];
+$stubicaTrending = getFeedlyArticles($stubicaStream, 20);
+$stubicaTrendingItems = filterTrending($stubicaTrending['items'] ?? [], 5);
 
 // Moji taskovi (pending i in_progress)
 $stmt = $db->prepare("
@@ -213,14 +227,6 @@ include 'includes/header.php';
                     <line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
                 Novi event
-            </a>
-            <a href="rss.php" class="btn btn-info">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 11a9 9 0 0 1 9 9"/>
-                    <path d="M4 4a16 16 0 0 1 16 16"/>
-                    <circle cx="5" cy="19" r="1"/>
-                </svg>
-                RSS vijesti
             </a>
             <a href="photos.php" class="btn btn-secondary">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
