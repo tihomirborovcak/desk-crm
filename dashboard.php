@@ -178,13 +178,15 @@ $stmt = $db->prepare("
 $stmt->execute([$userId]);
 $myEvents = $stmt->fetchAll();
 
-// Danas na dežurstvu
+// Danas na dežurstvu (iz events tablice)
 $stmt = $db->query("
-    SELECT s.*, u.full_name 
-    FROM shifts s 
-    JOIN users u ON s.user_id = u.id 
-    WHERE s.shift_date = CURDATE()
-    ORDER BY s.shift_type
+    SELECT e.*, GROUP_CONCAT(u.full_name SEPARATOR ', ') as assigned_people
+    FROM events e
+    LEFT JOIN event_assignments ea ON e.id = ea.event_id
+    LEFT JOIN users u ON ea.user_id = u.id
+    WHERE e.event_date = CURDATE() AND e.event_type = 'dezurstvo'
+    GROUP BY e.id
+    ORDER BY e.event_time
 ");
 $todayShifts = $stmt->fetchAll();
 
@@ -206,8 +208,24 @@ include 'includes/header.php';
 // Kompaktni prikaz današnjih dežurstava
 $shiftsCompact = ['morning' => '', 'afternoon' => '', 'full' => ''];
 foreach ($todayShifts as $s) {
-    $firstName = explode(' ', $s['full_name'])[0];
-    $shiftsCompact[$s['shift_type']] = $firstName;
+    $title = $s['title'] ?? '';
+    $firstName = '';
+    if (!empty($s['assigned_people'])) {
+        $firstName = explode(' ', $s['assigned_people'])[0];
+    } elseif (strpos($title, ' - ') !== false) {
+        $parts = explode(' - ', $title);
+        $firstName = explode(' ', end($parts))[0];
+    }
+
+    // Odredi tip smjene iz naslova
+    $shiftType = '';
+    if (stripos($title, 'jutarn') !== false) $shiftType = 'morning';
+    elseif (stripos($title, 'popodnevn') !== false) $shiftType = 'afternoon';
+    elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) $shiftType = 'full';
+
+    if ($shiftType && $firstName) {
+        $shiftsCompact[$shiftType] = $firstName;
+    }
 }
 if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['full']):
 ?>

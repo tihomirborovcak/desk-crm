@@ -58,26 +58,33 @@ foreach ($events as $event) {
     $eventsByDate[$date][] = $event;
 }
 
-// Dohvati dežurstva za mjesec (za mobilni prikaz)
-$stmtShifts = $db->prepare("
-    SELECT s.*, u.full_name
-    FROM shifts s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.shift_date BETWEEN ? AND ?
-    ORDER BY s.shift_date, s.shift_type
-");
-$stmtShifts->execute([$monthStart, $monthEnd]);
-$shiftsAll = $stmtShifts->fetchAll();
-
-// Grupiraj dežurstva po datumu
+// Grupiraj dežurstva po datumu (iz events tablice gdje je event_type='dezurstvo')
 $shiftsByDate = [];
-foreach ($shiftsAll as $shift) {
-    $date = $shift['shift_date'];
-    if (!isset($shiftsByDate[$date])) {
-        $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
+foreach ($events as $evt) {
+    if ($evt['event_type'] === 'dezurstvo') {
+        $date = $evt['event_date'];
+        if (!isset($shiftsByDate[$date])) {
+            $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
+        }
+        // Izvuci tip smjene i ime iz naslova (npr. "☀️ Jutarnja smjena - Sabina Pušec")
+        $title = $evt['title'];
+        $firstName = '';
+        if ($evt['assigned_people']) {
+            $firstName = explode(' ', $evt['assigned_people'])[0];
+        } elseif (strpos($title, ' - ') !== false) {
+            $parts = explode(' - ', $title);
+            $fullName = end($parts);
+            $firstName = explode(' ', $fullName)[0];
+        }
+
+        if (stripos($title, 'jutarn') !== false) {
+            $shiftsByDate[$date]['morning'] = $firstName;
+        } elseif (stripos($title, 'popodnevn') !== false) {
+            $shiftsByDate[$date]['afternoon'] = $firstName;
+        } elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) {
+            $shiftsByDate[$date]['full'] = $firstName;
+        }
     }
-    $firstName = explode(' ', $shift['full_name'])[0];
-    $shiftsByDate[$date][$shift['shift_type']] = $firstName;
 }
 
 // Kalendar podaci
