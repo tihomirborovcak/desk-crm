@@ -227,6 +227,19 @@ $stmt = $db->prepare("SELECT COUNT(*) FROM event_assignments ea JOIN events e ON
 $stmt->execute([$userId]);
 $eventCount = $stmt->fetchColumn();
 
+// Boje po osobama
+function getUserColorClass($name) {
+    $name = mb_strtolower($name);
+    if (strpos($name, 'elvis') !== false) return 'user-elvis';
+    if (strpos($name, 'ivek') !== false || strpos($name, 'ivan') !== false) return 'user-ivek';
+    if (strpos($name, 'jakov') !== false) return 'user-jakov';
+    if (strpos($name, 'marta') !== false) return 'user-marta';
+    if (strpos($name, 'patrik') !== false) return 'user-patrik';
+    if (strpos($name, 'rikard') !== false) return 'user-rikard';
+    if (strpos($name, 'sabina') !== false) return 'user-sabina';
+    return '';
+}
+
 include 'includes/header.php';
 ?>
 
@@ -467,7 +480,7 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
         <?php if (!empty($dayData['events'])): ?>
         <div class="list-items">
             <?php foreach ($dayData['events'] as $event): ?>
-            <a href="event-edit.php?id=<?= $event['id'] ?>" class="list-item">
+            <a href="event-edit.php?id=<?= $event['id'] ?>" class="list-item <?= getUserColorClass($event['assigned_people'] ?? '') ?>">
                 <div class="list-item-content">
                     <div class="list-item-title">
                         <?php if ($event['importance'] === 'must_cover'): ?>
@@ -761,6 +774,14 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     color: var(--gray-400);
     white-space: nowrap;
 }
+/* Boje po osobama */
+.user-elvis { background: #fce7f3 !important; }
+.user-ivek { background: #dcfce7 !important; }
+.user-jakov { background: #d7ccc8 !important; }
+.user-marta { background: #fecaca !important; }
+.user-patrik { background: #fef9c3 !important; }
+.user-rikard { background: #fed7aa !important; }
+.user-sabina { background: #dbeafe !important; }
 </style>
 
 <?php include 'includes/footer.php'; ?>
