@@ -31,3 +31,4 @@ logs/
 *.temp
 *.swp
 *~
+config.local.php

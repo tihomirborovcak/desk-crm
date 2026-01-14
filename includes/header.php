@@ -109,6 +109,13 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     Fotografije
                 </a>
 
+                <a href="slike-ai.php" class="nav-item <?= $currentPage === 'slike-ai' ? 'active' : '' ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    AI Slike
+                </a>
+
                 <?php if (isEditor()): ?>
                 <div class="nav-divider"></div>
 
