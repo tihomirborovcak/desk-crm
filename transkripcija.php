@@ -64,15 +64,25 @@ $text";
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
+
+    if ($curlError) {
+        return ['error' => 'Curl greška: ' . $curlError];
+    }
 
     $data = json_decode($response, true);
 
     if ($httpCode !== 200) {
-        return ['error' => $data['error']['message'] ?? 'Greška pri ispravljanju'];
+        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'API greška: ' . $errMsg];
     }
 
-    return ['text' => $data['choices'][0]['message']['content'] ?? $text];
+    if (!isset($data['choices'][0]['message']['content'])) {
+        return ['error' => 'Nema odgovora od API-ja'];
+    }
+
+    return ['text' => $data['choices'][0]['message']['content']];
 }
 
 // Whisper API - transkripcija
@@ -102,12 +112,18 @@ function transcribeAudio($filePath, $fileName) {
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
+
+    if ($curlError) {
+        return ['error' => 'Curl greška: ' . $curlError];
+    }
 
     $data = json_decode($response, true);
 
     if ($httpCode !== 200) {
-        return ['error' => $data['error']['message'] ?? 'Greška pri transkripciji'];
+        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'API greška: ' . $errMsg];
     }
 
     return [
