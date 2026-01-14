@@ -150,7 +150,7 @@ include 'includes/header.php';
             <div class="form-group">
                 <label class="form-label" for="assigned_to">Dodijeljeno</label>
                 <select id="assigned_to" name="assigned_to" class="form-control">
-                    <option value="">-- Nije dodijeljeno --</option>
+                    <option value="">Svi</option>
                     <?php foreach ($users as $u): ?>
                     <option value="<?= $u['id'] ?>" <?= ($task['assigned_to'] ?? '') == $u['id'] ? 'selected' : '' ?>>
                         <?= e($u['full_name']) ?> (<?= translateRole($u['role']) ?>)
