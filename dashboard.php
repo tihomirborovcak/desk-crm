@@ -717,6 +717,31 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
         grid-template-columns: 1fr 1fr;
     }
 }
+/* Mobilna verzija - manje vijesti */
+@media (max-width: 767px) {
+    .rss-item {
+        padding: 0.35rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    .rss-kicker {
+        font-size: 0.6rem;
+    }
+    .rss-title {
+        font-size: 0.75rem;
+    }
+    .list-item {
+        padding: 0.5rem 0.75rem;
+    }
+    .list-item-title {
+        font-size: 0.85rem;
+    }
+    .list-item-meta {
+        font-size: 0.7rem;
+    }
+    .section-title {
+        font-size: 0.95rem;
+    }
+}
 .list-items {
     display: flex;
     flex-direction: column;
