@@ -320,15 +320,21 @@ include 'includes/header.php';
             <div class="shifts-compact">
                 <div class="shift-row">
                     <span class="shift-label">J:</span>
-                    <span class="shift-name"><?= $shifts['jutarnja'] ? e($shifts['jutarnja']['assigned_people'] ?: '—') : '—' ?></span>
+                    <?php if ($shifts['jutarnja']): ?>
+                    <a href="event-edit.php?id=<?= $shifts['jutarnja']['id'] ?>" class="shift-name"><?= e($shifts['jutarnja']['assigned_people'] ?: '—') ?></a>
+                    <?php else: ?><span class="shift-name">—</span><?php endif; ?>
                 </div>
                 <div class="shift-row">
                     <span class="shift-label">P:</span>
-                    <span class="shift-name"><?= $shifts['popodnevna'] ? e($shifts['popodnevna']['assigned_people'] ?: '—') : '—' ?></span>
+                    <?php if ($shifts['popodnevna']): ?>
+                    <a href="event-edit.php?id=<?= $shifts['popodnevna']['id'] ?>" class="shift-name"><?= e($shifts['popodnevna']['assigned_people'] ?: '—') ?></a>
+                    <?php else: ?><span class="shift-name">—</span><?php endif; ?>
                 </div>
                 <div class="shift-row">
                     <span class="shift-label">V:</span>
-                    <span class="shift-name"><?= $shifts['vecernja'] ? e($shifts['vecernja']['assigned_people'] ?: '—') : '—' ?></span>
+                    <?php if ($shifts['vecernja']): ?>
+                    <a href="event-edit.php?id=<?= $shifts['vecernja']['id'] ?>" class="shift-name"><?= e($shifts['vecernja']['assigned_people'] ?: '—') ?></a>
+                    <?php else: ?><span class="shift-name">—</span><?php endif; ?>
                 </div>
             </div>
             <?php endif; ?>
@@ -633,6 +639,11 @@ $daysHrFull = [
     color: var(--gray-700);
     overflow: hidden;
     text-overflow: ellipsis;
+    text-decoration: none;
+}
+a.shift-name:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
 }
 .calendar-events {
     display: flex;
