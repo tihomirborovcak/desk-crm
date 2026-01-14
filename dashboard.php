@@ -201,7 +201,23 @@ include 'includes/header.php';
 ?>
 
 <h1 class="mb-2">Dobrodošli, <?= e($user['full_name']) ?>!</h1>
-<p class="text-muted mb-2"><?= date('l, j. F Y.') ?></p>
+<p class="text-muted mb-1"><?= date('l, j. F Y.') ?>
+<?php
+// Kompaktni prikaz današnjih dežurstava
+$shiftsCompact = ['morning' => '', 'afternoon' => '', 'full' => ''];
+foreach ($todayShifts as $s) {
+    $firstName = explode(' ', $s['full_name'])[0];
+    $shiftsCompact[$s['shift_type']] = $firstName;
+}
+if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['full']):
+?>
+<span class="today-shifts">
+    <?php if ($shiftsCompact['morning']): ?>J-<?= e($shiftsCompact['morning']) ?> <?php endif; ?>
+    <?php if ($shiftsCompact['afternoon']): ?>P-<?= e($shiftsCompact['afternoon']) ?> <?php endif; ?>
+    <?php if ($shiftsCompact['full']): ?>C-<?= e($shiftsCompact['full']) ?><?php endif; ?>
+</span>
+<?php endif; ?>
+</p>
 
 <!-- Statistike -->
 <div class="stats-grid">
@@ -537,6 +553,15 @@ include 'includes/header.php';
     border-radius: 10px;
     font-size: 0.75rem;
     font-weight: 600;
+}
+.today-shifts {
+    font-size: 0.6rem;
+    color: #0ca678;
+    background: rgba(32, 201, 151, 0.15);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 0.5rem;
+    white-space: nowrap;
 }
 .row-2-col {
     display: grid;

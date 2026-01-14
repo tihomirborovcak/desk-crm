@@ -435,21 +435,23 @@ include 'includes/header.php';
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.4rem 0;
+    padding: 0.3rem 0;
     border-bottom: 2px solid var(--primary);
     margin-top: 0.5rem;
-    gap: 0.5rem;
+    gap: 0.25rem;
 }
 .mobile-day-date {
     font-weight: 600;
+    font-size: 0.85rem;
     color: var(--gray-600);
 }
 .mobile-shifts {
-    font-size: 0.7rem;
-    color: var(--gray-500);
-    background: rgba(32, 201, 151, 0.1);
-    padding: 2px 6px;
-    border-radius: 3px;
+    font-size: 0.55rem;
+    color: #0ca678;
+    background: rgba(32, 201, 151, 0.15);
+    padding: 1px 4px;
+    border-radius: 2px;
+    white-space: nowrap;
 }
 .mobile-event-card {
     background: var(--white);
