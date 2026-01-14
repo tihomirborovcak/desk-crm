@@ -444,6 +444,32 @@ function renderThemeCard($theme, $isEditor) {
 .rejected-theme:last-child {
     border-bottom: none;
 }
+/* Mobilna verzija */
+@media (max-width: 767px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.5rem;
+    }
+    .stat-card {
+        padding: 0.5rem;
+    }
+    .stat-value {
+        font-size: 1.2rem;
+    }
+    .stat-label {
+        font-size: 0.65rem;
+    }
+    .kanban-card-title {
+        font-size: 0.85rem;
+    }
+    .kanban-card-meta {
+        font-size: 0.65rem;
+    }
+    .kanban-header {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+}
 </style>
 
 <script>
