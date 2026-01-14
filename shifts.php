@@ -162,13 +162,13 @@ include 'includes/header.php';
             <div class="calendar-day-number"><?= $day ?></div>
             <?php foreach ($dayShifts as $shift): ?>
             <div class="calendar-shift <?= $shift['shift_type'] ?>" title="<?= e($shift['full_name']) ?> - <?= translateShift($shift['shift_type']) ?>">
-                <?= e(mb_substr($shift['full_name'], 0, 8)) ?>
+                <span class="shift-name"><?= e(mb_substr($shift['full_name'], 0, 8)) ?></span>
                 <?php if ($isEditorRole): ?>
-                <form method="POST" style="display: inline;">
+                <form method="POST" class="shift-delete-form">
                     <?= csrfField() ?>
                     <input type="hidden" name="shift_action" value="remove">
                     <input type="hidden" name="shift_id" value="<?= $shift['id'] ?>">
-                    <button type="submit" style="background:none;border:none;color:inherit;cursor:pointer;padding:0;font-size:10px;" title="Ukloni">×</button>
+                    <button type="submit" class="shift-delete-btn" title="Obriši dežurstvo">×</button>
                 </form>
                 <?php endif; ?>
             </div>
@@ -287,5 +287,37 @@ if (!empty($myShifts)):
     </div>
 </div>
 <?php endif; ?>
+
+<style>
+.calendar-shift {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+}
+.shift-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.shift-delete-form {
+    display: inline;
+    flex-shrink: 0;
+}
+.shift-delete-btn {
+    background: rgba(220,53,69,0.15);
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 14px;
+    font-weight: bold;
+    border-radius: 3px;
+    line-height: 1;
+}
+.shift-delete-btn:hover {
+    background: #dc3545;
+    color: white;
+}
+</style>
 
 <?php include 'includes/footer.php'; ?>
