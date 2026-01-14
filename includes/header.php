@@ -100,15 +100,6 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     Događaji
                 </a>
                 
-                <a href="rss.php" class="nav-item <?= $currentPage === 'rss' ? 'active' : '' ?>">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 11a9 9 0 0 1 9 9"/>
-                        <path d="M4 4a16 16 0 0 1 16 16"/>
-                        <circle cx="5" cy="19" r="1"/>
-                    </svg>
-                    RSS Vijesti
-                </a>
-                
                 <a href="photos.php" class="nav-item <?= $currentPage === 'photos' ? 'active' : '' ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>

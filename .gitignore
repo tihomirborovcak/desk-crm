@@ -15,6 +15,7 @@ uploads/*
 
 # Config with sensitive data
 config/database.php
+config/database.server.php
 
 # OS files
 .DS_Store
