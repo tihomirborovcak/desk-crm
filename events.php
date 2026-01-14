@@ -58,15 +58,16 @@ foreach ($events as $event) {
     $eventsByDate[$date][] = $event;
 }
 
-// Grupiraj dežurstva po datumu (iz events tablice gdje je event_type='dezurstvo')
+// Grupiraj dežurstva po datumu
 $shiftsByDate = [];
+
+// 1. Iz events tablice (event_type='dezurstvo')
 foreach ($events as $evt) {
     if ($evt['event_type'] === 'dezurstvo') {
         $date = $evt['event_date'];
         if (!isset($shiftsByDate[$date])) {
             $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
         }
-        // Izvuci tip smjene i ime iz naslova (npr. "☀️ Jutarnja smjena - Sabina Pušec")
         $title = $evt['title'];
         $firstName = '';
         if ($evt['assigned_people']) {
@@ -78,13 +79,44 @@ foreach ($events as $evt) {
         }
 
         if (stripos($title, 'jutarn') !== false) {
-            $shiftsByDate[$date]['morning'] = $firstName;
+            $shiftsByDate[$date]['morning'] = $firstName ?: 'Da';
         } elseif (stripos($title, 'popodnevn') !== false) {
+            $shiftsByDate[$date]['afternoon'] = $firstName ?: 'Da';
+        } elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false || stripos($title, 'cijeli') !== false) {
+            $shiftsByDate[$date]['full'] = $firstName ?: 'Da';
+        }
+    }
+}
+
+// 2. Iz shifts tablice (ako postoji)
+try {
+    $stmtShifts = $db->prepare("
+        SELECT s.*, u.full_name
+        FROM shifts s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.shift_date BETWEEN ? AND ?
+    ");
+    $stmtShifts->execute([$monthStart, $monthEnd]);
+    $oldShifts = $stmtShifts->fetchAll();
+
+    foreach ($oldShifts as $shift) {
+        $date = $shift['shift_date'];
+        if (!isset($shiftsByDate[$date])) {
+            $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
+        }
+        $firstName = explode(' ', $shift['full_name'])[0];
+        $type = $shift['shift_type'];
+
+        if ($type === 'morning' && !$shiftsByDate[$date]['morning']) {
+            $shiftsByDate[$date]['morning'] = $firstName;
+        } elseif ($type === 'afternoon' && !$shiftsByDate[$date]['afternoon']) {
             $shiftsByDate[$date]['afternoon'] = $firstName;
-        } elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) {
+        } elseif ($type === 'full' && !$shiftsByDate[$date]['full']) {
             $shiftsByDate[$date]['full'] = $firstName;
         }
     }
+} catch (Exception $e) {
+    // Shifts tablica možda ne postoji - ignoriraj
 }
 
 // Kalendar podaci
