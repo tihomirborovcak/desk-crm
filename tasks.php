@@ -85,6 +85,15 @@ include 'includes/header.php';
     </a>
 </div>
 
+<!-- Brzi filteri -->
+<div class="quick-filters mt-2">
+    <a href="tasks.php" class="quick-filter <?= !$status && !$assigned ? 'active' : '' ?>">Svi</a>
+    <a href="tasks.php?assigned=<?= $userId ?>" class="quick-filter <?= $assigned == $userId ? 'active' : '' ?>">Moji</a>
+    <a href="tasks.php?status=pending" class="quick-filter <?= $status === 'pending' ? 'active' : '' ?>">Čekaju</a>
+    <a href="tasks.php?status=in_progress" class="quick-filter <?= $status === 'in_progress' ? 'active' : '' ?>">U tijeku</a>
+    <a href="tasks.php?status=done" class="quick-filter <?= $status === 'done' ? 'active' : '' ?>">Završeno</a>
+</div>
+
 <!-- Filteri -->
 <div class="card mt-2">
     <div class="card-body">
