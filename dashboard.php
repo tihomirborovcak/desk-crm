@@ -192,11 +192,17 @@ foreach ($upcomingEvents as $evt) {
     }
 }
 
-// Hrvatski nazivi dana
+// Hrvatski nazivi dana i mjeseci
 $daysHr = [
     'Monday' => 'Ponedjeljak', 'Tuesday' => 'Utorak', 'Wednesday' => 'Srijeda',
     'Thursday' => 'Četvrtak', 'Friday' => 'Petak', 'Saturday' => 'Subota', 'Sunday' => 'Nedjelja'
 ];
+$monthsHr = [
+    1 => 'siječnja', 2 => 'veljače', 3 => 'ožujka', 4 => 'travnja',
+    5 => 'svibnja', 6 => 'lipnja', 7 => 'srpnja', 8 => 'kolovoza',
+    9 => 'rujna', 10 => 'listopada', 11 => 'studenog', 12 => 'prosinca'
+];
+$todayHr = $daysHr[date('l')] . ', ' . date('j') . '. ' . $monthsHr[intval(date('n'))] . ' ' . date('Y') . '.';
 
 // Moji eventi
 $stmt = $db->prepare("
@@ -259,7 +265,7 @@ include 'includes/header.php';
 ?>
 
 <h1 class="mb-2">Dobrodošli, <?= e($user['full_name']) ?>!</h1>
-<p class="text-muted mb-1"><?= date('l, j. F Y.') ?>
+<p class="text-muted mb-1"><?= $todayHr ?>
 <?php
 // Kompaktni prikaz današnjih dežurstava
 $shiftsCompact = ['morning' => '', 'afternoon' => '', 'full' => ''];
