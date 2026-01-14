@@ -78,11 +78,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ");
                         $stmt->execute([$title, $description, $location, $eventDate, $eventTime ?: null, $endTime ?: null, $eventType, $importance, $notes, $skipCoverage, $userId]);
-                        
-                        $id = $db->lastInsertId();
-                        logActivity('event_create', 'event', $id);
+
+                        $newEventId = $db->lastInsertId();
+
+                        // Dodaj odabrane osobe
+                        $assignUsers = $_POST['assign_users'] ?? [];
+                        $assignRoles = $_POST['assign_roles'] ?? [];
+                        if (!empty($assignUsers)) {
+                            $stmtAssign = $db->prepare("INSERT INTO event_assignments (event_id, user_id, role, assigned_by) VALUES (?, ?, ?, ?)");
+                            foreach ($assignUsers as $idx => $assignUserId) {
+                                if ($assignUserId) {
+                                    $role = $assignRoles[$idx] ?? 'reporter';
+                                    try {
+                                        $stmtAssign->execute([$newEventId, $assignUserId, $role, $userId]);
+                                    } catch (Exception $e) {
+                                        // Ignore duplicates
+                                    }
+                                }
+                            }
+                        }
+
+                        logActivity('event_create', 'event', $newEventId);
                         setMessage('success', 'Događaj je kreiran');
-                        header("Location: event-edit.php?id=$id");
+                        header("Location: event-edit.php?id=$newEventId");
                         exit;
                     }
                 } catch (Exception $e) {
@@ -261,7 +279,43 @@ include 'includes/header.php';
             <?php endif; ?>
         </div>
     </div>
-    
+
+    <?php if ($isEditorRole && !$id): ?>
+    <!-- Odabir osoba prilikom kreiranja -->
+    <div class="card mt-2">
+        <div class="card-header">
+            <h2 class="card-title">👥 Tko ide na događaj</h2>
+        </div>
+        <div class="card-body">
+            <div id="assignmentRows">
+                <div class="assignment-row d-flex gap-1 mb-1" style="flex-wrap: wrap;">
+                    <select name="assign_users[]" class="form-control" style="flex: 2; min-width: 150px;">
+                        <option value="">-- Odaberi osobu --</option>
+                        <?php foreach ($users as $u): ?>
+                        <option value="<?= $u['id'] ?>"><?= e($u['full_name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="assign_roles[]" class="form-control" style="flex: 1; min-width: 120px;">
+                        <option value="reporter">Novinar</option>
+                        <option value="photographer">Fotograf</option>
+                        <option value="camera">Snimatelj</option>
+                        <option value="backup">Rezerva</option>
+                    </select>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline mt-1" onclick="addAssignmentRow()">+ Dodaj osobu</button>
+        </div>
+    </div>
+    <script>
+    function addAssignmentRow() {
+        const container = document.getElementById('assignmentRows');
+        const row = container.querySelector('.assignment-row').cloneNode(true);
+        row.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+        container.appendChild(row);
+    }
+    </script>
+    <?php endif; ?>
+
     <?php if ($isEditorRole): ?>
     <div class="card mt-2">
         <div class="card-body">
