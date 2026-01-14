@@ -167,7 +167,7 @@ $myTasks = $stmt->fetchAll();
 
 // Nadolazeći eventi (7 dana)
 $stmt = $db->query("
-    SELECT e.*, 
+    SELECT e.*,
            GROUP_CONCAT(u.full_name SEPARATOR ', ') as assigned_people
     FROM events e
     LEFT JOIN event_assignments ea ON e.id = ea.event_id
@@ -175,9 +175,28 @@ $stmt = $db->query("
     WHERE e.event_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
     GROUP BY e.id
     ORDER BY e.event_date, e.event_time
-    LIMIT 5
 ");
 $upcomingEvents = $stmt->fetchAll();
+
+// Grupiraj evente po datumu
+$eventsByDay = [];
+foreach ($upcomingEvents as $evt) {
+    $date = $evt['event_date'];
+    if (!isset($eventsByDay[$date])) {
+        $eventsByDay[$date] = ['shifts' => [], 'events' => []];
+    }
+    if ($evt['event_type'] === 'dezurstvo') {
+        $eventsByDay[$date]['shifts'][] = $evt;
+    } else {
+        $eventsByDay[$date]['events'][] = $evt;
+    }
+}
+
+// Hrvatski nazivi dana
+$daysHr = [
+    'Monday' => 'Ponedjeljak', 'Tuesday' => 'Utorak', 'Wednesday' => 'Srijeda',
+    'Thursday' => 'Četvrtak', 'Friday' => 'Petak', 'Saturday' => 'Subota', 'Sunday' => 'Nedjelja'
+];
 
 // Moji eventi
 $stmt = $db->prepare("
@@ -436,15 +455,46 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
 </div>
 
 <!-- Nadolazeći eventi -->
-<?php if (!empty($upcomingEvents)): ?>
+<?php if (!empty($eventsByDay)): ?>
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">🗓️ Nadolazeći eventi (7 dana)</h2>
         <a href="events.php" class="btn btn-sm btn-outline">Svi eventi</a>
     </div>
     <div class="card-body" style="padding: 0;">
+        <?php foreach ($eventsByDay as $date => $dayData):
+            $dayName = $daysHr[date('l', strtotime($date))] ?? date('l', strtotime($date));
+            $dateFormatted = date('j.n.', strtotime($date));
+
+            // Kompaktna dežurstva za taj dan
+            $shiftsCompact = '';
+            foreach ($dayData['shifts'] as $s) {
+                $title = $s['title'] ?? '';
+                $firstName = '';
+                if (!empty($s['assigned_people'])) {
+                    $firstName = explode(' ', $s['assigned_people'])[0];
+                } elseif (strpos($title, ' - ') !== false) {
+                    $parts = explode(' - ', $title);
+                    $firstName = explode(' ', end($parts))[0];
+                }
+                if (stripos($title, 'jutarn') !== false && $firstName) {
+                    $shiftsCompact .= "J-$firstName ";
+                } elseif (stripos($title, 'popodnevn') !== false && $firstName) {
+                    $shiftsCompact .= "P-$firstName ";
+                } elseif ((stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) && $firstName) {
+                    $shiftsCompact .= "V-$firstName ";
+                }
+            }
+        ?>
+        <div class="upcoming-day-header">
+            <span class="upcoming-day-name"><?= $dayName ?>, <?= $dateFormatted ?></span>
+            <?php if ($shiftsCompact): ?>
+            <span class="upcoming-shifts"><?= trim($shiftsCompact) ?></span>
+            <?php endif; ?>
+        </div>
+        <?php if (!empty($dayData['events'])): ?>
         <div class="list-items">
-            <?php foreach ($upcomingEvents as $event): ?>
+            <?php foreach ($dayData['events'] as $event): ?>
             <a href="event-edit.php?id=<?= $event['id'] ?>" class="list-item">
                 <div class="list-item-content">
                     <div class="list-item-title">
@@ -456,17 +506,18 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
                         <?= e($event['title']) ?>
                     </div>
                     <div class="list-item-meta">
-                        <span class="badge badge-<?= eventTypeColor($event['event_type']) ?>">
-                            <?= translateEventType($event['event_type']) ?>
-                        </span>
-                        <span>📍 <?= e($event['location'] ?: 'TBA') ?></span>
-                        <span>📅 <?= formatDate($event['event_date'], 'D j.n.') ?> <?= $event['event_time'] ? date('H:i', strtotime($event['event_time'])) : '' ?></span>
+                        <?php if ($event['event_time']): ?>
+                        <span>🕐 <?= date('H:i', strtotime($event['event_time'])) ?></span>
+                        <?php endif; ?>
+                        <?php if ($event['location']): ?>
+                        <span>📍 <?= e(truncate($event['location'], 20)) ?></span>
+                        <?php endif; ?>
+                        <?php if ($event['assigned_people']): ?>
+                        <span>👥 <?= e($event['assigned_people']) ?></span>
+                        <?php else: ?>
+                        <span class="text-danger">⚠️ Nitko</span>
+                        <?php endif; ?>
                     </div>
-                    <?php if ($event['assigned_people']): ?>
-                    <div class="text-xs text-muted mt-1">👥 <?= e($event['assigned_people']) ?></div>
-                    <?php else: ?>
-                    <div class="text-xs text-danger mt-1">⚠️ Nitko nije dodijeljen!</div>
-                    <?php endif; ?>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="9 18 15 12 9 6"/>
@@ -474,6 +525,8 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
             </a>
             <?php endforeach; ?>
         </div>
+        <?php endif; ?>
+        <?php endforeach; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -626,6 +679,26 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
     border-radius: 4px;
     margin-left: 0.5rem;
     white-space: nowrap;
+}
+.upcoming-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--gray-100);
+    border-bottom: 1px solid var(--gray-200);
+}
+.upcoming-day-name {
+    font-weight: 600;
+    color: var(--gray-700);
+}
+.upcoming-shifts {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #0ca678;
+    background: rgba(32, 201, 151, 0.15);
+    padding: 2px 8px;
+    border-radius: 4px;
 }
 .row-2-col {
     display: grid;
