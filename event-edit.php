@@ -26,9 +26,6 @@ if ($id) {
     
     define('PAGE_TITLE', 'Uredi događaj');
 } else {
-    if (!$isEditorRole) {
-        redirectWith('events.php', 'danger', 'Nemate ovlasti za kreiranje događaja');
-    }
     define('PAGE_TITLE', 'Novi događaj');
 }
 
@@ -41,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['form_action'] ?? 'save_event';
         
-        if ($action === 'save_event' && $isEditorRole) {
+        if ($action === 'save_event') {
             $title = trim($_POST['title'] ?? '');
             $description = trim($_POST['description'] ?? '');
             $location = trim($_POST['location'] ?? '');
