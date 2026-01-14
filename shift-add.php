@@ -38,9 +38,9 @@ if (!$user) {
 
 // Smjena detalji
 $shiftLabels = [
-    'jutarnja' => ['☀️ Jutarnja smjena', '06:00', '14:00'],
-    'popodnevna' => ['🌤️ Popodnevna smjena', '14:00', '22:00'],
-    'vecernja' => ['🌙 Večernja smjena', '22:00', '06:00']
+    'jutarnja' => ['☀️ Jutarnja smjena', '07:30', '12:00'],
+    'popodnevna' => ['🌤️ Popodnevna smjena', '12:00', '19:30'],
+    'vecernja' => ['🌙 Večernja smjena', '19:30', '07:30']
 ];
 
 $label = $shiftLabels[$shiftType] ?? ['Dežurstvo', null, null];

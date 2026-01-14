@@ -171,9 +171,9 @@ include 'includes/header.php';
                 <div class="form-group">
                     <label class="form-label">Smjena *</label>
                     <select name="shift_type" class="form-control" required>
-                        <option value="jutarnja">☀️ Jutarnja (06-14h)</option>
-                        <option value="popodnevna">🌤️ Popodnevna (14-22h)</option>
-                        <option value="vecernja">🌙 Večernja (22-06h)</option>
+                        <option value="jutarnja">☀️ Jutarnja (7:30-12h)</option>
+                        <option value="popodnevna">🌤️ Popodnevna (12-19:30h)</option>
+                        <option value="vecernja">🌙 Večernja (19:30-7:30h)</option>
                     </select>
                 </div>
                 
