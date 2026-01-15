@@ -1,6 +1,6 @@
 <?php
 /**
- * Fotografije - Galerija i Upload
+ * Attachmenti - Fotografije i Dokumenti
  */
 
 require_once 'includes/auth.php';
@@ -8,7 +8,7 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
-define('PAGE_TITLE', 'Fotografije');
+define('PAGE_TITLE', 'Attachmenti');
 
 $db = getDB();
 $userId = $_SESSION['user_id'];
@@ -20,14 +20,14 @@ $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = 24;
 
 // Obrada uploada
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photos'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['files'])) {
     if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
         setMessage('danger', 'Nevažeći sigurnosni token');
     } else {
         $uploadedCount = 0;
         $errors = [];
 
-        $files = $_FILES['photos'];
+        $files = $_FILES['files'];
         $caption = trim($_POST['caption'] ?? '');
         $credit = trim($_POST['credit'] ?? '');
 
@@ -45,35 +45,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photos'])) {
             ];
 
             try {
-                $imageData = uploadImage($file);
+                $fileData = uploadFile($file);
 
                 $stmt = $db->prepare("
                     INSERT INTO photos (filename, original_name, filepath, thumbnail, mime_type, file_size, width, height, caption, credit, uploaded_by)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
-                    $imageData['filename'],
-                    $imageData['original_name'],
-                    $imageData['filepath'],
-                    $imageData['thumbnail'],
-                    $imageData['mime_type'],
-                    $imageData['file_size'],
-                    $imageData['width'],
-                    $imageData['height'],
+                    $fileData['filename'],
+                    $fileData['original_name'],
+                    $fileData['filepath'],
+                    $fileData['thumbnail'],
+                    $fileData['mime_type'],
+                    $fileData['file_size'],
+                    $fileData['width'],
+                    $fileData['height'],
                     $caption,
                     $credit,
                     $userId
                 ]);
 
                 $uploadedCount++;
-                logActivity('photo_upload', 'photo', $db->lastInsertId());
+                logActivity('file_upload', 'attachment', $db->lastInsertId());
             } catch (Exception $e) {
                 $errors[] = $files['name'][$i] . ': ' . $e->getMessage();
             }
         }
 
         if ($uploadedCount > 0) {
-            setMessage('success', "Uspješno uploadano $uploadedCount fotografija");
+            setMessage('success', "Uspješno uploadano $uploadedCount datoteka");
         }
         if (!empty($errors)) {
             setMessage('warning', implode(', ', $errors));
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['photos'])) {
     }
 }
 
-// Brisanje fotografije
+// Brisanje datoteke
 if (isset($_GET['delete'])) {
     $photoId = intval($_GET['delete']);
 
@@ -102,8 +102,8 @@ if (isset($_GET['delete'])) {
         $stmt = $db->prepare("DELETE FROM photos WHERE id = ?");
         $stmt->execute([$photoId]);
 
-        logActivity('photo_delete', 'photo', $photoId);
-        setMessage('success', 'Fotografija je obrisana');
+        logActivity('file_delete', 'attachment', $photoId);
+        setMessage('success', 'Datoteka je obrisana');
     }
 
     header('Location: photos.php');
@@ -152,7 +152,7 @@ include 'includes/header.php';
 ?>
 
 <div class="d-flex" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-    <h1>Fotografije</h1>
+    <h1>Attachmenti</h1>
     <button class="btn btn-primary" data-modal="uploadModal">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -193,23 +193,61 @@ include 'includes/header.php';
 <div class="card mt-2">
     <div class="empty-state">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
         </svg>
-        <h3>Nema fotografija</h3>
-        <p>Uploadajte prvu fotografiju</p>
-        <button class="btn btn-primary mt-2" data-modal="uploadModal">Upload fotografija</button>
+        <h3>Nema datoteka</h3>
+        <p>Uploadajte prvu datoteku</p>
+        <button class="btn btn-primary mt-2" data-modal="uploadModal">Upload datoteka</button>
     </div>
 </div>
 <?php else: ?>
 
 <div class="photo-grid mt-2">
-    <?php foreach ($photos as $photo): ?>
+    <?php foreach ($photos as $photo):
+        $isImage = strpos($photo['mime_type'], 'image/') === 0;
+        $ext = strtolower(pathinfo($photo['original_name'], PATHINFO_EXTENSION));
+        $fileIcon = getFileIcon($photo['mime_type'], $ext);
+    ?>
     <div class="photo-item">
+        <?php if ($isImage): ?>
         <img src="<?= e($photo['thumbnail'] ?? $photo['filepath']) ?>"
              alt="<?= e($photo['caption'] ?: $photo['original_name']) ?>"
              loading="lazy">
+        <?php else: ?>
+        <div class="file-icon file-icon-<?= $fileIcon ?>">
+            <?php if ($fileIcon === 'pdf'): ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <path d="M9 15h6"/>
+                <path d="M9 11h6"/>
+            </svg>
+            <span>PDF</span>
+            <?php elseif ($fileIcon === 'word'): ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <path d="M16 13H8"/>
+                <path d="M16 17H8"/>
+                <path d="M10 9H8"/>
+            </svg>
+            <span>DOC</span>
+            <?php elseif ($fileIcon === 'excel'): ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <rect x="8" y="12" width="8" height="6"/>
+            </svg>
+            <span>XLS</span>
+            <?php else: ?>
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span><?= strtoupper($ext) ?></span>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
 
         <div class="photo-item-overlay">
             <div class="text-xs"><?= e(truncate($photo['original_name'], 20)) ?></div>
@@ -229,7 +267,7 @@ include 'includes/header.php';
             </a>
             <a href="?delete=<?= $photo['id'] ?>"
                class="btn btn-sm btn-icon btn-danger"
-               data-confirm="Jeste li sigurni da želite obrisati ovu fotografiju?"
+               data-confirm="Jeste li sigurni da želite obrisati ovu datoteku?"
                title="Obriši">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
@@ -271,13 +309,13 @@ include 'includes/header.php';
 
 <?php endif; ?>
 
-<p class="text-muted text-sm text-center mt-2">Ukupno: <?= $total ?> fotografija</p>
+<p class="text-muted text-sm text-center mt-2">Ukupno: <?= $total ?> datoteka</p>
 
 <!-- Upload Modal -->
 <div class="modal" id="uploadModal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">Upload fotografija</h3>
+            <h3 class="modal-title">Upload datoteka</h3>
             <button class="modal-close">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
@@ -290,24 +328,24 @@ include 'includes/header.php';
                 <?= csrfField() ?>
 
                 <div class="upload-area" id="mainUploadArea">
-                    <input type="file" name="photos[]" accept="image/*" multiple style="display: none;">
+                    <input type="file" name="files[]" multiple style="display: none;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                         <polyline points="17 8 12 3 7 8"/>
                         <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <p>Kliknite ili povucite fotografije ovdje</p>
-                    <p class="text-xs text-muted">JPG, PNG, GIF, WEBP do 5MB</p>
+                    <p>Kliknite ili povucite datoteke ovdje</p>
+                    <p class="text-xs text-muted">Slike, PDF, Word, Excel do 10MB</p>
                 </div>
 
                 <div class="form-group mt-2">
-                    <label class="form-label" for="caption">Opis (caption)</label>
-                    <input type="text" id="caption" name="caption" class="form-control" placeholder="Kratki opis fotografije...">
+                    <label class="form-label" for="caption">Opis</label>
+                    <input type="text" id="caption" name="caption" class="form-control" placeholder="Kratki opis datoteke...">
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="credit">Autor (credit)</label>
-                    <input type="text" id="credit" name="credit" class="form-control" placeholder="Ime fotografa...">
+                    <label class="form-label" for="credit">Autor/Izvor</label>
+                    <input type="text" id="credit" name="credit" class="form-control" placeholder="Ime autora ili izvor...">
                 </div>
             </form>
         </div>
@@ -324,5 +362,26 @@ include 'includes/header.php';
         </div>
     </div>
 </div>
+
+<style>
+.file-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    background: var(--gray-100);
+    color: var(--gray-500);
+}
+.file-icon span {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+.file-icon-pdf { color: #dc2626; }
+.file-icon-word { color: #2563eb; }
+.file-icon-excel { color: #16a34a; }
+.file-icon-powerpoint { color: #ea580c; }
+</style>
 
 <?php include 'includes/footer.php'; ?>
