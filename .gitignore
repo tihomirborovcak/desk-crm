@@ -32,3 +32,4 @@ logs/
 *.swp
 *~
 config.local.php
+google-credentials.json
