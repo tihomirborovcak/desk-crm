@@ -127,8 +127,124 @@ function uploadImage($file, $subdir = 'photos') {
         'mime_type' => $mimeType,
         'file_size' => $file['size'],
         'width' => $imageInfo[0] ?? null,
-        'height' => $imageInfo[1] ?? null
+        'height' => $imageInfo[1] ?? null,
+        'is_image' => true
     ];
+}
+
+/**
+ * Upload bilo koje datoteke (slike ili dokumenti)
+ */
+function uploadFile($file, $subdir = 'attachments') {
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception('Greška pri uploadu: ' . $file['error']);
+    }
+
+    // Provjera veličine (10MB za dokumente)
+    $maxSize = 10 * 1024 * 1024;
+    if ($file['size'] > $maxSize) {
+        throw new Exception('Datoteka je prevelika (max 10MB)');
+    }
+
+    // Dozvoljene ekstenzije
+    $allowedExt = [
+        // Slike
+        'jpg', 'jpeg', 'png', 'gif', 'webp',
+        // Dokumenti
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'odt', 'ods'
+    ];
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExt)) {
+        throw new Exception('Nedozvoljena vrsta datoteke');
+    }
+
+    // Provjera MIME tipa
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+
+    $allowedMimes = [
+        // Slike
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        // Dokumenti
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain',
+        'application/rtf',
+        'application/vnd.oasis.opendocument.text',
+        'application/vnd.oasis.opendocument.spreadsheet'
+    ];
+
+    if (!in_array($mimeType, $allowedMimes)) {
+        throw new Exception('Nedozvoljena vrsta datoteke');
+    }
+
+    // Generiraj ime datoteke
+    $filename = date('Y-m-d_His_') . bin2hex(random_bytes(4)) . '.' . $ext;
+    $uploadDir = UPLOAD_PATH . $subdir . '/' . date('Y/m/');
+
+    // Kreiraj direktorij ako ne postoji
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+
+    $filepath = $uploadDir . $filename;
+
+    // Premjesti datoteku
+    if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+        throw new Exception('Greška pri spremanju datoteke');
+    }
+
+    // Provjeri je li slika
+    $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+    $width = null;
+    $height = null;
+    $thumbnail = null;
+
+    if ($isImage) {
+        $imageInfo = getimagesize($filepath);
+        $width = $imageInfo[0] ?? null;
+        $height = $imageInfo[1] ?? null;
+        $thumbnail = createThumbnail($filepath, $ext, 300, 200);
+    }
+
+    return [
+        'filename' => $filename,
+        'original_name' => $file['name'],
+        'filepath' => str_replace(UPLOAD_PATH, UPLOAD_URL, $filepath),
+        'thumbnail' => $thumbnail,
+        'mime_type' => $mimeType,
+        'file_size' => $file['size'],
+        'width' => $width,
+        'height' => $height,
+        'is_image' => $isImage
+    ];
+}
+
+/**
+ * Vrati ikonu za tip datoteke
+ */
+function getFileIcon($mimeType, $ext = '') {
+    if (strpos($mimeType, 'image/') === 0) {
+        return 'image';
+    } elseif ($mimeType === 'application/pdf') {
+        return 'pdf';
+    } elseif (strpos($mimeType, 'word') !== false || $ext === 'doc' || $ext === 'docx' || $ext === 'odt' || $ext === 'rtf') {
+        return 'word';
+    } elseif (strpos($mimeType, 'excel') !== false || strpos($mimeType, 'spreadsheet') !== false || $ext === 'xls' || $ext === 'xlsx' || $ext === 'ods') {
+        return 'excel';
+    } elseif (strpos($mimeType, 'powerpoint') !== false || strpos($mimeType, 'presentation') !== false || $ext === 'ppt' || $ext === 'pptx') {
+        return 'powerpoint';
+    } elseif ($mimeType === 'text/plain') {
+        return 'text';
+    }
+    return 'file';
 }
 
 /**
