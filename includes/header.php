@@ -126,6 +126,14 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     Transkripcija
                 </a>
 
+                <a href="tekst-ai.php" class="nav-item <?= $currentPage === 'tekst-ai' ? 'active' : '' ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9"/>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    AI Tekst
+                </a>
+
                 <?php if (isEditor()): ?>
                 <div class="nav-divider"></div>
 
