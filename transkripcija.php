@@ -147,34 +147,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Obrada uploada
+// Obrada uploada (podržava više datoteka)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
-    if (empty($_FILES['audio']['tmp_name'])) {
+    if (empty($_FILES['audio']['tmp_name'][0])) {
         $error = 'Odaberite audio datoteku';
     } else {
-        $file = $_FILES['audio'];
+        $files = $_FILES['audio'];
+        $fileCount = count($files['tmp_name']);
+        $allowedExts = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'mpeg', 'mpga', 'ogg', 'flac'];
 
-        // Provjeri veličinu (max 24MB za Whisper API)
-        if ($file['size'] > 24 * 1024 * 1024) {
-            $error = 'Datoteka je prevelika (max 24MB). Koristite online alate ispod za kompresiju.';
-        } else {
-            // Dozvoljeni formati
-            $allowedExts = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'mpeg', 'mpga', 'ogg', 'flac'];
-            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allTranscriptions = [];
+        $totalDuration = 0;
+        $errors = [];
 
-            if (!in_array($ext, $allowedExts)) {
-                $error = 'Nedozvoljeni format. Dozvoljeni: ' . implode(', ', $allowedExts);
-            } else {
-                $result = transcribeAudio($file['tmp_name'], $file['name']);
+        for ($i = 0; $i < $fileCount; $i++) {
+            if (empty($files['tmp_name'][$i])) continue;
 
-                if (isset($result['error'])) {
-                    $error = $result['error'];
-                } else {
-                    $transcription = $result['text'];
-                    $duration = $result['duration'];
-                    logActivity('audio_transcribe', 'ai', null);
-                }
+            $fileName = $files['name'][$i];
+            $fileSize = $files['size'][$i];
+            $tmpName = $files['tmp_name'][$i];
+
+            // Provjeri veličinu (max 24MB za Whisper API)
+            if ($fileSize > 24 * 1024 * 1024) {
+                $errors[] = "$fileName: prevelika (max 24MB)";
+                continue;
             }
+
+            // Provjeri format
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedExts)) {
+                $errors[] = "$fileName: nedozvoljeni format";
+                continue;
+            }
+
+            // Transkribiraj
+            $result = transcribeAudio($tmpName, $fileName);
+
+            if (isset($result['error'])) {
+                $errors[] = "$fileName: " . $result['error'];
+            } else {
+                $partNum = $fileCount > 1 ? "[Dio " . ($i + 1) . "]\n" : "";
+                $allTranscriptions[] = $partNum . $result['text'];
+                $totalDuration += $result['duration'] ?? 0;
+            }
+        }
+
+        if (!empty($allTranscriptions)) {
+            $transcription = implode("\n\n", $allTranscriptions);
+            $duration = $totalDuration;
+            logActivity('audio_transcribe', 'ai', null);
+        }
+
+        if (!empty($errors)) {
+            $error = implode('; ', $errors);
         }
     }
 }
@@ -195,9 +220,10 @@ include 'includes/header.php';
             <?= csrfField() ?>
 
             <div class="form-group">
-                <label class="form-label">Audio datoteka *</label>
-                <input type="file" name="audio" class="form-control" accept=".mp3,.mp4,.m4a,.wav,.webm,.mpeg,.mpga,.ogg,.flac" required>
-                <small class="form-text">Dozvoljeni formati: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC (max 24MB)</small>
+                <label class="form-label">Audio datoteke *</label>
+                <input type="file" name="audio[]" class="form-control" accept=".mp3,.mp4,.m4a,.wav,.webm,.mpeg,.mpga,.ogg,.flac" multiple required>
+                <small class="form-text">Dozvoljeni formati: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC (max 24MB po datoteci)<br>
+                <strong>Tip:</strong> Možete odabrati više datoteka ako je snimka podijeljena na dijelove</small>
             </div>
 
             <div class="form-group">
@@ -298,22 +324,30 @@ include 'includes/header.php';
 
 <div class="card mt-2">
     <div class="card-header">
-        <h2 class="card-title">Ako je datoteka prevelika</h2>
+        <h2 class="card-title">Priprema dugih snimki</h2>
     </div>
     <div class="card-body">
-        <p style="margin-bottom: 0.75rem; color: var(--gray-600);">Datoteka mora biti manja od 24MB. Za kompresiju koristi:</p>
-        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+        <p style="margin-bottom: 0.75rem; color: var(--gray-600);"><strong>1. Kompresija</strong> - smanji veličinu datoteke:</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
             <a href="https://www.freeconvert.com/audio-compressor" target="_blank" class="btn btn-outline">
-                FreeConvert
+                FreeConvert Compressor
             </a>
             <a href="https://online-audio-converter.com/" target="_blank" class="btn btn-outline">
                 Online Audio Converter
             </a>
-            <a href="https://mp3smaller.com/" target="_blank" class="btn btn-outline">
-                MP3 Smaller
+        </div>
+        <p style="margin-bottom: 0.75rem; color: var(--gray-600);"><strong>2. Dijeljenje</strong> - podijeli na dijelove do 10 min:</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            <a href="https://mp3cut.net/" target="_blank" class="btn btn-outline">
+                MP3Cut (rezanje)
+            </a>
+            <a href="https://www.freeconvert.com/audio-splitter" target="_blank" class="btn btn-outline">
+                FreeConvert Splitter
             </a>
         </div>
-        <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--gray-500);">Preporučeno: MP3 format, 64-96 kbps, mono</p>
+        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--gray-500);">
+            <strong>Preporuka:</strong> MP3, 64kbps, mono • Podijeli na dijelove od 10 min • Uploadaj sve odjednom
+        </p>
     </div>
 </div>
 
