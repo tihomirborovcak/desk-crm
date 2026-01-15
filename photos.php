@@ -253,6 +253,11 @@ include 'includes/header.php';
             <div class="text-xs"><?= e(truncate($photo['original_name'], 20)) ?></div>
         </div>
 
+        <div class="photo-item-meta">
+            <div class="text-xs"><?= e($photo['uploader_name'] ?? 'Nepoznato') ?></div>
+            <div class="text-xs text-muted"><?= date('d.m.Y H:i', strtotime($photo['created_at'])) ?></div>
+        </div>
+
         <div class="photo-item-actions">
             <a href="<?= e($photo['filepath']) ?>"
                target="_blank"
@@ -382,6 +387,11 @@ include 'includes/header.php';
 .file-icon-word { color: #2563eb; }
 .file-icon-excel { color: #16a34a; }
 .file-icon-powerpoint { color: #ea580c; }
+.photo-item-meta {
+    padding: 0.5rem;
+    border-top: 1px solid var(--gray-200);
+    background: var(--gray-50);
+}
 </style>
 
 <?php include 'includes/footer.php'; ?>
