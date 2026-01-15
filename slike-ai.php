@@ -28,6 +28,9 @@ if (isset($_GET['delete']) && !empty($_GET['delete'])) {
     // Provjeri da je imagen_ datoteka (sigurnost)
     if (strpos($filename, 'imagen_') === 0 && file_exists($filepath)) {
         @unlink($filepath);
+        // Obriši i txt datoteku s promptom
+        $txtFile = __DIR__ . '/uploads/' . str_replace('.png', '.txt', $filename);
+        @unlink($txtFile);
         setMessage('success', 'Slika obrisana');
     }
 
@@ -165,12 +168,16 @@ function generirajSliku($prompt) {
 
     $imageBase64 = $data['predictions'][0]['bytesBase64Encoded'];
 
-    $filename = 'imagen_' . time() . '_' . uniqid() . '.png';
+    $baseFilename = 'imagen_' . time() . '_' . uniqid();
+    $filename = $baseFilename . '.png';
     $filepath = __DIR__ . '/uploads/' . $filename;
 
     if (!file_put_contents($filepath, base64_decode($imageBase64))) {
         return ['error' => 'Greška pri spremanju slike'];
     }
+
+    // Spremi prompt u txt datoteku
+    file_put_contents(__DIR__ . '/uploads/' . $baseFilename . '.txt', $prompt);
 
     return ['url' => 'uploads/' . $filename, 'filename' => $filename];
 }
@@ -230,11 +237,15 @@ function dohvatiSlike() {
 
         foreach ($files as $file) {
             $filename = basename($file);
+            $txtFile = str_replace('.png', '.txt', $file);
+            $prompt = file_exists($txtFile) ? file_get_contents($txtFile) : '';
+
             $images[] = [
                 'filename' => $filename,
                 'url' => 'uploads/' . $filename,
                 'date' => date('d.m.Y H:i', filemtime($file)),
-                'size' => round(filesize($file) / 1024) . ' KB'
+                'size' => round(filesize($file) / 1024) . ' KB',
+                'prompt' => $prompt
             ];
         }
     }
@@ -345,6 +356,9 @@ include 'includes/header.php';
                 <a href="<?= e($img['url']) ?>" target="_blank">
                     <img src="<?= e($img['url']) ?>" alt="AI slika" loading="lazy">
                 </a>
+                <?php if ($img['prompt']): ?>
+                <div class="ai-image-prompt"><?= e($img['prompt']) ?></div>
+                <?php endif; ?>
                 <div class="ai-image-info">
                     <span class="ai-image-date"><?= e($img['date']) ?></span>
                     <a href="?delete=<?= e($img['filename']) ?>"
@@ -418,6 +432,15 @@ include 'includes/header.php';
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+.ai-image-prompt {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--gray-600);
+    border-top: 1px solid var(--gray-200);
+    max-height: 60px;
+    overflow-y: auto;
+    line-height: 1.3;
 }
 .ai-image-date {
     font-size: 0.75rem;
