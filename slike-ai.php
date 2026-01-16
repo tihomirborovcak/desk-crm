@@ -1,6 +1,6 @@
 <?php
 /**
- * AI Generator slika - Google Imagen 3
+ * AI Generator slika - Google Imagen 3 + Replicate (Face)
  */
 
 define('PAGE_TITLE', 'AI Slike');
@@ -14,11 +14,13 @@ if (file_exists(__DIR__ . '/config.local.php')) {
 
 requireLogin();
 
-set_time_limit(120);
+set_time_limit(180);
 
 $generatedImage = null;
 $error = null;
 $prompt = '';
+$activeTab = $_GET['tab'] ?? 'imagen';
+$faceImagePreview = null;
 
 // Brisanje slike
 if (isset($_GET['delete']) && !empty($_GET['delete'])) {
@@ -182,6 +184,139 @@ function generirajSliku($prompt) {
     return ['url' => 'uploads/' . $filename, 'filename' => $filename];
 }
 
+// Replicate - generiranje slike s licem (InstantID/PhotoMaker)
+function generirajSlikuSLicem($faceImagePath, $prompt) {
+    $apiToken = defined('REPLICATE_API_TOKEN') ? REPLICATE_API_TOKEN : getenv('REPLICATE_API_TOKEN');
+
+    if (!$apiToken) {
+        return ['error' => 'REPLICATE_API_TOKEN nije postavljen'];
+    }
+
+    // Učitaj sliku i pretvori u base64 data URL
+    $imageData = file_get_contents($faceImagePath);
+    $mimeType = mime_content_type($faceImagePath);
+    $base64Image = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+
+    // Koristi InstantID model
+    $model = 'zsxkib/instant-id:2e4e9a854e32a47e0dce6a9413e6e24d445a0c0c0b8e9c9e4e0b1c1e0e1e2e3e';
+
+    // Alternativno koristi PhotoMaker - bolji za stylizaciju
+    $model = 'tencentarc/photomaker:ddfc2b08d209f9fa8c1uj09a0bf6f36d37887e8e';
+
+    // Najnoviji i najbolji - Pulid
+    $model = 'fofr/pulid:62d0c9a6b04b3e53aec29b23d1a2353c79c1b72acb6d2c0c4f9c8b7a6e5d4c3b';
+
+    // Koristi face-to-many koji je provjereno dostupan
+    $url = 'https://api.replicate.com/v1/predictions';
+
+    $payload = [
+        'version' => 'a07f252abbbd832009640b27f063ea52d87d7a23a185ca165bec23b5adc8deaf',
+        'input' => [
+            'image' => $base64Image,
+            'prompt' => $prompt,
+            'style' => 'Photographic (Default)',
+            'negative_prompt' => 'blurry, bad quality, distorted face, ugly',
+            'num_outputs' => 1,
+            'guidance_scale' => 7.5,
+            'num_inference_steps' => 30
+        ]
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $apiToken,
+            'Prefer: wait'
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload)
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        return ['error' => 'Curl greška: ' . $curlError];
+    }
+
+    $data = json_decode($response, true);
+
+    if ($httpCode === 422) {
+        return ['error' => 'Replicate greška: ' . ($data['detail'] ?? 'Validation error')];
+    }
+
+    if ($httpCode !== 200 && $httpCode !== 201) {
+        return ['error' => 'Replicate API greška: HTTP ' . $httpCode . ' - ' . ($data['detail'] ?? json_encode($data))];
+    }
+
+    // Ako je status "processing" ili "starting", čekaj rezultat
+    $predictionId = $data['id'] ?? null;
+    $status = $data['status'] ?? '';
+
+    if ($status === 'succeeded' && isset($data['output'])) {
+        $outputUrl = is_array($data['output']) ? $data['output'][0] : $data['output'];
+    } else if ($predictionId && in_array($status, ['starting', 'processing'])) {
+        // Čekaj do 120 sekundi
+        $getUrl = "https://api.replicate.com/v1/predictions/{$predictionId}";
+        $maxAttempts = 60;
+        $outputUrl = null;
+
+        for ($i = 0; $i < $maxAttempts; $i++) {
+            sleep(2);
+
+            $ch = curl_init($getUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $apiToken
+                ]
+            ]);
+            $pollResponse = curl_exec($ch);
+            curl_close($ch);
+
+            $pollData = json_decode($pollResponse, true);
+            $pollStatus = $pollData['status'] ?? '';
+
+            if ($pollStatus === 'succeeded') {
+                $outputUrl = is_array($pollData['output']) ? $pollData['output'][0] : $pollData['output'];
+                break;
+            } else if ($pollStatus === 'failed') {
+                return ['error' => 'Generiranje nije uspjelo: ' . ($pollData['error'] ?? 'Unknown error')];
+            }
+        }
+
+        if (!$outputUrl) {
+            return ['error' => 'Timeout - generiranje predugo traje'];
+        }
+    } else {
+        return ['error' => 'Neočekivan status: ' . $status];
+    }
+
+    // Preuzmi sliku i spremi lokalno
+    $imageContent = file_get_contents($outputUrl);
+    if (!$imageContent) {
+        return ['error' => 'Greška pri preuzimanju generirane slike'];
+    }
+
+    $baseFilename = 'face_' . time() . '_' . uniqid();
+    $filename = $baseFilename . '.png';
+    $filepath = __DIR__ . '/uploads/' . $filename;
+
+    if (!file_put_contents($filepath, $imageContent)) {
+        return ['error' => 'Greška pri spremanju slike'];
+    }
+
+    // Spremi prompt
+    file_put_contents(__DIR__ . '/uploads/' . $baseFilename . '.txt', $prompt);
+
+    return ['url' => 'uploads/' . $filename, 'filename' => $filename];
+}
+
 // Prevedi na engleski
 function prevedNaEngleski($text) {
     if (!defined('OPENAI_API_KEY')) {
@@ -256,6 +391,8 @@ function dohvatiSlike() {
 // Obrada forme
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $prompt = trim($_POST['prompt'] ?? '');
+    $mode = $_POST['mode'] ?? 'imagen';
+    $activeTab = $mode;
 
     if (empty($prompt)) {
         $error = 'Unesite opis slike';
@@ -264,13 +401,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             $prompt = prevedNaEngleski($prompt);
         }
 
-        $result = generirajSliku($prompt);
+        if ($mode === 'face') {
+            // Face mode - treba uploadanu sliku
+            if (!isset($_FILES['face_image']) || $_FILES['face_image']['error'] !== UPLOAD_ERR_OK) {
+                $error = 'Molimo uploadajte fotografiju osobe';
+            } else {
+                $faceFile = $_FILES['face_image'];
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
-        if (isset($result['error'])) {
-            $error = $result['error'];
+                if (!in_array($faceFile['type'], $allowedTypes)) {
+                    $error = 'Dozvoljen format: JPG, PNG, WebP';
+                } else if ($faceFile['size'] > 10 * 1024 * 1024) {
+                    $error = 'Maksimalna veličina: 10MB';
+                } else {
+                    // Spremi privremeno
+                    $tempPath = __DIR__ . '/uploads/temp_face_' . time() . '_' . basename($faceFile['name']);
+                    move_uploaded_file($faceFile['tmp_name'], $tempPath);
+
+                    $result = generirajSlikuSLicem($tempPath, $prompt);
+
+                    // Obriši temp file
+                    @unlink($tempPath);
+
+                    if (isset($result['error'])) {
+                        $error = $result['error'];
+                    } else {
+                        $generatedImage = $result['url'];
+                        logActivity('ai_face_generate', 'ai', null);
+                    }
+                }
+            }
         } else {
-            $generatedImage = $result['url'];
-            logActivity('ai_image_generate', 'ai', null);
+            // Imagen mode
+            $result = generirajSliku($prompt);
+
+            if (isset($result['error'])) {
+                $error = $result['error'];
+            } else {
+                $generatedImage = $result['url'];
+                logActivity('ai_image_generate', 'ai', null);
+            }
         }
     }
 }
@@ -285,6 +455,27 @@ include 'includes/header.php';
     <h1>AI Generator slika</h1>
 </div>
 
+<!-- Tabovi -->
+<div class="tabs" style="margin-bottom: 1rem;">
+    <a href="?tab=imagen" class="tab <?= $activeTab === 'imagen' ? 'active' : '' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        Imagen (tekst)
+    </a>
+    <a href="?tab=face" class="tab <?= $activeTab === 'face' ? 'active' : '' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+        </svg>
+        S licem osobe
+    </a>
+</div>
+
+<?php if ($activeTab === 'imagen'): ?>
+<!-- IMAGEN TAB -->
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Google Imagen 3</h2>
@@ -292,6 +483,7 @@ include 'includes/header.php';
     <div class="card-body">
         <form method="POST" id="imageForm">
             <?= csrfField() ?>
+            <input type="hidden" name="mode" value="imagen">
 
             <div class="form-group">
                 <label class="form-label">Opis slike *</label>
@@ -313,13 +505,76 @@ include 'includes/header.php';
             </div>
         </form>
 
-        <?php if ($error): ?>
+        <?php if ($error && $activeTab === 'imagen'): ?>
         <div class="alert alert-danger" style="margin-top: 1rem;">
             <?= e($error) ?>
         </div>
         <?php endif; ?>
     </div>
 </div>
+
+<?php else: ?>
+<!-- FACE TAB -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Generiraj sliku s licem osobe</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" id="faceForm" enctype="multipart/form-data">
+            <?= csrfField() ?>
+            <input type="hidden" name="mode" value="face">
+
+            <div class="form-group">
+                <label class="form-label">Fotografija osobe *</label>
+                <div class="face-upload-area" id="faceUploadArea">
+                    <input type="file" name="face_image" id="faceImageInput" accept="image/jpeg,image/png,image/webp" style="display: none;">
+                    <div id="facePreview" style="display: none;">
+                        <img id="facePreviewImg" src="" alt="Preview">
+                        <button type="button" onclick="clearFaceImage()" class="btn btn-sm btn-outline" style="margin-top: 0.5rem;">Ukloni</button>
+                    </div>
+                    <div id="faceUploadPrompt" onclick="document.getElementById('faceImageInput').click()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        <p>Kliknite za upload fotografije</p>
+                        <small>JPG, PNG ili WebP (max 10MB)</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Opis željene slike *</label>
+                <textarea name="prompt" class="form-control" rows="3" placeholder="Npr: osoba u poslovnom odijelu ispred moderne zgrade, profesionalna fotografija..."><?= e($prompt) ?></textarea>
+
+                <label class="checkbox-label" style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="translate" value="1" checked style="width: 18px; height: 18px;">
+                    <span>Prevedi na engleski</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary" id="faceSubmitBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    Generiraj sliku
+                </button>
+            </div>
+        </form>
+
+        <?php if ($error && $activeTab === 'face'): ?>
+        <div class="alert alert-danger" style="margin-top: 1rem;">
+            <?= e($error) ?>
+        </div>
+        <?php endif; ?>
+
+        <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px; font-size: 0.875rem;">
+            <strong>Napomena:</strong> Ova funkcija koristi Replicate API. Trebate postaviti <code>REPLICATE_API_TOKEN</code> u config.local.php ili kao environment varijablu.
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($generatedImage): ?>
 <div class="card mt-2">
@@ -410,6 +665,64 @@ include 'includes/header.php';
 </div>
 
 <style>
+.tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--gray-200);
+    padding-bottom: 0;
+}
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: var(--gray-600);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+}
+.tab:hover {
+    color: var(--primary-color);
+}
+.tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 500;
+}
+.face-upload-area {
+    border: 2px dashed var(--gray-300);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--gray-50);
+}
+.face-upload-area:hover {
+    border-color: var(--primary-color);
+    background: white;
+}
+#faceUploadPrompt {
+    color: var(--gray-500);
+}
+#faceUploadPrompt svg {
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+#faceUploadPrompt p {
+    margin: 0.5rem 0 0.25rem;
+    font-weight: 500;
+}
+#faceUploadPrompt small {
+    color: var(--gray-400);
+}
+#facePreviewImg {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
 .ai-images-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -475,11 +788,39 @@ include 'includes/header.php';
 </style>
 
 <script>
-document.getElementById('imageForm').addEventListener('submit', function() {
+// Imagen form submit
+document.getElementById('imageForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
     btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Generiram...';
     btn.disabled = true;
 });
+
+// Face form submit
+document.getElementById('faceForm')?.addEventListener('submit', function() {
+    const btn = document.getElementById('faceSubmitBtn');
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Generiram...';
+    btn.disabled = true;
+});
+
+// Face image preview
+document.getElementById('faceImageInput')?.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('facePreviewImg').src = e.target.result;
+            document.getElementById('facePreview').style.display = 'block';
+            document.getElementById('faceUploadPrompt').style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+function clearFaceImage() {
+    document.getElementById('faceImageInput').value = '';
+    document.getElementById('facePreview').style.display = 'none';
+    document.getElementById('faceUploadPrompt').style.display = 'block';
+}
 
 function usePrompt(el) {
     const promptText = el.querySelector('p').textContent;

@@ -515,6 +515,34 @@ function jsonResponse($data, $code = 200) {
  * Provjera je li AJAX request
  */
 function isAjax() {
-    return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+    return isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+}
+
+/**
+ * Prijevod statusa članka ZL
+ */
+function translateArticleStatus($status) {
+    $map = [
+        'nacrt' => 'Nacrt',
+        'za_pregled' => 'Za pregled',
+        'odobreno' => 'Odobreno',
+        'odbijeno' => 'Odbijeno',
+        'objavljeno' => 'Objavljeno'
+    ];
+    return $map[$status] ?? $status;
+}
+
+/**
+ * Boja statusa članka ZL
+ */
+function articleStatusColor($status) {
+    $map = [
+        'nacrt' => '#6b7280',
+        'za_pregled' => '#f59e0b',
+        'odobreno' => '#10b981',
+        'odbijeno' => '#ef4444',
+        'objavljeno' => '#3b82f6'
+    ];
+    return $map[$status] ?? '#6b7280';
 }
