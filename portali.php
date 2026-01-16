@@ -328,30 +328,12 @@ include 'includes/header.php';
                                     <?= date('d.m.Y H:i', strtotime($clanak['objavljeno_at'])) ?>
                                 </span>
                                 <?php endif; ?>
-                                <?php if (!empty($clanak['sadrzaj'])): ?>
-                                <button type="button" onclick="toggleContent(<?= $clanak['id'] ?>)" style="font-size: 0.7rem; color: #2563eb; background: none; border: none; cursor: pointer; padding: 0;">
-                                    Prikaži tekst
-                                </button>
-                                <button type="button" onclick="openRewrite(<?= $clanak['id'] ?>)" style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
+                                <button type="button" onclick="openRewrite(<?= $clanak['id'] ?>, '<?= e($clanak['url']) ?>')" style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
                                     Preradi
                                 </button>
-                                <?php else: ?>
-                                <a href="skini-tekst.php?url=<?= urlencode($clanak['url']) ?>" style="font-size: 0.7rem; color: #2563eb; text-decoration: none;">
-                                    Skini tekst
-                                </a>
-                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
-                    <?php if (!empty($clanak['sadrzaj'])): ?>
-                    <div id="content-<?= $clanak['id'] ?>" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 6px; font-size: 0.8rem; color: #4b5563; line-height: 1.5; margin-left: 2.25rem;">
-                        <?= e($clanak['sadrzaj']) ?>
-                        <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #9ca3af;">
-                            <?= number_format(mb_strlen($clanak['sadrzaj'])) ?> znakova
-                        </div>
-                    </div>
-                    <textarea id="text-<?= $clanak['id'] ?>" style="display: none;"><?= e($clanak['naslov'] . "\n\n" . $clanak['sadrzaj']) ?></textarea>
-                    <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
             <?php else: ?>
@@ -399,26 +381,33 @@ include 'includes/header.php';
 </div>
 
 <script>
-function toggleContent(id) {
-    const content = document.getElementById('content-' + id);
-    const btn = event.target;
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        btn.textContent = 'Sakrij tekst';
-    } else {
-        content.style.display = 'none';
-        btn.textContent = 'Prikaži tekst';
-    }
-}
-
-function openRewrite(id) {
-    const text = document.getElementById('text-' + id).value;
-    document.getElementById('modalOriginal').value = text;
-    document.getElementById('modalOriginalCount').textContent = text.length.toLocaleString() + ' znakova';
+async function openRewrite(id, url) {
+    document.getElementById('modalOriginal').value = 'Dohvaćam članak...';
+    document.getElementById('modalOriginalCount').textContent = '';
     document.getElementById('modalRewritten').value = '';
     document.getElementById('modalRewrittenCount').textContent = '';
     document.getElementById('rewriteModal').style.display = 'block';
     document.body.style.overflow = 'hidden';
+
+    try {
+        const response = await fetch('api/fetch-article.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url: url})
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const fullText = data.title + "\n\n" + data.content;
+            document.getElementById('modalOriginal').value = fullText;
+            document.getElementById('modalOriginalCount').textContent = data.length.toLocaleString() + ' znakova';
+        } else {
+            document.getElementById('modalOriginal').value = 'Greška: ' + data.error;
+        }
+    } catch (e) {
+        document.getElementById('modalOriginal').value = 'Greška pri dohvaćanju članka';
+    }
 }
 
 function closeModal() {
