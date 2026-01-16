@@ -568,8 +568,11 @@ include 'includes/header.php';
 <?php endif; ?>
 
 <?php if ($article):
-    $articleCharCount = mb_strlen($article);
-    $articleWordCount = str_word_count($article, 0, 'ČčĆćŽžŠšĐđ');
+    // Normaliziraj razmake - ukloni višestruke prazne redove
+    $articleClean = preg_replace('/\n{3,}/', "\n\n", $article);
+    $articleClean = trim($articleClean);
+    $articleCharCount = mb_strlen($articleClean);
+    $articleWordCount = str_word_count($articleClean, 0, 'ČčĆćŽžŠšĐđ');
 ?>
 <div class="card mt-2">
     <div class="card-header" style="background: #dcfce7; display: flex; justify-content: space-between; align-items: center;">
@@ -577,7 +580,7 @@ include 'includes/header.php';
         <span class="badge" style="background: #166534; color: white;"><?= number_format($articleWordCount) ?> riječi · <?= number_format($articleCharCount) ?> znakova</span>
     </div>
     <div class="card-body">
-        <div class="transcription-text" id="articleText"><?= nl2br(e($article)) ?></div>
+        <div class="transcription-text" id="articleText"><?= nl2br(e($articleClean)) ?></div>
 
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button onclick="copyArticle()" class="btn btn-success">
@@ -610,7 +613,7 @@ include 'includes/header.php';
             <?= csrfField() ?>
             <input type="hidden" name="action" value="save">
             <input type="hidden" name="transcript_b64" value="<?= base64_encode($transcription ?? '') ?>">
-            <input type="hidden" name="article_b64" value="<?= base64_encode($article ?? '') ?>">
+            <input type="hidden" name="article_b64" value="<?= base64_encode($articleClean ?? '') ?>">
             <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
             <input type="hidden" name="audio_path" value="<?= e($audioTempPath ?? '') ?>">
 
@@ -711,7 +714,7 @@ function copyTranscript() {
 }
 
 function copyArticle() {
-    const text = <?= json_encode($article ?? '') ?>;
+    const text = <?= json_encode($articleClean ?? '') ?>;
     navigator.clipboard.writeText(text).then(() => {
         alert('Članak kopiran!');
     });
@@ -729,7 +732,7 @@ function downloadTranscript() {
 }
 
 function downloadArticle() {
-    const text = <?= json_encode($article ?? '') ?>;
+    const text = <?= json_encode($articleClean ?? '') ?>;
     const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
