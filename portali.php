@@ -328,7 +328,7 @@ include 'includes/header.php';
                                     <?= date('d.m.Y H:i', strtotime($clanak['objavljeno_at'])) ?>
                                 </span>
                                 <?php endif; ?>
-                                <button type="button" onclick="openRewrite(<?= $clanak['id'] ?>, '<?= e($clanak['url']) ?>')" style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
+                                <button type="button" onclick="openRewrite(<?= $clanak['id'] ?>, <?= json_encode($clanak['url']) ?>)" style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
                                     Preradi
                                 </button>
                             </div>
