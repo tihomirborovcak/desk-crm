@@ -273,14 +273,19 @@ Pravila:
             return ['error' => 'Nema odgovora od Gemini-ja. Response: ' . substr($response, 0, 500)];
         }
 
-        return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+        // Očisti višak praznih redova
+        $resultText = $data['candidates'][0]['content']['parts'][0]['text'];
+        $resultText = preg_replace('/\n{3,}/', "\n\n", $resultText);
+        $resultText = trim($resultText);
+
+        return ['text' => $resultText];
     }
 
     return ['error' => 'Gemini API greška: Resource exhausted nakon ' . $maxRetries . ' pokušaja'];
 }
 
 // Gemini - napravi članak od transkripcije
-function makeArticle($text) {
+function makeArticle($text, $customInstructions = '') {
     $auth = getGoogleAccessToken();
     if (isset($auth['error'])) {
         return $auth;
@@ -317,6 +322,11 @@ NASLOV (kratak, informativan)
 LEAD (2-3 rečenice - sažetak najvažnijeg)
 
 TIJELO ČLANKA (svi detalji, izjave s citatima, kontekst, pozadina)";
+
+    // Dodaj korisničke upute ako postoje
+    if (!empty($customInstructions)) {
+        $systemPrompt .= "\n\nDODATNE UPUTE OD KORISNIKA:\n" . $customInstructions;
+    }
 
     $postData = json_encode([
         'contents' => [
@@ -396,8 +406,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $rawText = $_POST['raw_text'] ?? '';
     $audioFileName = $_POST['audio_filename'] ?? '';
     $audioTempPath = $_POST['audio_path'] ?? '';
+    $customInstructions = trim($_POST['custom_instructions'] ?? '');
     if (!empty($rawText)) {
-        $result = makeArticle($rawText);
+        $result = makeArticle($rawText, $customInstructions);
         if (isset($result['error'])) {
             $error = $result['error'];
             $transcription = $rawText;
@@ -528,14 +539,21 @@ include 'includes/header.php';
     <div class="card-body">
         <div class="transcription-text" id="transcriptText"><?= nl2br(e($transcription)) ?></div>
 
-        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <?php if (!$article): ?>
-            <form method="POST" style="display: inline;" id="articleForm">
+        <?php if (!$article): ?>
+        <!-- Upute za članak -->
+        <div style="margin-top: 1rem; padding: 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+            <form method="POST" id="articleForm">
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="article">
                 <input type="hidden" name="raw_text" value="<?= e($transcription) ?>">
                 <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
                 <input type="hidden" name="audio_path" value="<?= e($audioTempPath ?? '') ?>">
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label" style="font-weight: 600;">Upute za članak (opcionalno)</label>
+                    <textarea name="custom_instructions" class="form-control" rows="2" placeholder="Npr: Fokusiraj se na izjave gradonačelnika, članak neka bude kraći..."></textarea>
+                </div>
+
                 <button type="submit" class="btn btn-primary" id="articleBtn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -543,10 +561,13 @@ include 'includes/header.php';
                         <line x1="16" y1="13" x2="8" y2="13"/>
                         <line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
-                    Napravi članak
+                    Napiši članak
                 </button>
             </form>
-            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button onclick="copyTranscript()" class="btn btn-success">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>

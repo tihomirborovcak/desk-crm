@@ -347,47 +347,63 @@ include 'includes/header.php';
 </div>
 
 <!-- Modal za preradu -->
-<div id="rewriteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;">
-    <div style="background: white; max-width: 900px; margin: 2rem auto; border-radius: 12px; overflow: hidden;">
+<div id="rewriteModal" onclick="if(event.target === this) closeModal()" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;">
+    <div style="background: white; max-width: 900px; margin: 2rem auto; border-radius: 12px; overflow: hidden;" onclick="event.stopPropagation()">
         <div style="background: #1e3a5f; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <strong>Preradi tekst</strong>
-            <button onclick="closeModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            <strong>Preradi članak</strong>
+            <button type="button" onclick="closeModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
         </div>
         <div style="padding: 1rem;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
+                <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                <p>Dohvaćam članak sa stranice...</p>
+            </div>
+            <div id="modalContent" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div>
-                    <label style="font-weight: 500; font-size: 0.875rem; color: #374151;">Originalni tekst</label>
-                    <textarea id="modalOriginal" readonly style="width: 100%; height: 300px; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;"></textarea>
+                    <label style="font-weight: 500; font-size: 0.875rem; color: #374151;">Originalni tekst (sa stranice)</label>
+                    <textarea id="modalOriginal" style="width: 100%; height: 300px; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;"></textarea>
                     <div id="modalOriginalCount" style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem;"></div>
                 </div>
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="font-weight: 500; font-size: 0.875rem; color: #374151;">Prerađeni tekst</label>
-                        <button id="rewriteBtn" onclick="rewriteText()" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
+                        <button type="button" id="rewriteBtn" onclick="rewriteText()" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
                             Preradi s AI
                         </button>
                     </div>
-                    <textarea id="modalRewritten" style="width: 100%; height: 300px; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;"></textarea>
+                    <textarea id="modalRewritten" style="width: 100%; height: 300px; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;" placeholder="Klikni 'Preradi s AI' za generiranje prerađenog teksta..."></textarea>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
                         <span id="modalRewrittenCount" style="font-size: 0.75rem; color: #9ca3af;"></span>
-                        <button onclick="copyRewritten()" class="btn btn-outline" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
+                        <button type="button" onclick="copyRewritten()" class="btn btn-outline" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
                             Kopiraj
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+        <div style="padding: 1rem; border-top: 1px solid #e5e7eb; text-align: right;">
+            <button type="button" onclick="closeModal()" class="btn btn-outline">Zatvori</button>
+        </div>
     </div>
 </div>
 
 <script>
 async function openRewrite(id, url) {
-    document.getElementById('modalOriginal').value = 'Dohvaćam članak...';
+    const modal = document.getElementById('rewriteModal');
+    const loading = document.getElementById('modalLoading');
+    const content = document.getElementById('modalContent');
+
+    // Resetiraj
+    document.getElementById('modalOriginal').value = '';
     document.getElementById('modalOriginalCount').textContent = '';
     document.getElementById('modalRewritten').value = '';
     document.getElementById('modalRewrittenCount').textContent = '';
-    document.getElementById('rewriteModal').style.display = 'block';
+
+    // Prikaži modal i loading
+    modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
+    loading.style.display = 'block';
+    content.style.display = 'none';
 
     try {
         const response = await fetch('api/fetch-article.php', {
@@ -398,6 +414,9 @@ async function openRewrite(id, url) {
 
         const data = await response.json();
 
+        loading.style.display = 'none';
+        content.style.display = 'grid';
+
         if (data.success) {
             const fullText = data.title + "\n\n" + data.content;
             document.getElementById('modalOriginal').value = fullText;
@@ -406,7 +425,9 @@ async function openRewrite(id, url) {
             document.getElementById('modalOriginal').value = 'Greška: ' + data.error;
         }
     } catch (e) {
-        document.getElementById('modalOriginal').value = 'Greška pri dohvaćanju članka';
+        loading.style.display = 'none';
+        content.style.display = 'grid';
+        document.getElementById('modalOriginal').value = 'Greška pri dohvaćanju članka: ' + e.message;
     }
 }
 
@@ -419,8 +440,13 @@ async function rewriteText() {
     const btn = document.getElementById('rewriteBtn');
     const original = document.getElementById('modalOriginal').value;
 
+    if (!original || original.startsWith('Greška')) {
+        alert('Nema teksta za preradu');
+        return;
+    }
+
     btn.disabled = true;
-    btn.textContent = 'Prerađujem...';
+    btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:4px;display:inline-block;vertical-align:middle;"></span> Prerađujem...';
 
     try {
         const response = await fetch('api/rewrite.php', {
@@ -446,13 +472,18 @@ async function rewriteText() {
 }
 
 function copyRewritten() {
-    const textarea = document.getElementById('modalRewritten');
-    textarea.select();
-    document.execCommand('copy');
+    const text = document.getElementById('modalRewritten').value;
+    if (!text) {
+        alert('Nema teksta za kopiranje');
+        return;
+    }
 
-    const btn = event.target;
-    btn.textContent = 'Kopirano!';
-    setTimeout(() => btn.textContent = 'Kopiraj', 1500);
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Kopirano!';
+        setTimeout(() => btn.textContent = originalText, 1500);
+    });
 }
 
 // Zatvori modal na Escape
