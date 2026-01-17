@@ -20,6 +20,8 @@ $originalText = $_POST['original_text'] ?? '';
 $instructions = $_POST['instructions'] ?? '';
 $resultText = null;
 $error = null;
+$activeTab = $_GET['tab'] ?? 'prerada';
+$mode = $_POST['mode'] ?? 'prerada';
 
 // Google Gemini - JWT token
 function getGoogleAccessToken() {
@@ -168,23 +170,118 @@ Pravila:
     return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
 }
 
+// Google Gemini - generiraj novi tekst
+function generirajTekst($instructions) {
+    $auth = getGoogleAccessToken();
+
+    if (isset($auth['error'])) {
+        return $auth;
+    }
+
+    $projectId = $auth['project_id'];
+    $region = 'europe-central2';
+    $model = 'gemini-2.0-flash-001';
+
+    $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
+
+    $systemPrompt = "Ti si profesionalni pisac i novinar koji piše na hrvatskom jeziku.
+Tvoj zadatak je napisati tekst prema uputama korisnika.
+
+Pravila:
+- Piši isključivo na hrvatskom jeziku
+- Koristi pravilan hrvatski pravopis i gramatiku
+- Budi kreativan ali činjenično točan
+- Prilagodi stil i ton prema uputama
+- Budi jasan, koncizan i profesionalan
+- Ako upute zahtijevaju specifične informacije koje ne poznaješ, koristi placeholder tekst [DODATI: opis]";
+
+    $userPrompt = "UPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama. Vrati SAMO tekst, bez dodatnih objašnjenja.";
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 90,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $auth['token']
+        ],
+        CURLOPT_POSTFIELDS => json_encode([
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [['text' => $userPrompt]]
+                ]
+            ],
+            'systemInstruction' => [
+                'parts' => [['text' => $systemPrompt]]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.8,
+                'maxOutputTokens' => 4000
+            ]
+        ])
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        return ['error' => 'Greška: ' . $curlError];
+    }
+
+    $data = json_decode($response, true);
+
+    if ($httpCode !== 200) {
+        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'Gemini API greška: ' . $errMsg];
+    }
+
+    if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+        return ['error' => 'Nema odgovora od Gemini-ja'];
+    }
+
+    return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+}
+
 // Obrada forme
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $originalText = trim($_POST['original_text'] ?? '');
     $instructions = trim($_POST['instructions'] ?? '');
+    $mode = $_POST['mode'] ?? 'prerada';
+    $activeTab = $mode;
 
-    if (empty($originalText)) {
-        $error = 'Unesite tekst za preradu';
-    } elseif (empty($instructions)) {
-        $error = 'Unesite upute za preradu';
-    } else {
-        $result = preradi($originalText, $instructions);
-
-        if (isset($result['error'])) {
-            $error = $result['error'];
+    if ($mode === 'novi') {
+        // Novi tekst - samo upute
+        if (empty($instructions)) {
+            $error = 'Unesite upute za pisanje teksta';
         } else {
-            $resultText = $result['text'];
-            logActivity('ai_text_process', 'ai', null);
+            $result = generirajTekst($instructions);
+
+            if (isset($result['error'])) {
+                $error = $result['error'];
+            } else {
+                $resultText = $result['text'];
+                logActivity('ai_text_generate', 'ai', null);
+            }
+        }
+    } else {
+        // Prerada teksta
+        if (empty($originalText)) {
+            $error = 'Unesite tekst za preradu';
+        } elseif (empty($instructions)) {
+            $error = 'Unesite upute za preradu';
+        } else {
+            $result = preradi($originalText, $instructions);
+
+            if (isset($result['error'])) {
+                $error = $result['error'];
+            } else {
+                $resultText = $result['text'];
+                logActivity('ai_text_process', 'ai', null);
+            }
         }
     }
 }
@@ -193,16 +290,39 @@ include 'includes/header.php';
 ?>
 
 <div class="page-header">
-    <h1>AI Prerada teksta</h1>
+    <h1>AI Tekst</h1>
 </div>
 
+<!-- Tabovi -->
+<div class="tabs" style="margin-bottom: 1rem;">
+    <a href="?tab=prerada" class="tab <?= $activeTab === 'prerada' ? 'active' : '' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        Prerada teksta
+    </a>
+    <a href="?tab=novi" class="tab <?= $activeTab === 'novi' ? 'active' : '' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        Novi tekst
+    </a>
+</div>
+
+<?php if ($activeTab === 'prerada'): ?>
+<!-- PRERADA TEKSTA -->
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">Preradi tekst za objavu</h2>
+        <h2 class="card-title">Preradi postojeći tekst</h2>
     </div>
     <div class="card-body">
         <form method="POST" id="textForm">
             <?= csrfField() ?>
+            <input type="hidden" name="mode" value="prerada">
 
             <div class="form-group">
                 <label class="form-label">Originalni tekst *</label>
@@ -226,13 +346,66 @@ include 'includes/header.php';
             </div>
         </form>
 
-        <?php if ($error): ?>
+        <?php if ($error && $activeTab === 'prerada'): ?>
         <div class="alert alert-danger" style="margin-top: 1rem;">
             <?= e($error) ?>
         </div>
         <?php endif; ?>
     </div>
 </div>
+
+<?php else: ?>
+<!-- NOVI TEKST -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Generiraj novi tekst</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" id="newTextForm">
+            <?= csrfField() ?>
+            <input type="hidden" name="mode" value="novi">
+
+            <div class="form-group">
+                <label class="form-label">Upute za pisanje *</label>
+                <textarea name="instructions" class="form-control" rows="6" placeholder="Opišite što želite da AI napiše...
+
+Npr:
+- Napiši vijest o otvorenju novog dječjeg vrtića u Krapini
+- Napiši najavu za koncert koji se održava 25. siječnja u Dvorani
+- Napiši čestitku za Novu godinu u ime gradonačelnika"><?= e($activeTab === 'novi' ? $instructions : '') ?></textarea>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary" id="newSubmitBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    Generiraj tekst
+                </button>
+            </div>
+        </form>
+
+        <?php if ($error && $activeTab === 'novi'): ?>
+        <div class="alert alert-danger" style="margin-top: 1rem;">
+            <?= e($error) ?>
+        </div>
+        <?php endif; ?>
+
+        <!-- Primjeri za novi tekst -->
+        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+            <label class="form-label" style="margin-bottom: 0.5rem;">Brzi primjeri:</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                <button type="button" class="btn btn-sm btn-outline" onclick="setNewInstruction('Napiši kratku vijest o [TEMA]. Uključi naslov i 2-3 odlomka.')">Vijest</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="setNewInstruction('Napiši najavu događaja: [NAZIV DOGAĐAJA], [DATUM], [MJESTO]. Uključi poziv na sudjelovanje.')">Najava</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="setNewInstruction('Napiši svečanu čestitku za [PRIGODA] u ime [OSOBA/INSTITUCIJA].')">Čestitka</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="setNewInstruction('Napiši objavu za društvene mreže o [TEMA]. Kratko, privlačno, s pozivom na akciju.')">Social post</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="setNewInstruction('Napiši press release o [TEMA]. Formalni ton, uključi citate.')">Press release</button>
+                <button type="button" class="btn btn-sm btn-outline" onclick="setNewInstruction('Napiši blog članak o [TEMA]. Opušteni ton, 400-600 riječi.')">Blog</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($resultText): ?>
 <div class="card mt-2">
@@ -332,6 +505,31 @@ include 'includes/header.php';
 </div>
 
 <style>
+.tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--gray-200);
+    padding-bottom: 0;
+}
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    text-decoration: none;
+    color: var(--gray-600);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+}
+.tab:hover {
+    color: var(--primary-color);
+}
+.tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 500;
+}
 .result-text {
     background: var(--gray-50);
     border: 1px solid var(--gray-200);
@@ -371,10 +569,17 @@ include 'includes/header.php';
 </style>
 
 <script>
-// Loading state za glavnu formu
-document.getElementById('textForm').addEventListener('submit', function() {
+// Loading state za prerada formu
+document.getElementById('textForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
     btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Prerađujem...';
+    btn.disabled = true;
+});
+
+// Loading state za novi tekst formu
+document.getElementById('newTextForm')?.addEventListener('submit', function() {
+    const btn = document.getElementById('newSubmitBtn');
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Generiram...';
     btn.disabled = true;
 });
 
@@ -394,15 +599,29 @@ function copyResult() {
 
 function useAsOriginal() {
     const text = <?= json_encode($resultText ?? '') ?>;
-    document.querySelector('textarea[name="original_text"]').value = text;
-    document.querySelector('textarea[name="instructions"]').value = '';
-    window.scrollTo({top: 0, behavior: 'smooth'});
+    // Prebaci na prerada tab
+    window.location.href = '?tab=prerada';
+    // Spremimo u sessionStorage da popunimo nakon učitavanja
+    sessionStorage.setItem('originalText', text);
+}
+
+// Ako imamo tekst u sessionStorage, popuni
+if (sessionStorage.getItem('originalText')) {
+    const textarea = document.querySelector('#textForm textarea[name="original_text"]');
+    if (textarea) {
+        textarea.value = sessionStorage.getItem('originalText');
+        sessionStorage.removeItem('originalText');
+    }
 }
 
 function useInstruction(el) {
     const instruction = el.querySelector('p').textContent;
     document.querySelector('#textForm textarea[name="instructions"]').value = instruction;
     document.querySelector('#textForm textarea[name="instructions"]').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+function setNewInstruction(text) {
+    document.querySelector('#newTextForm textarea[name="instructions"]').value = text;
 }
 </script>
 
