@@ -144,24 +144,6 @@ function parseRSS($rssUrl, $portalDomain, $limit = 10) {
     return $results;
 }
 
-// Scraperi za svaki portal - koriste RSS za datume objave
-function scrapeIndex() {
-    // RSS ima datume objave, pa ga koristimo kao primarni izvor
-    return parseRSS('https://www.index.hr/rss', 'index.hr');
-}
-
-function scrape24sata() {
-    return parseRSS('https://www.24sata.hr/feeds/aktualno.xml', '24sata.hr');
-}
-
-function scrapeJutarnji() {
-    return parseRSS('https://www.jutarnji.hr/feed', 'jutarnji.hr');
-}
-
-function scrapeVecernji() {
-    return parseRSS('https://www.vecernji.hr/feeds/latest', 'vecernji.hr');
-}
-
 // Osvježi podatke
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refresh']) && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $portalId = (int)$_POST['portal_id'];
@@ -171,19 +153,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refresh']) && verifyC
     $stmt->execute([$portalId]);
     $portal = $stmt->fetch();
 
-    if ($portal) {
-        $results = [];
-
-        // Pozovi odgovarajući scraper
-        if (strpos($portal['url'], 'index.hr') !== false) {
-            $results = scrapeIndex();
-        } elseif (strpos($portal['url'], '24sata.hr') !== false) {
-            $results = scrape24sata();
-        } elseif (strpos($portal['url'], 'jutarnji.hr') !== false) {
-            $results = scrapeJutarnji();
-        } elseif (strpos($portal['url'], 'vecernji.hr') !== false) {
-            $results = scrapeVecernji();
-        }
+    if ($portal && !empty($portal['rss_url'])) {
+        $domain = parse_url($portal['url'], PHP_URL_HOST);
+        $results = parseRSS($portal['rss_url'], $domain);
 
         if (!empty($results)) {
             // Spremi rezultate
@@ -207,17 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refresh_all']) && ver
     $totalCount = 0;
 
     foreach ($portali as $portal) {
-        $results = [];
+        if (empty($portal['rss_url'])) continue;
 
-        if (strpos($portal['url'], 'index.hr') !== false) {
-            $results = scrapeIndex();
-        } elseif (strpos($portal['url'], '24sata.hr') !== false) {
-            $results = scrape24sata();
-        } elseif (strpos($portal['url'], 'jutarnji.hr') !== false) {
-            $results = scrapeJutarnji();
-        } elseif (strpos($portal['url'], 'vecernji.hr') !== false) {
-            $results = scrapeVecernji();
-        }
+        $domain = parse_url($portal['url'], PHP_URL_HOST);
+        $results = parseRSS($portal['rss_url'], $domain);
 
         if (!empty($results)) {
             $now = date('Y-m-d H:i:s');
