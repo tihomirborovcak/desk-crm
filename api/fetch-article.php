@@ -88,22 +88,53 @@ foreach ($removeSelectors as $selector) {
     }
 }
 
+// Specifični selektori za hrvatske portale
+$portalSelectors = [];
+
+if (strpos($url, '24sata.hr') !== false) {
+    $portalSelectors = [
+        "//*[contains(@class, 'article__text')]",
+        "//*[contains(@class, 'article-text')]",
+        "//*[contains(@data-testid, 'article-body')]",
+        "//div[contains(@class, 'content')]//p",
+    ];
+} elseif (strpos($url, 'index.hr') !== false) {
+    $portalSelectors = [
+        "//*[contains(@class, 'text')]",
+        "//*[contains(@class, 'article-text')]",
+        "//div[@id='text']",
+    ];
+} elseif (strpos($url, 'jutarnji.hr') !== false) {
+    $portalSelectors = [
+        "//*[contains(@class, 'article__body')]",
+        "//*[contains(@class, 'article-body')]",
+        "//*[contains(@class, 'single__content')]",
+    ];
+} elseif (strpos($url, 'vecernji.hr') !== false) {
+    $portalSelectors = [
+        "//*[contains(@class, 'article__body')]",
+        "//*[contains(@class, 'article-body')]",
+        "//*[contains(@class, 'single-article')]",
+    ];
+}
+
 // Pokušaj pronaći glavni sadržaj članka
-$contentSelectors = [
+$contentSelectors = array_merge($portalSelectors, [
     "//*[contains(@class, 'article-body')]",
     "//*[contains(@class, 'article-content')]",
     "//*[contains(@class, 'article__body')]",
     "//*[contains(@class, 'article__content')]",
+    "//*[contains(@class, 'article__text')]",
     "//*[contains(@class, 'story-body')]",
     "//*[contains(@class, 'post-content')]",
     "//*[contains(@class, 'entry-content')]",
     "//*[contains(@class, 'content-body')]",
     "//*[contains(@class, 'text-body')]",
     "//*[contains(@class, 'article-text')]",
-    "//article",
     "//*[@itemprop='articleBody']",
+    "//article",
     "//main",
-];
+]);
 
 $content = '';
 foreach ($contentSelectors as $selector) {
@@ -113,34 +144,42 @@ foreach ($contentSelectors as $selector) {
         $pNodes = $xpath->query(".//p", $nodes->item(0));
         foreach ($pNodes as $p) {
             $text = trim($p->textContent);
-            if (strlen($text) > 30) {
+            if (mb_strlen($text) > 20) {
                 $paragraphs[] = $text;
             }
         }
-        if (count($paragraphs) > 0) {
+        if (count($paragraphs) > 2) {
             $content = implode("\n\n", $paragraphs);
             break;
         }
     }
 }
 
-// Fallback - uzmi sve paragrafe
+// Fallback - uzmi sve paragrafe iz body-a
 if (empty($content)) {
     $paragraphs = [];
-    $pNodes = $xpath->query("//p");
+    $pNodes = $xpath->query("//body//p");
     foreach ($pNodes as $p) {
         $text = trim($p->textContent);
-        if (strlen($text) > 50) {
-            $paragraphs[] = $text;
+        // Preskoči kratke i one koji izgledaju kao navigacija/linkovi
+        if (mb_strlen($text) > 40 && mb_strlen($text) < 5000) {
+            // Preskoči ako ima previše linkova (vjerojatno navigacija)
+            $linkCount = $xpath->query(".//a", $p)->length;
+            $wordCount = str_word_count($text);
+            if ($linkCount < 3 || $wordCount > 20) {
+                $paragraphs[] = $text;
+            }
         }
     }
     $content = implode("\n\n", $paragraphs);
 }
 
-// Očisti whitespace
+// Dekodiraj HTML entitete i očisti whitespace
+$content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $content = preg_replace('/\s+/', ' ', $content);
 $content = str_replace(' .', '.', $content);
 $content = str_replace(' ,', ',', $content);
+$title = html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
 if (empty($content)) {
     echo json_encode(['success' => false, 'error' => 'Nije pronađen tekst članka']);
