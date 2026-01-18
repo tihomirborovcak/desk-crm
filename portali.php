@@ -328,7 +328,7 @@ include 'includes/header.php';
                                     <?= date('d.m.Y H:i', strtotime($clanak['objavljeno_at'])) ?>
                                 </span>
                                 <?php endif; ?>
-                                <button type="button" onclick="openRewrite(<?= $clanak['id'] ?>, <?= json_encode($clanak['url']) ?>)" style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
+                                <button type="button" onclick='openRewrite(<?= $clanak["id"] ?>, <?= json_encode($clanak["url"]) ?>)' style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
                                     Preradi
                                 </button>
                             </div>
@@ -347,11 +347,11 @@ include 'includes/header.php';
 </div>
 
 <!-- Modal za preradu -->
-<div id="rewriteModal" onclick="if(event.target === this) closeModal()" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;">
-    <div style="background: white; max-width: 900px; margin: 2rem auto; border-radius: 12px; overflow: hidden;" onclick="event.stopPropagation()">
+<div id="rewriteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;">
+    <div id="modalInner" style="background: white; max-width: 900px; margin: 2rem auto; border-radius: 12px; overflow: hidden;">
         <div style="background: #1e3a5f; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
             <strong>Preradi članak</strong>
-            <button type="button" onclick="closeModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+            <button type="button" id="modalCloseX" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
         </div>
         <div style="padding: 1rem;">
             <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
@@ -382,16 +382,18 @@ include 'includes/header.php';
             </div>
         </div>
         <div style="padding: 1rem; border-top: 1px solid #e5e7eb; text-align: right;">
-            <button type="button" onclick="closeModal()" class="btn btn-outline">Zatvori</button>
+            <button type="button" id="modalCloseBtn" class="btn btn-outline">Zatvori</button>
         </div>
     </div>
 </div>
 
 <script>
 async function openRewrite(id, url) {
+    console.log('openRewrite called with:', id, url);
     const modal = document.getElementById('rewriteModal');
     const loading = document.getElementById('modalLoading');
     const content = document.getElementById('modalContent');
+    console.log('Elements:', {modal, loading, content});
 
     // Resetiraj
     document.getElementById('modalOriginal').value = '';
@@ -400,19 +402,23 @@ async function openRewrite(id, url) {
     document.getElementById('modalRewrittenCount').textContent = '';
 
     // Prikaži modal i loading
-    modal.style.display = 'block';
+    modal.hidden = false;
+    modal.style.cssText = 'display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;';
     document.body.style.overflow = 'hidden';
     loading.style.display = 'block';
     content.style.display = 'none';
 
     try {
+        console.log('Fetching article from URL:', url);
         const response = await fetch('api/fetch-article.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({url: url})
         });
+        console.log('Response status:', response.status);
 
         const data = await response.json();
+        console.log('Response data:', data);
 
         loading.style.display = 'none';
         content.style.display = 'grid';
@@ -432,8 +438,16 @@ async function openRewrite(id, url) {
 }
 
 function closeModal() {
-    document.getElementById('rewriteModal').style.display = 'none';
-    document.body.style.overflow = '';
+    console.log('closeModal called');
+    const modal = document.getElementById('rewriteModal');
+    if (modal) {
+        modal.hidden = true;
+        modal.style.cssText = 'display: none !important';
+        document.body.style.overflow = '';
+        console.log('Modal should be hidden now');
+    } else {
+        console.log('Modal not found!');
+    }
 }
 
 async function rewriteText() {
@@ -486,9 +500,37 @@ function copyRewritten() {
     });
 }
 
-// Zatvori modal na Escape
+// Event listeneri za zatvaranje modala
+document.getElementById('modalCloseX').addEventListener('click', function() {
+    console.log('X clicked - hiding modal directly');
+    document.getElementById('rewriteModal').style.cssText = 'display: none !important';
+    document.body.style.overflow = '';
+});
+
+document.getElementById('modalCloseBtn').addEventListener('click', function() {
+    console.log('Zatvori clicked - hiding modal directly');
+    document.getElementById('rewriteModal').style.cssText = 'display: none !important';
+    document.body.style.overflow = '';
+});
+
+document.getElementById('rewriteModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        console.log('Background clicked');
+        document.getElementById('rewriteModal').style.cssText = 'display: none !important';
+        document.body.style.overflow = '';
+    }
+});
+
+document.getElementById('modalInner').addEventListener('click', function(e) {
+    e.stopPropagation();
+});
+
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+        console.log('Escape pressed');
+        document.getElementById('rewriteModal').style.cssText = 'display: none !important';
+        document.body.style.overflow = '';
+    }
 });
 </script>
 
