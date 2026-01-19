@@ -273,9 +273,18 @@ Pravila:
             return ['error' => 'Nema odgovora od Gemini-ja. Response: ' . substr($response, 0, 500)];
         }
 
-        // Očisti višak praznih redova
+        // Agresivno čišćenje praznih redova
         $resultText = $data['candidates'][0]['content']['parts'][0]['text'];
-        $resultText = preg_replace('/\n{3,}/', "\n\n", $resultText);
+        // Ukloni Unicode line separatore
+        $resultText = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $resultText);
+        // Normaliziraj line breakove
+        $resultText = str_replace(["\r\n", "\r"], "\n", $resultText);
+        // Ukloni redove koji sadrže samo razmake/tabove
+        $resultText = preg_replace('/^[ \t]+$/m', '', $resultText);
+        // Ukloni razmake na kraju redova
+        $resultText = preg_replace('/[ \t]+$/m', '', $resultText);
+        // Max 1 prazan red između odlomaka
+        $resultText = preg_replace('/\n{2,}/', "\n\n", $resultText);
         $resultText = trim($resultText);
 
         return ['text' => $resultText];
@@ -321,7 +330,12 @@ NASLOV (kratak, informativan)
 
 LEAD (2-3 rečenice - sažetak najvažnijeg)
 
-TIJELO ČLANKA (svi detalji, izjave s citatima, kontekst, pozadina)";
+TIJELO ČLANKA (svi detalji, izjave s citatima, kontekst, pozadina)
+
+VAŽNO ZA FORMATIRANJE:
+- Koristi SAMO JEDAN prazan red između odlomaka
+- NIKADA ne stavljaj više od jednog praznog reda između rečenica ili odlomaka
+- Tekst treba biti kompaktan i čitljiv";
 
     // Dodaj korisničke upute ako postoje
     if (!empty($customInstructions)) {
@@ -390,9 +404,19 @@ TIJELO ČLANKA (svi detalji, izjave s citatima, kontekst, pozadina)";
             return ['error' => 'Nema odgovora od Gemini-ja'];
         }
 
-        // Očisti višak praznih redova (max 1 prazan red između odlomaka)
+        // Agresivno čišćenje praznih redova
         $resultText = $data['candidates'][0]['content']['parts'][0]['text'];
-        $resultText = preg_replace("/\n{3,}/", "\n\n", $resultText);
+
+        // Ukloni Unicode line separatore i paragraph separatore
+        $resultText = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $resultText);
+        // Normaliziraj sve vrste line breakova
+        $resultText = str_replace(["\r\n", "\r"], "\n", $resultText);
+        // Ukloni redove koji sadrže samo razmake/tabove
+        $resultText = preg_replace('/^[ \t]+$/m', '', $resultText);
+        // Ukloni razmake na kraju redova
+        $resultText = preg_replace('/[ \t]+$/m', '', $resultText);
+        // Ukloni višestruke prazne redove (2+ uzastopna newlinea = max 1 prazan red)
+        $resultText = preg_replace('/\n{2,}/', "\n\n", $resultText);
         $resultText = trim($resultText);
 
         return ['text' => $resultText];
@@ -528,8 +552,15 @@ include 'includes/header.php';
 </div>
 
 <?php if ($transcription):
-    $charCount = mb_strlen($transcription);
-    $wordCount = str_word_count($transcription, 0, 'ČčĆćŽžŠšĐđ');
+    // Očisti transkript za prikaz
+    $transcriptClean = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $transcription);
+    $transcriptClean = str_replace(["\r\n", "\r"], "\n", $transcriptClean);
+    $transcriptClean = preg_replace('/^[ \t]+$/m', '', $transcriptClean);
+    $transcriptClean = preg_replace('/[ \t]+$/m', '', $transcriptClean);
+    $transcriptClean = preg_replace('/\n{2,}/', "\n\n", $transcriptClean);
+    $transcriptClean = trim($transcriptClean);
+    $charCount = mb_strlen($transcriptClean);
+    $wordCount = str_word_count($transcriptClean, 0, 'ČčĆćŽžŠšĐđ');
 ?>
 <div class="card mt-2">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -537,7 +568,7 @@ include 'includes/header.php';
         <span class="badge badge-secondary"><?= number_format($wordCount) ?> riječi · <?= number_format($charCount) ?> znakova</span>
     </div>
     <div class="card-body">
-        <div class="transcription-text" id="transcriptText"><?= nl2br(e($transcription)) ?></div>
+        <div class="transcription-text" id="transcriptText"><?= e($transcriptClean) ?></div>
 
         <?php if (!$article): ?>
         <!-- Upute za članak -->
@@ -545,7 +576,7 @@ include 'includes/header.php';
             <form method="POST" id="articleForm">
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="article">
-                <input type="hidden" name="raw_text" value="<?= e($transcription) ?>">
+                <input type="hidden" name="raw_text" value="<?= e($transcriptClean) ?>">
                 <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
                 <input type="hidden" name="audio_path" value="<?= e($audioTempPath ?? '') ?>">
 
@@ -589,8 +620,12 @@ include 'includes/header.php';
 <?php endif; ?>
 
 <?php if ($article):
-    // Normaliziraj razmake - ukloni višestruke prazne redove
-    $articleClean = preg_replace('/\n{3,}/', "\n\n", $article);
+    // Agresivno čišćenje praznih redova
+    $articleClean = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $article);
+    $articleClean = str_replace(["\r\n", "\r"], "\n", $articleClean);
+    $articleClean = preg_replace('/^[ \t]+$/m', '', $articleClean);
+    $articleClean = preg_replace('/[ \t]+$/m', '', $articleClean);
+    $articleClean = preg_replace('/\n{2,}/', "\n\n", $articleClean);
     $articleClean = trim($articleClean);
     $articleCharCount = mb_strlen($articleClean);
     $articleWordCount = str_word_count($articleClean, 0, 'ČčĆćŽžŠšĐđ');
@@ -601,7 +636,7 @@ include 'includes/header.php';
         <span class="badge" style="background: #166534; color: white;"><?= number_format($articleWordCount) ?> riječi · <?= number_format($articleCharCount) ?> znakova</span>
     </div>
     <div class="card-body">
-        <div class="transcription-text" id="articleText"><?= nl2br(e($articleClean)) ?></div>
+        <div class="transcription-text" id="articleText"><?= e($articleClean) ?></div>
 
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button onclick="copyArticle()" class="btn btn-success">
@@ -633,7 +668,7 @@ include 'includes/header.php';
         <form method="POST" id="saveForm">
             <?= csrfField() ?>
             <input type="hidden" name="action" value="save">
-            <input type="hidden" name="transcript_b64" value="<?= base64_encode($transcription ?? '') ?>">
+            <input type="hidden" name="transcript_b64" value="<?= base64_encode($transcriptClean ?? '') ?>">
             <input type="hidden" name="article_b64" value="<?= base64_encode($articleClean ?? '') ?>">
             <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
             <input type="hidden" name="audio_path" value="<?= e($audioTempPath ?? '') ?>">
@@ -728,7 +763,7 @@ document.getElementById('articleForm')?.addEventListener('submit', function() {
 });
 
 function copyTranscript() {
-    const text = <?= json_encode($transcription ?? '') ?>;
+    const text = <?= json_encode($transcriptClean ?? '') ?>;
     navigator.clipboard.writeText(text).then(() => {
         alert('Tekst kopiran!');
     });
@@ -742,7 +777,7 @@ function copyArticle() {
 }
 
 function downloadTranscript() {
-    const text = <?= json_encode($transcription ?? '') ?>;
+    const text = <?= json_encode($transcriptClean ?? '') ?>;
     const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
