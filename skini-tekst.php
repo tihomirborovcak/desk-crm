@@ -437,13 +437,15 @@ document.getElementById('mainForm')?.addEventListener('submit', function(e) {
     } else {
         btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:6px;display:inline-block;vertical-align:middle;"></span> Skidam...';
     }
-    btn.disabled = true;
+    // Disable nakon kratke pauze da forma stigne otići
+    setTimeout(() => { btn.disabled = true; }, 100);
 });
 
 document.getElementById('rewriteForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('btnPreradi2');
     btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;margin-right:4px;display:inline-block;vertical-align:middle;"></span> Radim...';
-    btn.disabled = true;
+    // Disable nakon kratke pauze da forma stigne otići
+    setTimeout(() => { btn.disabled = true; }, 100);
 });
 </script>
 <style>
