@@ -8,6 +8,12 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
+// Samo admini mogu pristupiti taskovima
+if (!isAdmin()) {
+    header('Location: dashboard.php');
+    exit;
+}
+
 $db = getDB();
 $userId = $_SESSION['user_id'];
 
