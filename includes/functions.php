@@ -560,17 +560,46 @@ function generatePassword($length = 10) {
 }
 
 /**
- * Pošalji email
+ * Pošalji email putem SMTP
  */
 function sendEmail($to, $subject, $body, $isHtml = true) {
-    $headers = [];
-    $headers[] = 'MIME-Version: 1.0';
-    $headers[] = $isHtml ? 'Content-type: text/html; charset=UTF-8' : 'Content-type: text/plain; charset=UTF-8';
-    $headers[] = 'From: ' . MAIL_FROM_NAME . ' <' . MAIL_FROM . '>';
-    $headers[] = 'Reply-To: ' . MAIL_FROM;
-    $headers[] = 'X-Mailer: PHP/' . phpversion();
+    // Učitaj PHPMailer
+    require_once __DIR__ . '/PHPMailer/Exception.php';
+    require_once __DIR__ . '/PHPMailer/PHPMailer.php';
+    require_once __DIR__ . '/PHPMailer/SMTP.php';
 
-    return mail($to, $subject, $body, implode("\r\n", $headers));
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+    try {
+        // SMTP postavke
+        $mail->isSMTP();
+        $mail->Host = SMTP_HOST;
+        $mail->SMTPAuth = true;
+        $mail->Username = SMTP_USER;
+        $mail->Password = SMTP_PASSWORD;
+        $mail->SMTPSecure = SMTP_SECURE;
+        $mail->Port = SMTP_PORT;
+        $mail->CharSet = 'UTF-8';
+
+        // Pošiljatelj i primatelj
+        $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+        $mail->addAddress($to);
+
+        // Sadržaj
+        $mail->isHTML($isHtml);
+        $mail->Subject = $subject;
+        $mail->Body = $body;
+
+        if ($isHtml) {
+            $mail->AltBody = strip_tags($body);
+        }
+
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log("Email error: " . $mail->ErrorInfo);
+        return false;
+    }
 }
 
 /**
