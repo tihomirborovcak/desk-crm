@@ -89,6 +89,15 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
+// Slanje pristupnih podataka
+if (isset($_GET['send_credentials'])) {
+    $sendId = intval($_GET['send_credentials']);
+    $result = sendCredentials($sendId);
+    setMessage($result['success'] ? 'success' : 'danger', $result['message']);
+    header('Location: users.php');
+    exit;
+}
+
 // Dohvati sve korisnike
 $stmt = $db->query("SELECT * FROM users ORDER BY full_name");
 $users = $stmt->fetchAll();
@@ -126,7 +135,7 @@ include 'includes/header.php';
                     <th>Telefon</th>
                     <th>Uloga</th>
                     <th>Status</th>
-                    <th style="width: 120px;">Akcije</th>
+                    <th style="width: 200px;">Akcije</th>
                 </tr>
             </thead>
             <tbody>
@@ -152,6 +161,12 @@ include 'includes/header.php';
                     </td>
                     <td>
                         <a href="?edit=<?= $u['id'] ?>" class="btn btn-sm btn-outline">Uredi</a>
+                        <a href="?send_credentials=<?= $u['id'] ?>" class="btn btn-sm btn-info" data-confirm="Poslati pristupne podatke na <?= e($u['email']) ?>? Generirat će se nova lozinka.">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                        </a>
                         <?php if ($u['id'] != $_SESSION['user_id']): ?>
                         <a href="?delete=<?= $u['id'] ?>" class="btn btn-sm btn-danger" data-confirm="Obrisati korisnika?">×</a>
                         <?php endif; ?>

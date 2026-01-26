@@ -546,3 +546,115 @@ function articleStatusColor($status) {
     ];
     return $map[$status] ?? '#6b7280';
 }
+
+/**
+ * Generiraj sigurnu lozinku
+ */
+function generatePassword($length = 10) {
+    $chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+    $password = '';
+    for ($i = 0; $i < $length; $i++) {
+        $password .= $chars[random_int(0, strlen($chars) - 1)];
+    }
+    return $password;
+}
+
+/**
+ * Pošalji email
+ */
+function sendEmail($to, $subject, $body, $isHtml = true) {
+    $headers = [];
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = $isHtml ? 'Content-type: text/html; charset=UTF-8' : 'Content-type: text/plain; charset=UTF-8';
+    $headers[] = 'From: ' . MAIL_FROM_NAME . ' <' . MAIL_FROM . '>';
+    $headers[] = 'Reply-To: ' . MAIL_FROM;
+    $headers[] = 'X-Mailer: PHP/' . phpversion();
+
+    return mail($to, $subject, $body, implode("\r\n", $headers));
+}
+
+/**
+ * Pošalji pristupne podatke korisniku
+ */
+function sendCredentials($userId, $newPassword = null) {
+    $db = getDB();
+
+    $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        return ['success' => false, 'message' => 'Korisnik nije pronađen'];
+    }
+
+    // Ako nije proslijeđena lozinka, generiraj novu
+    if ($newPassword === null) {
+        $newPassword = generatePassword(10);
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+
+        $stmt = $db->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $stmt->execute([$hashedPassword, $userId]);
+    }
+
+    $loginUrl = SITE_URL . '/index.php';
+
+    $body = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+            .credentials { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e5e7eb; }
+            .credentials p { margin: 10px 0; }
+            .label { color: #6b7280; font-size: 12px; text-transform: uppercase; }
+            .value { font-size: 18px; font-weight: bold; color: #1f2937; }
+            .button { display: inline-block; background: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+            .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h1>Portal CMS</h1>
+            </div>
+            <div class='content'>
+                <p>Poštovani/a <strong>{$user['full_name']}</strong>,</p>
+                <p>Kreirani su vaši pristupni podaci za Portal CMS sustav:</p>
+
+                <div class='credentials'>
+                    <p>
+                        <span class='label'>Korisničko ime:</span><br>
+                        <span class='value'>{$user['username']}</span>
+                    </p>
+                    <p>
+                        <span class='label'>Lozinka:</span><br>
+                        <span class='value'>{$newPassword}</span>
+                    </p>
+                </div>
+
+                <p>Link za prijavu:</p>
+                <a href='{$loginUrl}' class='button'>Prijavi se</a>
+
+                <p style='margin-top: 30px; color: #6b7280; font-size: 14px;'>
+                    Preporučujemo da nakon prve prijave promijenite lozinku.
+                </p>
+            </div>
+            <div class='footer'>
+                <p>Portal CMS - " . date('Y') . "</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+
+    $sent = sendEmail($user['email'], 'Pristupni podaci za Portal CMS', $body);
+
+    if ($sent) {
+        logActivity('credentials_sent', 'user', $userId);
+        return ['success' => true, 'message' => 'Pristupni podaci poslani na ' . $user['email']];
+    } else {
+        return ['success' => false, 'message' => 'Greška pri slanju emaila'];
+    }
+}
