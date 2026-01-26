@@ -8,6 +8,12 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
+// Samo admini mogu vidjeti taskove
+if (!isAdmin()) {
+    header('Location: dashboard.php');
+    exit;
+}
+
 define('PAGE_TITLE', 'Taskovi');
 
 $db = getDB();
