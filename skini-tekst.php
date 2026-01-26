@@ -8,6 +8,9 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
+// Duži timeout za AI operacije
+set_time_limit(300);
+
 $db = getDB();
 $result = null;
 $error = null;
@@ -233,7 +236,8 @@ function rewriteWithGemini($text, $title) {
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
-        CURLOPT_TIMEOUT => 120,
+        CURLOPT_TIMEOUT => 180,
+        CURLOPT_CONNECTTIMEOUT => 30,
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
             'Authorization: Bearer ' . $auth['token']
@@ -242,8 +246,13 @@ function rewriteWithGemini($text, $title) {
     ]);
 
     $response = curl_exec($ch);
+    $curlError = curl_error($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+
+    if ($curlError) {
+        return ['error' => 'Greška konekcije: ' . $curlError];
+    }
 
     if ($httpCode !== 200) {
         $errData = json_decode($response, true);
