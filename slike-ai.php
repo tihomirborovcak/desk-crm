@@ -386,6 +386,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $activeTab = $mode;
 
     if ($mode === 'face') {
+        // Face swap mode - samo za admine
+        if (!isAdmin()) {
+            $error = 'Face swap je dostupan samo administratorima.';
+        } else {
         // Face swap mode - treba dvije slike, ne treba prompt
         $targetOk = isset($_FILES['target_image']) && $_FILES['target_image']['error'] === UPLOAD_ERR_OK;
         $faceOk = isset($_FILES['face_image']) && $_FILES['face_image']['error'] === UPLOAD_ERR_OK;
@@ -422,6 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 }
             }
         }
+        } // end isAdmin else
     } else {
         // Imagen mode - treba prompt
         if (empty($prompt)) {
@@ -463,6 +468,7 @@ include 'includes/header.php';
         </svg>
         Imagen (tekst)
     </a>
+    <?php if (isAdmin()): ?>
     <a href="?tab=face" class="tab <?= $activeTab === 'face' ? 'active' : '' ?>">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -470,6 +476,7 @@ include 'includes/header.php';
         </svg>
         Face Swap
     </a>
+    <?php endif; ?>
 </div>
 
 <?php if ($activeTab === 'imagen'): ?>
@@ -511,8 +518,8 @@ include 'includes/header.php';
     </div>
 </div>
 
-<?php else: ?>
-<!-- FACE SWAP TAB -->
+<?php elseif (isAdmin()): ?>
+<!-- FACE SWAP TAB - samo za admine -->
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Face Swap - zamjena lica</h2>
