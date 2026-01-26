@@ -333,14 +333,14 @@ include 'includes/header.php';
     <p style="color: #6b7280; margin: 0.25rem 0 0 0;">Unesite URL članka za ekstrakciju i preradu teksta</p>
 </div>
 
-<form method="POST" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+<form method="POST" id="mainForm" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
     <?= csrfField() ?>
 
     <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
         <input type="url" name="url" value="<?= e($articleUrl) ?>" placeholder="https://www.portal.hr/clanak/..."
                style="flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem;">
-        <button type="submit" name="rewrite" value="0" class="btn btn-outline">Samo skini</button>
-        <button type="submit" name="rewrite" value="1" class="btn btn-primary">Skini i preradi</button>
+        <button type="submit" name="rewrite" value="0" class="btn btn-outline" id="btnSkini">Samo skini</button>
+        <button type="submit" name="rewrite" value="1" class="btn btn-primary" id="btnPreradi">Skini i preradi</button>
     </div>
 </form>
 
@@ -383,10 +383,10 @@ include 'includes/header.php';
                 <?php endif; ?>
             </div>
             <?php if (!$processedText && $originalText): ?>
-            <form method="POST" style="margin: 0;">
+            <form method="POST" id="rewriteForm" style="margin: 0;">
                 <?= csrfField() ?>
                 <input type="hidden" name="url" value="<?= e($articleUrl) ?>">
-                <button type="submit" name="rewrite" value="1" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
+                <button type="submit" name="rewrite" value="1" class="btn btn-primary" id="btnPreradi2" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
                     Preradi s AI
                 </button>
             </form>
@@ -419,7 +419,36 @@ function copyText(elementId) {
     btn.textContent = 'Kopirano!';
     setTimeout(() => btn.textContent = originalText, 1500);
 }
+
+// Loading state za forme
+document.getElementById('mainForm')?.addEventListener('submit', function(e) {
+    const btn = e.submitter;
+    if (btn.value === '1') {
+        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:6px;display:inline-block;vertical-align:middle;"></span> Skidam i prerađujem...';
+    } else {
+        btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:6px;display:inline-block;vertical-align:middle;"></span> Skidam...';
+    }
+    btn.disabled = true;
+});
+
+document.getElementById('rewriteForm')?.addEventListener('submit', function() {
+    const btn = document.getElementById('btnPreradi2');
+    btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;margin-right:4px;display:inline-block;vertical-align:middle;"></span> Radim...';
+    btn.disabled = true;
+});
 </script>
+<style>
+.spinner {
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
 <?php endif; ?>
 
 <?php include 'includes/footer.php'; ?>
