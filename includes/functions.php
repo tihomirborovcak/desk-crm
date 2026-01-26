@@ -652,16 +652,16 @@ function sendCredentials($userId, $newPassword = null) {
                 <p>Poštovani/a <strong>{$user['full_name']}</strong>,</p>
                 <p>Kreirani su vaši pristupni podaci za Portal CMS sustav:</p>
 
-                <div class='credentials'>
-                    <p>
-                        <span class='label'>Korisničko ime:</span><br>
-                        <span class='value'>{$user['username']}</span>
-                    </p>
-                    <p>
-                        <span class='label'>Lozinka:</span><br>
-                        <span class='value'>{$newPassword}</span>
-                    </p>
-                </div>
+                <table class='credentials' style='width: 100%; border-collapse: collapse;'>
+                    <tr>
+                        <td style='padding: 10px; color: #6b7280; font-size: 12px; text-transform: uppercase; width: 120px;'>Korisničko ime:</td>
+                        <td style='padding: 10px; font-size: 16px; font-weight: bold; color: #1f2937;'>{$user['username']}</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 10px; color: #6b7280; font-size: 12px; text-transform: uppercase;'>Lozinka:</td>
+                        <td style='padding: 10px;'><code style='font-size: 18px; font-weight: bold; color: #1f2937; background: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-family: monospace;'>{$newPassword}</code></td>
+                    </tr>
+                </table>
 
                 <p>Link za prijavu:</p>
                 <a href='{$loginUrl}' class='button'>Prijavi se</a>
