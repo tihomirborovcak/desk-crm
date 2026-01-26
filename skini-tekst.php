@@ -125,21 +125,99 @@ function extractArticleContent($html, $url) {
     ];
 }
 
-// Funkcija za preradu teksta s Gemini API
-function rewriteWithGemini($text, $title) {
-    $apiKey = getenv('GEMINI_API_KEY');
-    if (!$apiKey) {
-        // Pokušaj iz ANTHROPIC_API_KEY ako Gemini nije postavljen
-        return ['error' => 'GEMINI_API_KEY nije postavljen'];
+// Google Vertex AI autentifikacija
+function getGoogleAccessToken() {
+    $credentialsFile = __DIR__ . '/google-credentials.json';
+
+    if (!file_exists($credentialsFile)) {
+        return ['error' => 'Google credentials datoteka nije pronađena'];
     }
 
-    $prompt = "Preradi sljedeći novinarski članak na hrvatski jezik. Zadrži sve ključne informacije ali promijeni strukturu rečenica i riječi tako da tekst bude originalan. Ne dodaji ništa što nije u originalnom tekstu. Vrati samo prerađeni tekst bez dodatnih komentara.\n\nNaslov: $title\n\nTekst:\n$text";
+    $credentials = json_decode(file_get_contents($credentialsFile), true);
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey;
+    if (!$credentials || !isset($credentials['private_key'])) {
+        return ['error' => 'Neispravna credentials datoteka'];
+    }
+
+    $header = ['alg' => 'RS256', 'typ' => 'JWT'];
+
+    $now = time();
+    $payload = [
+        'iss' => $credentials['client_email'],
+        'scope' => 'https://www.googleapis.com/auth/cloud-platform',
+        'aud' => 'https://oauth2.googleapis.com/token',
+        'iat' => $now,
+        'exp' => $now + 3600
+    ];
+
+    $base64UrlEncode = function($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    };
+
+    $headerEncoded = $base64UrlEncode(json_encode($header));
+    $payloadEncoded = $base64UrlEncode(json_encode($payload));
+
+    $dataToSign = $headerEncoded . '.' . $payloadEncoded;
+    $privateKey = openssl_pkey_get_private($credentials['private_key']);
+
+    if (!$privateKey) {
+        return ['error' => 'Neispravan privatni ključ'];
+    }
+
+    openssl_sign($dataToSign, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+    $jwt = $dataToSign . '.' . $base64UrlEncode($signature);
+
+    $ch = curl_init('https://oauth2.googleapis.com/token');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_POSTFIELDS => http_build_query([
+            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion' => $jwt
+        ])
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    if ($httpCode !== 200 || !isset($data['access_token'])) {
+        $errMsg = $data['error_description'] ?? $data['error'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'Google auth greška: ' . $errMsg];
+    }
+
+    $credentials = json_decode(file_get_contents($credentialsFile), true);
+
+    return [
+        'token' => $data['access_token'],
+        'project_id' => $credentials['project_id']
+    ];
+}
+
+// Funkcija za preradu teksta s Google Vertex AI (Gemini)
+function rewriteWithGemini($text, $title) {
+    $auth = getGoogleAccessToken();
+
+    if (isset($auth['error'])) {
+        return ['error' => $auth['error']];
+    }
+
+    $projectId = $auth['project_id'];
+    $region = 'europe-central2';
+    $model = 'gemini-2.0-flash-001';
+
+    $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
+
+    $prompt = "Preradi sljedeći novinarski članak na hrvatski jezik. Zadrži sve ključne informacije ali promijeni strukturu rečenica i riječi tako da tekst bude originalan. Ne dodaji ništa što nije u originalnom tekstu. Vrati samo prerađeni tekst bez dodatnih komentara.\n\nNaslov: $title\n\nTekst:\n$text";
 
     $data = [
         'contents' => [
             [
+                'role' => 'user',
                 'parts' => [
                     ['text' => $prompt]
                 ]
@@ -151,19 +229,26 @@ function rewriteWithGemini($text, $title) {
         ]
     ];
 
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'POST',
-            'header' => "Content-Type: application/json\r\n",
-            'content' => json_encode($data),
-            'timeout' => 60
-        ]
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $auth['token']
+        ],
+        CURLOPT_POSTFIELDS => json_encode($data)
     ]);
 
-    $response = @file_get_contents($url, false, $ctx);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-    if ($response === false) {
-        return ['error' => 'Greška pri pozivu Gemini API-ja'];
+    if ($httpCode !== 200) {
+        $errData = json_decode($response, true);
+        $errMsg = $errData['error']['message'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'Gemini API greška: ' . $errMsg];
     }
 
     $result = json_decode($response, true);
