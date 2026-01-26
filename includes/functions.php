@@ -580,6 +580,7 @@ function sendEmail($to, $subject, $body, $isHtml = true) {
         $mail->SMTPSecure = SMTP_SECURE;
         $mail->Port = SMTP_PORT;
         $mail->CharSet = 'UTF-8';
+        $mail->Timeout = 15; // 15 sekundi timeout
 
         // Pošiljatelj i primatelj
         $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
