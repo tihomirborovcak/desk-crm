@@ -284,8 +284,8 @@ if (!empty(GA4_PROPERTY_ID)) {
         case 'published':
             // Dohvati članke preko Feedly API (čuva više članaka od RSS-a)
             $feedlyToken = 'eyJraWQiOiJhdXQiLCJ2IjoiMSIsImFsZyI6ImRpciIsImVuYyI6IkEyNTZHQ00ifQ..bW7GvjG7sJRdsN6d.aGrm3ekZAwAd2dN4_mwZp2ECmzWIaNvoepVmxEorbTpcNsR_8SK7mtq7klQHX26fiYUWyr1Y9HM1nAKWEdzkEPg22DN1ZN9Tblw2NYEpHy0Ya1-AJdewgSp2YTuVsiS7VIZwrEqm82jUsWAWnMt8uE50WqfNYVAHYG6SoJ0B3RtEHb-3DRFx--Mv4lzYavtqqfvT8kOQNvu_p71sAxbTAseV2hwI6XbV2W7c6NQCfYfoIawzPqK3fjO7xzrWreuVJIi9Szroow.FKn9h3deKRgzB_41hiKy5g';
-            $feedId = urlencode('feed/https://www.zagorje.com/rss');
-            $feedlyUrl = "https://cloud.feedly.com/v3/streams/contents?streamId={$feedId}&count=250";
+            $streamId = urlencode('user/6e135c2a-75fe-4109-8be8-6b52fa6866e6/category/zagorjecom');
+            $feedlyUrl = "https://cloud.feedly.com/v3/streams/contents?streamId={$streamId}&count=500";
 
             $ch = curl_init($feedlyUrl);
             curl_setopt_array($ch, [
