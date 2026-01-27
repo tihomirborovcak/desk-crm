@@ -189,6 +189,15 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     </svg>
                     Statistike
                 </a>
+
+                <a href="ga-analitika.php" class="nav-item <?= $currentPage === 'ga-analitika' ? 'active' : '' ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 21H3"/>
+                        <path d="M21 21V3"/>
+                        <path d="M3 21V9l6-3 4 4 8-8"/>
+                    </svg>
+                    GA4 Analitika
+                </a>
                 <?php endif; ?>
 
                 <?php if (isAdmin()): ?>
