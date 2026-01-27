@@ -369,6 +369,18 @@ foreach ($fbPosts as $post) {
         <h2 class="card-title" style="color: white;">📘 Objavljeno na Facebook stranici</h2>
     </div>
     <div class="card-body" style="padding: 0;">
+        <!-- DEBUG -->
+        <div style="background: #fef3c7; padding: 0.5rem; font-size: 0.7rem; border-bottom: 1px solid #e5e7eb;">
+            <strong>Debug:</strong> Objava: <?= count($fbPosts) ?> |
+            <?php if ($fbError): ?>
+            <span style="color: red;">Error: <?= e($fbError['message'] ?? print_r($fbError, true)) ?></span>
+            <?php else: ?>
+            <span style="color: green;">OK</span>
+            <?php endif; ?>
+            <details><summary>Raw</summary><pre style="font-size: 0.6rem;"><?= e(print_r($fbRaw, true)) ?></pre></details>
+        </div>
+        <!-- /DEBUG -->
+
         <?php if (!empty($todayPosts)): ?>
         <div style="background: #dcfce7; padding: 0.5rem 0.75rem; font-weight: 600; color: #166534; font-size: 0.8rem;">
             🟢 Danas (<?= count($todayPosts) ?>)
