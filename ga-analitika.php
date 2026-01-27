@@ -305,8 +305,10 @@ if (!empty(GA4_PROPERTY_ID)) {
                     foreach ($feedlyData['items'] as $item) {
                         $pubDate = isset($item['published']) ? (int)($item['published'] / 1000) : null;
                         $link = $item['alternate'][0]['href'] ?? $item['originId'] ?? '';
+                        // Dekodiraj HTML entitete u naslovu (Feedly ih ponekad double-encodira)
+                        $title = html_entity_decode(html_entity_decode($item['title'] ?? '', ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8');
                         $rssArticles[] = [
-                            'title' => $item['title'] ?? '',
+                            'title' => $title,
                             'link' => $link,
                             'pubDate' => $pubDate,
                             'description' => strip_tags($item['summary']['content'] ?? '')
