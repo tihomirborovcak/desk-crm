@@ -347,8 +347,9 @@ function toggleSchedule() {
 <!-- Objave s Facebook stranice -->
 <?php
 $fbResult = getFacebookPosts(15, true);
-$fbPosts = $fbResult['posts'];
-$fbError = $fbResult['error'];
+$fbPosts = $fbResult['posts'] ?? [];
+$fbError = $fbResult['error'] ?? null;
+$fbRaw = $fbResult['raw'] ?? null;
 $todayPosts = [];
 $olderPosts = [];
 $today = date('Y-m-d');
@@ -362,6 +363,24 @@ foreach ($fbPosts as $post) {
     }
 }
 ?>
+
+<!-- DEBUG -->
+<div class="card mt-2" style="border: 2px solid orange;">
+    <div class="card-header" style="background: orange; color: white;">
+        <strong>DEBUG - Facebook API</strong>
+    </div>
+    <div class="card-body" style="font-size: 0.7rem;">
+        <p>Broj objava: <?= count($fbPosts) ?></p>
+        <p>Danas: <?= count($todayPosts) ?>, Ranije: <?= count($olderPosts) ?></p>
+        <?php if ($fbError): ?>
+        <p style="color: red;">Error: <?= e(print_r($fbError, true)) ?></p>
+        <?php endif; ?>
+        <details>
+            <summary>Raw response</summary>
+            <pre style="font-size: 0.6rem; max-height: 200px; overflow: auto;"><?= e(print_r($fbRaw, true)) ?></pre>
+        </details>
+    </div>
+</div>
 <div class="card mt-2">
     <div class="card-header" style="background: #1877f2; color: white;">
         <h2 class="card-title" style="color: white;">📘 Objavljeno na Facebook stranici</h2>
