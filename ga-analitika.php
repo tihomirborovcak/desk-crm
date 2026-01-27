@@ -282,21 +282,34 @@ if (!empty(GA4_PROPERTY_ID)) {
             break;
 
         case 'published':
-            // Dohvati RSS feed za zagorje.com
-            $rssUrl = 'https://www.zagorje.com/rss';
-            $rssData = @file_get_contents($rssUrl);
-            $rssArticles = [];
+            // Dohvati članke preko Feedly API (čuva više članaka od RSS-a)
+            $feedlyToken = 'eyJraWQiOiJhdXQiLCJ2IjoiMSIsImFsZyI6ImRpciIsImVuYyI6IkEyNTZHQ00ifQ..bW7GvjG7sJRdsN6d.aGrm3ekZAwAd2dN4_mwZp2ECmzWIaNvoepVmxEorbTpcNsR_8SK7mtq7klQHX26fiYUWyr1Y9HM1nAKWEdzkEPg22DN1ZN9Tblw2NYEpHy0Ya1-AJdewgSp2YTuVsiS7VIZwrEqm82jUsWAWnMt8uE50WqfNYVAHYG6SoJ0B3RtEHb-3DRFx--Mv4lzYavtqqfvT8kOQNvu_p71sAxbTAseV2hwI6XbV2W7c6NQCfYfoIawzPqK3fjO7xzrWreuVJIi9Szroow.FKn9h3deKRgzB_41hiKy5g';
+            $feedId = urlencode('feed/https://www.zagorje.com/rss');
+            $feedlyUrl = "https://cloud.feedly.com/v3/streams/contents?streamId={$feedId}&count=250";
 
-            if ($rssData) {
-                $xml = @simplexml_load_string($rssData);
-                if ($xml && isset($xml->channel->item)) {
-                    foreach ($xml->channel->item as $item) {
-                        $pubDate = isset($item->pubDate) ? strtotime((string)$item->pubDate) : null;
+            $ch = curl_init($feedlyUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $feedlyToken
+                ]
+            ]);
+            $feedlyResponse = curl_exec($ch);
+            $feedlyHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            $rssArticles = [];
+            if ($feedlyHttpCode === 200) {
+                $feedlyData = json_decode($feedlyResponse, true);
+                if (isset($feedlyData['items'])) {
+                    foreach ($feedlyData['items'] as $item) {
+                        $pubDate = isset($item['published']) ? (int)($item['published'] / 1000) : null;
+                        $link = $item['alternate'][0]['href'] ?? $item['originId'] ?? '';
                         $rssArticles[] = [
-                            'title' => (string)$item->title,
-                            'link' => (string)$item->link,
+                            'title' => $item['title'] ?? '',
+                            'link' => $link,
                             'pubDate' => $pubDate,
-                            'description' => (string)$item->description
+                            'description' => strip_tags($item['summary']['content'] ?? '')
                         ];
                     }
                 }
