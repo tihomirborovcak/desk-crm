@@ -16,6 +16,7 @@ define('NOTIFICATION_EMAILS', 'facebook_poruke@zagorski-list.net');
 /**
  * Pošalji email preko SMTP
  */
+if (!function_exists('sendEmail')) {
 function sendEmail($to, $subject, $body, $isHtml = true) {
     // Koristi PHPMailer ako postoji, inače fallback na mail()
     $phpmailerPath = __DIR__ . '/../vendor/autoload.php';
@@ -28,10 +29,12 @@ function sendEmail($to, $subject, $body, $isHtml = true) {
     // Fallback - koristi fsockopen za direktni SMTP
     return sendWithSocket($to, $subject, $body, $isHtml);
 }
+}
 
 /**
  * Pošalji email preko socketa (bez PHPMailer)
  */
+if (!function_exists('sendWithSocket')) {
 function sendWithSocket($to, $subject, $body, $isHtml = true) {
     $headers = "From: " . SMTP_FROM_NAME . " <" . SMTP_FROM . ">\r\n";
     $headers .= "Reply-To: " . SMTP_FROM . "\r\n";
@@ -109,10 +112,12 @@ function sendWithSocket($to, $subject, $body, $isHtml = true) {
 
     return true;
 }
+}
 
 /**
  * Pošalji email preko PHPMailer (ako je instaliran)
  */
+if (!function_exists('sendWithPHPMailer')) {
 function sendWithPHPMailer($to, $subject, $body, $isHtml = true) {
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
@@ -143,4 +148,5 @@ function sendWithPHPMailer($to, $subject, $body, $isHtml = true) {
         error_log("PHPMailer Error: " . $mail->ErrorInfo);
         return false;
     }
+}
 }
