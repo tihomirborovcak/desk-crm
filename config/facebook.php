@@ -24,6 +24,9 @@ $FB_PAGES = [
 define('FB_PAGE_ACCESS_TOKEN', $FB_PAGES['zagorje']['token']);
 define('FB_PAGE_ID', $FB_PAGES['zagorje']['id']);
 
+// Instagram Business Account (povezan sa Zagorje.com stranicom)
+define('INSTAGRAM_ACCOUNT_ID', '17841401965473133');
+
 /**
  * Dohvati sve FB stranice
  */

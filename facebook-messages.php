@@ -70,6 +70,71 @@ try {
     $db->exec("ALTER TABLE facebook_messages ADD COLUMN attachment_url TEXT NULL AFTER message_text");
 }
 
+// Dodaj platform kolonu ako ne postoji (facebook/instagram)
+try {
+    $db->query("SELECT platform FROM facebook_conversations LIMIT 1");
+} catch (PDOException $e) {
+    $db->exec("ALTER TABLE facebook_conversations ADD COLUMN platform VARCHAR(20) DEFAULT 'facebook'");
+}
+
+// Pošalji poruku
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        setMessage('error', 'Nevažeći token');
+    } else {
+        $recipientId = $_POST['recipient_id'] ?? '';
+        $messageText = trim($_POST['message'] ?? '');
+        $convId = $_POST['conversation_id'] ?? '';
+
+        if (empty($messageText)) {
+            setMessage('error', 'Poruka ne može biti prazna');
+        } elseif (empty($recipientId)) {
+            setMessage('error', 'Nema primatelja');
+        } else {
+            // Pošalji preko Facebook API
+            $sendUrl = "https://graph.facebook.com/v24.0/me/messages";
+            $postData = [
+                'recipient' => json_encode(['id' => $recipientId]),
+                'message' => json_encode(['text' => $messageText]),
+                'messaging_type' => 'RESPONSE',
+                'access_token' => FB_PAGE_ACCESS_TOKEN
+            ];
+
+            $ch = curl_init($sendUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => http_build_query($postData)
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            $result = json_decode($response, true);
+
+            if ($httpCode === 200 && isset($result['message_id'])) {
+                // Spremi poslanu poruku u bazu
+                $stmt = $db->prepare("
+                    INSERT INTO facebook_messages
+                    (conversation_id, message_id, sender_id, sender_name, message_text, sent_at, is_from_page)
+                    VALUES (?, ?, ?, 'Stranica', ?, NOW(), 1)
+                ");
+                $stmt->execute([$convId, $result['message_id'], FB_PAGE_ID, $messageText]);
+
+                // Ažuriraj vrijeme zadnje poruke
+                $db->prepare("UPDATE facebook_conversations SET last_message_at = NOW() WHERE conversation_id = ?")->execute([$convId]);
+
+                setMessage('success', 'Poruka poslana');
+            } else {
+                $error = $result['error']['message'] ?? 'Nepoznata greška';
+                setMessage('error', 'Greška: ' . $error);
+            }
+        }
+    }
+    header('Location: facebook-messages.php?conv=' . urlencode($convId));
+    exit;
+}
+
 // Dohvati konverzacije
 $conversations = $db->query("
     SELECT c.*,
@@ -133,7 +198,7 @@ include 'includes/header.php';
             <?php foreach ($conversations as $conv): ?>
             <a href="?conv=<?= urlencode($conv['conversation_id']) ?>"
                class="conv-item <?= $selectedConv === $conv['conversation_id'] ? 'active' : '' ?> <?= $conv['unread_count'] > 0 ? 'unread' : '' ?>">
-                <div class="conv-avatar">
+                <div class="conv-avatar <?= ($conv['platform'] ?? 'facebook') === 'instagram' ? 'ig' : '' ?>">
                     <?= mb_strtoupper(mb_substr($conv['participant_name'], 0, 1)) ?>
                 </div>
                 <div class="conv-info">
@@ -193,8 +258,17 @@ include 'includes/header.php';
             <?php endforeach; ?>
         </div>
         <div class="card-footer" style="background: #f9fafb; padding: 1rem;">
-            <p style="color: #6b7280; font-size: 0.85rem; text-align: center;">
-                Za odgovor koristi <a href="https://www.facebook.com/messages/t/<?= e($convInfo['participant_id'] ?? '') ?>" target="_blank" style="color: #1877f2;">Facebook Messenger</a>
+            <form method="POST" class="reply-form">
+                <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
+                <input type="hidden" name="recipient_id" value="<?= e($convInfo['participant_id'] ?? '') ?>">
+                <input type="hidden" name="conversation_id" value="<?= e($selectedConv) ?>">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" name="message" placeholder="Napiši poruku..." class="form-control" style="flex: 1;" required>
+                    <button type="submit" name="send_message" class="btn btn-primary" style="background: #1877f2;">Pošalji</button>
+                </div>
+            </form>
+            <p style="color: #9ca3af; font-size: 0.75rem; text-align: center; margin-top: 0.5rem;">
+                ili otvori u <a href="https://www.facebook.com/messages/t/<?= e($convInfo['participant_id'] ?? '') ?>" target="_blank" style="color: #1877f2;">Messengeru</a>
             </p>
         </div>
         <?php else: ?>
@@ -239,6 +313,9 @@ include 'includes/header.php';
     justify-content: center;
     font-weight: 600;
     flex-shrink: 0;
+}
+.conv-avatar.ig {
+    background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
 }
 .conv-info {
     flex: 1;
