@@ -1,55 +1,89 @@
 <?php
 /**
- * Facebook API konfiguracija
+ * Facebook API konfiguracija - više stranica
  */
 
 define('FB_APP_ID', '1400449617617009');
 define('FB_APP_SECRET', '865941be7c689b85f4de5f6f8bc61b5b');
-define('FB_PAGE_ACCESS_TOKEN', 'EAAT5s5X74HEBQqt88FOf4Y1VptB04op7kpcc6ZBZCZBtHs2qZCm6WuRuPZCiZAG4wkp83bDnHycPVgyrfeGSjs8AIz80tHll2z3WBaftUkb2v8cFnDuQ0KeQ2cXN2g277kJU4ongl8fcZA83XjNhigqKeTrDAvk9AvO631I3C8RxkvAS0vEa6zUXmYEMeZAvZCaVJGViBt6iRLwHJo0k0tywoTYwMIrRF2t0rv4w7hd01byZBSG65ZCAygZD');
-define('FB_PAGE_ID', '170346612635');
+
+// Konfiguracija stranica
+$FB_PAGES = [
+    'zagorje' => [
+        'id' => '170346612635',
+        'name' => 'Zagorje.com',
+        'token' => 'EAAT5s5X74HEBQjOLntoiXFSIRzZClSwlfZAG4snJyh7SkevLWMMlQffFn1LuJpamUkHhOZCt2fZBr88j3uP7ZCSQ0jZBfQgCn51iMvpC2oZA9qIXtdXzD2A4ZAYn7jAcv11ZAK3BLOiGdrjF2eoQsMTXdOvtnyUejSIylDJcZBlP3ALPA6Oc552KcrvamZAOFquI1jCzwZDZD'
+    ],
+    'zagorski_list' => [
+        'id' => '291667890858805',
+        'name' => 'Zagorski list',
+        'token' => 'EAAT5s5X74HEBQtQfZBG6goMO7lj1OQV8ylDrYHoFwlDWXt8ZCc54h28ErnnU5HSS6VxRBXyezC5Mb0qZCmUDzMu6DwwZCtZB47Wa3xcZAtayviIZAFcVSYbRIIeZC3vZALFEWsMZACkoZAiNw8O9rP4znI5qKjTNZA5UdFGtBHA2uYwV99Q8Wj6hvS6o4rJZBKCyHPKkeBTqT'
+    ]
+];
+
+// Za kompatibilnost sa starim kodom
+define('FB_PAGE_ACCESS_TOKEN', $FB_PAGES['zagorje']['token']);
+define('FB_PAGE_ID', $FB_PAGES['zagorje']['id']);
 
 /**
- * Objavi link na Facebook stranicu
+ * Dohvati sve FB stranice
  */
-function postToFacebook($url, $message = '') {
-    // Koristi hardkodirani Page ID i token
-    $pageId = FB_PAGE_ID;
-    $pageToken = FB_PAGE_ACCESS_TOKEN;
+function getFBPages() {
+    global $FB_PAGES;
+    return $FB_PAGES;
+}
+
+/**
+ * Objavi link na Facebook stranicu/e
+ */
+function postToFacebook($url, $message = '', $pages = ['zagorje']) {
+    global $FB_PAGES;
+    $results = [];
 
     // Dodaj UTM parametre
     $separator = strpos($url, '?') !== false ? '&' : '?';
     $urlWithUtm = $url . $separator . 'utm_source=facebook&utm_medium=social&utm_campaign=post';
 
-    // Objavi na Facebook
-    $postUrl = "https://graph.facebook.com/v24.0/{$pageId}/feed";
+    foreach ($pages as $pageKey) {
+        if (!isset($FB_PAGES[$pageKey])) continue;
 
-    $postData = [
-        'link' => $urlWithUtm,
-        'access_token' => $pageToken
-    ];
+        $page = $FB_PAGES[$pageKey];
+        $postUrl = "https://graph.facebook.com/v24.0/{$page['id']}/feed";
 
-    if (!empty($message)) {
-        $postData['message'] = $message;
+        $postData = [
+            'link' => $urlWithUtm,
+            'access_token' => $page['token']
+        ];
+
+        if (!empty($message)) {
+            $postData['message'] = $message;
+        }
+
+        $ch = curl_init($postUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query($postData)
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $result = json_decode($response, true);
+
+        if ($httpCode === 200 && isset($result['id'])) {
+            $results[$pageKey] = ['success' => true, 'post_id' => $result['id'], 'page_name' => $page['name']];
+        } else {
+            $results[$pageKey] = ['success' => false, 'error' => $result['error']['message'] ?? 'Nepoznata greška', 'page_name' => $page['name']];
+        }
     }
 
-    $ch = curl_init($postUrl);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query($postData)
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $result = json_decode($response, true);
-
-    if ($httpCode === 200 && isset($result['id'])) {
-        return ['success' => true, 'post_id' => $result['id'], 'page_name' => $pageInfo['name']];
+    // Za kompatibilnost - ako samo jedna stranica, vrati kao prije
+    if (count($pages) === 1) {
+        return $results[$pages[0]] ?? ['success' => false, 'error' => 'Stranica nije pronađena'];
     }
 
-    return ['success' => false, 'error' => $result['error']['message'] ?? 'Nepoznata greška', 'debug' => $result];
+    return $results;
 }
 
 /**

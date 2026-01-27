@@ -69,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $action = $_POST['action'] ?? 'now';
     $scheduledDate = $_POST['scheduled_date'] ?? '';
     $scheduledTime = $_POST['scheduled_time'] ?? '';
+    $selectedPages = $_POST['fb_pages'] ?? ['zagorje'];
 
     if (empty($url)) {
         $message = 'URL je obavezan';
@@ -76,31 +77,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     } elseif (!filter_var($url, FILTER_VALIDATE_URL)) {
         $message = 'Nevažeći URL';
         $messageType = 'danger';
+    } elseif (empty($selectedPages)) {
+        $message = 'Odaberi barem jednu stranicu';
+        $messageType = 'danger';
     } elseif ($action === 'schedule' && (empty($scheduledDate) || empty($scheduledTime))) {
         $message = 'Datum i vrijeme su obavezni za zakazivanje';
         $messageType = 'danger';
     } else {
         if ($action === 'now') {
-            // Objavi odmah
-            $result = postToFacebook($url, $text);
+            // Objavi odmah na odabrane stranice
+            $results = postToFacebook($url, $text, $selectedPages);
 
-            if ($result['success']) {
-                // Spremi u bazu
-                $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, posted_at, post_id, status, created_by) VALUES (?, ?, ?, NOW(), NOW(), ?, 'posted', ?)");
-                $stmt->execute([$url, $title, $text, $result['post_id'], $_SESSION['user_id']]);
+            // Ako je samo jedna stranica, pretvori u array za lakšu obradu
+            if (isset($results['success'])) {
+                $results = [$selectedPages[0] => $results];
+            }
 
-                $message = 'Objavljeno na Facebook!';
+            $successPages = [];
+            $failedPages = [];
+            foreach ($results as $pageKey => $result) {
+                if ($result['success']) {
+                    $successPages[] = $result['page_name'];
+                    // Spremi u bazu
+                    $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, posted_at, post_id, status, created_by) VALUES (?, ?, ?, NOW(), NOW(), ?, 'posted', ?)");
+                    $stmt->execute([$url, $title . ' [' . $result['page_name'] . ']', $text, $result['post_id'], $_SESSION['user_id']]);
+                } else {
+                    $failedPages[] = $result['page_name'] . ': ' . $result['error'];
+                }
+            }
+
+            if (!empty($successPages)) {
+                $message = 'Objavljeno na: ' . implode(', ', $successPages);
                 $messageType = 'success';
-                logActivity('facebook_post', 'social', null, ['url' => $url]);
-            } else {
-                $message = 'Greška: ' . $result['error'];
-                $messageType = 'danger';
+                logActivity('facebook_post', 'social', null, ['url' => $url, 'pages' => $successPages]);
+            }
+            if (!empty($failedPages)) {
+                $message .= (!empty($successPages) ? '<br>' : '') . 'Greška: ' . implode('; ', $failedPages);
+                $messageType = empty($successPages) ? 'danger' : 'warning';
             }
         } else {
-            // Zakaži za kasnije
+            // Zakaži za kasnije (za sad samo CMS, ne podržava više stranica)
             $scheduledAt = $scheduledDate . ' ' . $scheduledTime . ':00';
+            $pagesStr = implode(',', $selectedPages);
             $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, status, created_by) VALUES (?, ?, ?, ?, 'scheduled', ?)");
-            $stmt->execute([$url, $title, $text, $scheduledAt, $_SESSION['user_id']]);
+            $stmt->execute([$url, $title . ' [' . $pagesStr . ']', $text, $scheduledAt, $_SESSION['user_id']]);
 
             $message = 'Objava zakazana za ' . date('d.m.Y. H:i', strtotime($scheduledAt));
             $messageType = 'success';
@@ -180,6 +200,18 @@ include 'includes/header.php';
                         <?php endforeach; ?>
                     </div>
                     <textarea id="text" name="text" class="form-control" rows="2" placeholder="Tekst koji će se prikazati uz link..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Objavi na:</label>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <?php foreach (getFBPages() as $key => $page): ?>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.4rem 0.6rem; background: #f3f4f6; border-radius: 6px;">
+                            <input type="checkbox" name="fb_pages[]" value="<?= $key ?>" <?= $key === 'zagorje' ? 'checked' : '' ?>>
+                            <span style="font-size: 0.85rem;"><?= e($page['name']) ?></span>
+                        </label>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
 
                 <div class="form-group">
