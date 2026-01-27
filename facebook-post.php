@@ -396,9 +396,11 @@ foreach ($fbPosts as $post) {
                 <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">
                     <?= date('H:i', strtotime($post['created_time'])) ?>
                 </div>
-                <?php if (!empty($post['name'])): ?>
+                <?php
+                $title = $post['attachments']['data'][0]['title'] ?? null;
+                if ($title): ?>
                 <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937; margin-bottom: 0.25rem;">
-                    <?= e($post['name']) ?>
+                    <?= e($title) ?>
                 </div>
                 <?php endif; ?>
                 <?php if (!empty($post['message'])): ?>
@@ -436,8 +438,9 @@ foreach ($fbPosts as $post) {
                 <div style="font-size: 0.7rem; color: #9ca3af;">
                     <?= date('d.m. H:i', strtotime($post['created_time'])) ?>
                 </div>
-                <div style="font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: <?= !empty($post['name']) ? '600' : 'normal' ?>;">
-                    <?= e($post['name'] ?? mb_substr($post['message'] ?? '(bez teksta)', 0, 80)) ?>
+                <?php $olderTitle = $post['attachments']['data'][0]['title'] ?? null; ?>
+                <div style="font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: <?= $olderTitle ? '600' : 'normal' ?>;">
+                    <?= e($olderTitle ?? mb_substr($post['message'] ?? '(bez teksta)', 0, 80)) ?>
                 </div>
                 <div style="font-size: 0.65rem; margin-top: 0.25rem; display: flex; gap: 0.75rem; align-items: center;">
                     <?php
