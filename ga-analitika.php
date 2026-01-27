@@ -281,6 +281,30 @@ if (!empty(GA4_PROPERTY_ID)) {
             $realtimeData = getGA4Realtime();
             break;
 
+        case 'published':
+            // Dohvati RSS feed za zagorje.com
+            $rssUrl = 'https://www.zagorje.com/rss';
+            $rssData = @file_get_contents($rssUrl);
+            $rssArticles = [];
+
+            if ($rssData) {
+                $xml = @simplexml_load_string($rssData);
+                if ($xml && isset($xml->channel->item)) {
+                    foreach ($xml->channel->item as $item) {
+                        $pubDate = isset($item->pubDate) ? strtotime((string)$item->pubDate) : null;
+                        $rssArticles[] = [
+                            'title' => (string)$item->title,
+                            'link' => (string)$item->link,
+                            'pubDate' => $pubDate,
+                            'description' => (string)$item->description
+                        ];
+                    }
+                }
+            }
+
+            $reportData = ['articles' => $rssArticles];
+            break;
+
         case 'pages':
             // Članci s engagement metrikom
             $reportData = getGA4Report($startDate, $endDate,
@@ -500,6 +524,7 @@ include 'includes/header.php';
     <?php
     $tabs = [
         'overview' => 'Pregled',
+        'published' => 'Objavljeno',
         'pages' => 'Članci',
         'trending' => 'Trending',
         'sources' => 'Izvori',
@@ -661,6 +686,93 @@ $returningPercent = 100 - $newUsersPercent;
             </div>
         </div>
     </div>
+</div>
+
+<?php elseif ($reportType === 'published' && $reportData && isset($reportData['articles'])): ?>
+<!-- OBJAVLJENO - RSS ČLANCI -->
+<?php
+$articles = $reportData['articles'];
+$now = time();
+$todayStart = strtotime('today');
+$weekStart = strtotime('-7 days');
+$monthStart = strtotime('-30 days');
+
+// Brojači
+$countToday = 0;
+$countWeek = 0;
+$countMonth = 0;
+
+foreach ($articles as $article) {
+    if ($article['pubDate']) {
+        if ($article['pubDate'] >= $todayStart) $countToday++;
+        if ($article['pubDate'] >= $weekStart) $countWeek++;
+        if ($article['pubDate'] >= $monthStart) $countMonth++;
+    }
+}
+?>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+    <div class="card" style="text-align: center; padding: 1.25rem;">
+        <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;"><?= $countToday ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Danas</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 1.25rem;">
+        <div style="font-size: 2rem; font-weight: 700; color: #10b981;"><?= $countWeek ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">7 dana</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 1.25rem;">
+        <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6;"><?= $countMonth ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">30 dana</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 1.25rem;">
+        <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;"><?= count($articles) ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">U RSS-u</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Objavljeni članci - zagorje.com</h2>
+    </div>
+    <?php if (empty($articles)): ?>
+        <div class="card-body">
+            <p style="color: #6b7280; text-align: center;">RSS feed nije dostupan ili nema članaka.</p>
+        </div>
+    <?php else: ?>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 160px;">Objavljeno</th>
+                    <th>Naslov</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($articles as $article):
+                    $pubDateFormatted = $article['pubDate'] ? date('d.m.Y H:i', $article['pubDate']) : '-';
+                    $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
+                    $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
+                ?>
+                <tr>
+                    <td>
+                        <span style="<?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669; font-weight: 500;' : 'color: #6b7280;') ?>">
+                            <?= $pubDateFormatted ?>
+                        </span>
+                        <?php if ($isRecent): ?>
+                            <span style="background: #fee2e2; color: #dc2626; font-size: 0.625rem; padding: 2px 4px; border-radius: 3px; margin-left: 4px;">NOVO</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: inherit;">
+                            <div style="font-weight: 500;"><?= e($article['title']) ?></div>
+                        </a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
 </div>
 
 <?php elseif ($reportType === 'pages' && $reportData && isset($reportData['rows'])): ?>
