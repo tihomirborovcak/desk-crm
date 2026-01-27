@@ -17,7 +17,7 @@ if (!isEditor()) {
 define('PAGE_TITLE', 'GA4 Analitika');
 
 // GA4 Property ID
-define('GA4_PROPERTY_ID', '6254587');
+define('GA4_PROPERTY_ID', '279956882');
 
 /**
  * Dohvati Google Access Token
