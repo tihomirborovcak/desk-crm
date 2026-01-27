@@ -387,8 +387,16 @@ foreach ($fbPosts as $post) {
                 <div style="font-size: 0.8rem; line-height: 1.3;">
                     <?= e(mb_substr($post['message'] ?? '(bez teksta)', 0, 150)) ?><?= mb_strlen($post['message'] ?? '') > 150 ? '...' : '' ?>
                 </div>
-                <div style="font-size: 0.7rem; color: #6b7280; margin-top: 0.5rem;">
-                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">Otvori na Facebooku ↗</a>
+                <div style="font-size: 0.7rem; color: #6b7280; margin-top: 0.5rem; display: flex; gap: 1rem; align-items: center;">
+                    <?php
+                    $likes = $post['likes']['summary']['total_count'] ?? 0;
+                    $comments = $post['comments']['summary']['total_count'] ?? 0;
+                    $shares = $post['shares']['count'] ?? 0;
+                    ?>
+                    <span>👍 <?= $likes ?></span>
+                    <span>💬 <?= $comments ?></span>
+                    <span>🔄 <?= $shares ?></span>
+                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗ Otvori</a>
                 </div>
             </div>
         </div>
@@ -412,8 +420,14 @@ foreach ($fbPosts as $post) {
                 <div style="font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                     <?= e(mb_substr($post['message'] ?? '(bez teksta)', 0, 80)) ?>
                 </div>
-                <div style="font-size: 0.65rem; margin-top: 0.25rem;">
-                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗ Otvori</a>
+                <div style="font-size: 0.65rem; margin-top: 0.25rem; display: flex; gap: 0.75rem; align-items: center;">
+                    <?php
+                    $likes = $post['likes']['summary']['total_count'] ?? 0;
+                    $comments = $post['comments']['summary']['total_count'] ?? 0;
+                    $shares = $post['shares']['count'] ?? 0;
+                    ?>
+                    <span style="color: #6b7280;">👍<?= $likes ?> 💬<?= $comments ?> 🔄<?= $shares ?></span>
+                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
                 </div>
             </div>
         </div>
