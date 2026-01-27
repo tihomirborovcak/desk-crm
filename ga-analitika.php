@@ -219,6 +219,18 @@ switch ($period) {
         $compareEnd = '31daysAgo';
         $periodLabel = 'Zadnjih 30 dana';
         break;
+    case 'month':
+        // Ovaj mjesec do danas
+        $startDate = date('Y-m-01'); // Prvi dan ovog mjeseca
+        $endDate = 'today';
+        // Prošli mjesec za usporedbu (isti broj dana)
+        $daysIntoMonth = date('j'); // Koji je danas dan u mjesecu
+        $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
+        $lastMonthEnd = date('Y-m-d', strtotime($lastMonthStart . ' + ' . ($daysIntoMonth - 1) . ' days'));
+        $compareStart = $lastMonthStart;
+        $compareEnd = $lastMonthEnd;
+        $periodLabel = 'Ovaj mjesec';
+        break;
     default:
         $startDate = '7daysAgo';
         $endDate = 'today';
@@ -424,7 +436,7 @@ include 'includes/header.php';
     <div class="card-body" style="padding: 0.75rem;">
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
             <div style="display: flex; gap: 0; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;">
-                <?php foreach (['today' => 'Danas', 'yesterday' => 'Jučer', '7days' => '7 dana', '30days' => '30 dana'] as $p => $label): ?>
+                <?php foreach (['today' => 'Danas', 'yesterday' => 'Jučer', '7days' => '7 dana', '30days' => '30 dana', 'month' => 'Ovaj mjesec'] as $p => $label): ?>
                 <a href="?period=<?= $p ?>&report=<?= $reportType ?>"
                    class="btn btn-sm <?= $period === $p ? 'btn-primary' : 'btn-outline' ?>"
                    style="border-radius: 0; border: none; <?= $p !== 'today' ? 'border-left: 1px solid #d1d5db;' : '' ?>"><?= $label ?></a>
