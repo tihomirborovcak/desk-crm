@@ -194,7 +194,7 @@ include 'includes/header.php';
         <div class="d-flex flex-wrap gap-1">
             <span class="badge" style="background: #fef3c7; color: #92400e;">Jutarnja</span>
             <span class="badge" style="background: #dbeafe; color: #1e40af;">Popodnevna</span>
-            <span class="badge" style="background: #dcfce7; color: #166534;">Cijeli dan</span>
+            <span class="badge" style="background: #dcfce7; color: #166534;">Večernja</span>
         </div>
     </div>
 </div>
@@ -273,9 +273,9 @@ if (!empty($myShifts)):
                 <div class="form-group">
                     <label class="form-label" for="shift_type">Smjena</label>
                     <select id="shift_type" name="shift_type" class="form-control" required>
-                        <option value="morning">Jutarnja (06:00 - 14:00)</option>
-                        <option value="afternoon">Popodnevna (14:00 - 22:00)</option>
-                        <option value="full">Cijeli dan</option>
+                        <option value="morning">Jutarnja (7:30-12h)</option>
+                        <option value="afternoon">Popodnevna (12-19:30h)</option>
+                        <option value="full">Večernja (19:30-7:30h)</option>
                     </select>
                 </div>
             </form>

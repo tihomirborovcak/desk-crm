@@ -462,7 +462,7 @@ function translateShift($type) {
     $shifts = [
         'morning' => 'Jutarnja',
         'afternoon' => 'Popodnevna',
-        'full' => 'Cijeli dan'
+        'full' => 'Večernja'
     ];
     return $shifts[$type] ?? $type;
 }
