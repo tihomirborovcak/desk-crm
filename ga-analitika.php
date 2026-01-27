@@ -366,9 +366,9 @@ if (!empty(GA4_PROPERTY_ID)) {
                 $revenueStartDate = date('Y-m-01');
                 $revenueEndDate = 'today';
 
-                // Isti period prošle godine (1. do danas-og dana u mjesecu)
-                $revenueCompareStart = date('Y-m-01', strtotime('-1 year'));
-                $revenueCompareEnd = date('Y-m-d', strtotime('-1 year'));
+                // Isti period prošlog mjeseca (1. do istog dana u mjesecu)
+                $revenueCompareStart = date('Y-m-01', strtotime('first day of last month'));
+                $revenueCompareEnd = date('Y-m-d', strtotime('-1 month'));
 
                 // Zarada po danima (ovaj mjesec) - koristimo za ukupan zbroj
                 $dailyRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
@@ -1213,16 +1213,16 @@ $today = date('Y-m-d');
 $currentMonthName = date('F Y');
 $dayOfMonth = date('j');
 
-// Isti period prošle godine
-$lastYearStart = date('Y-m-01', strtotime('-1 year'));
-$lastYearEnd = date('Y-m-d', strtotime('-1 year'));
-$lastYearMonthName = date('F Y', strtotime('-1 year'));
+// Isti period prošlog mjeseca
+$lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
+$lastMonthEnd = date('Y-m-d', strtotime('-1 month'));
+$lastMonthName = date('F Y', strtotime('first day of last month'));
 
 // Debug - prikaži raw response
 if (isset($_GET['debug'])) {
     echo '<pre style="background: #f3f4f6; padding: 1rem; margin-bottom: 1rem; overflow: auto; max-height: 400px;">';
     echo "Period ovaj mjesec: $monthStart do $today\n";
-    echo "Period prošla godina: $lastYearStart do $lastYearEnd\n\n";
+    echo "Period prošli mjesec: $lastMonthStart do $lastMonthEnd\n\n";
     echo "OVAJ MJESEC - daily rows: " . count($reportData['daily']['rows'] ?? []) . "\n";
     echo "PROŠLA GODINA - compareDaily rows: " . count($reportData['compareDaily']['rows'] ?? []) . "\n\n";
     echo "Compare Daily data:\n";
@@ -1262,7 +1262,7 @@ $revenueChange = calcChange($currentRevenue, $previousRevenue);
                     <?= $revenueChange > 0 ? '↑' : '↓' ?> <?= $revenueChange > 0 ? '+' : '' ?><?= $revenueChange ?>%
                 </div>
                 <?php endif; ?>
-                <div style="font-size: 0.875rem; opacity: 0.8;">vs <?= strftime('%B %Y', strtotime($lastYearStart)) ?></div>
+                <div style="font-size: 0.875rem; opacity: 0.8;">vs <?= strftime('%B %Y', strtotime($lastMonthStart)) ?></div>
                 <div style="font-size: 0.875rem; opacity: 0.7;">(<?= number_format($previousRevenue, 2) ?> €)</div>
             </div>
         </div>
