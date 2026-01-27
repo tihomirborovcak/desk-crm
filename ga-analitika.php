@@ -713,24 +713,11 @@ $returningPercent = 100 - $newUsersPercent;
 <?php
 $articles = $reportData['articles'];
 $viewsByTitle = $reportData['viewsByTitle'] ?? [];
-$now = time();
 $todayStart = strtotime('today');
-$weekStart = strtotime('-7 days');
-$monthStart = strtotime('-30 days');
 
-// Brojači
-$countToday = 0;
-$countWeek = 0;
-$countMonth = 0;
+// Zbroji preglede
 $totalViews = 0;
-
 foreach ($articles as $article) {
-    if ($article['pubDate']) {
-        if ($article['pubDate'] >= $todayStart) $countToday++;
-        if ($article['pubDate'] >= $weekStart) $countWeek++;
-        if ($article['pubDate'] >= $monthStart) $countMonth++;
-    }
-    // Zbroji preglede
     $cleanTitle = trim($article['title']);
     if (isset($viewsByTitle[$cleanTitle])) {
         $totalViews += $viewsByTitle[$cleanTitle];
@@ -738,26 +725,14 @@ foreach ($articles as $article) {
 }
 ?>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
     <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;"><?= $countToday ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Danas</div>
+        <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;"><?= count($articles) ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Članaka u RSS-u</div>
     </div>
     <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #10b981;"><?= $countWeek ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">7 dana</div>
-    </div>
-    <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6;"><?= $countMonth ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">30 dana</div>
-    </div>
-    <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;"><?= count($articles) ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">U RSS-u</div>
-    </div>
-    <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #dc2626;"><?= number_format($totalViews, 0, ',', '.') ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Pregledi (30d)</div>
+        <div style="font-size: 2rem; font-weight: 700; color: #059669;"><?= number_format($totalViews, 0, ',', '.') ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Ukupno pregleda (30d)</div>
     </div>
 </div>
 
