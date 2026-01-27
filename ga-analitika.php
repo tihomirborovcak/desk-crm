@@ -837,8 +837,8 @@ foreach ($viewsByHour as $hour => $data) {
 }
 
 usort($articlesWithViews, fn($a, $b) => $b['views'] <=> $a['views']);
-$topArticles = array_slice($articlesWithViews, 0, 20);
-$bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
+$topArticles = array_slice($articlesWithViews, 0, 50);
+$bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 50);
 ?>
 
 <div style="display: flex; gap: 1rem; align-items: flex-start;">
@@ -921,9 +921,9 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
         <!-- Top članci -->
         <div class="card" style="margin-bottom: 0.75rem;">
             <div style="padding: 0.5rem 0.75rem; background: #dcfce7; border-radius: 8px 8px 0 0;">
-                <div style="font-size: 0.75rem; font-weight: 600; color: #166534;">🔥 Najviše pregleda (20)</div>
+                <div style="font-size: 0.75rem; font-weight: 600; color: #166534;">🔥 Najviše pregleda (50)</div>
             </div>
-            <div style="font-size: 0.7rem; max-height: 350px; overflow-y: auto;">
+            <div style="font-size: 0.7rem; max-height: 500px; overflow-y: auto;">
                 <?php foreach ($topArticles as $i => $art): ?>
                 <div style="padding: 0.25rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.4rem; align-items: center;">
                     <span style="color: #059669; font-weight: 600; min-width: 42px; font-size: 0.65rem;"><?= number_format($art['views'], 0, ',', '.') ?></span>
@@ -938,9 +938,9 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
         <!-- Bottom članci -->
         <div class="card">
             <div style="padding: 0.5rem 0.75rem; background: #fee2e2; border-radius: 8px 8px 0 0;">
-                <div style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">📉 Najmanje pregleda (20)</div>
+                <div style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">📉 Najmanje pregleda (50)</div>
             </div>
-            <div style="font-size: 0.7rem; max-height: 350px; overflow-y: auto;">
+            <div style="font-size: 0.7rem; max-height: 500px; overflow-y: auto;">
                 <?php foreach ($bottomArticles as $i => $art): ?>
                 <div style="padding: 0.25rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.4rem; align-items: center;">
                     <span style="color: #dc2626; font-weight: 600; min-width: 42px; font-size: 0.65rem;"><?= number_format($art['views'], 0, ',', '.') ?></span>
