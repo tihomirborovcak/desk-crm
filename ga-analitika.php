@@ -317,28 +317,28 @@ if (!empty(GA4_PROPERTY_ID)) {
                 }
             }
 
-            // Dohvati GA4 podatke za članke (zadnjih 90 dana za bolji matching)
+            // Dohvati GA4 podatke po URL path-u (pouzdanije od naslova)
             $gaData = getGA4Report('90daysAgo', 'today',
-                ['pageTitle'],
-                ['screenPageViews'], 2000);
+                ['pagePath'],
+                ['screenPageViews'], 5000);
 
-            // Napravi mapu naslov -> pregledi
-            $viewsByTitle = [];
+            // Napravi mapu slug -> pregledi
+            $viewsBySlug = [];
             if ($gaData && isset($gaData['rows'])) {
                 foreach ($gaData['rows'] as $row) {
-                    $gaTitle = trim($row['dimensionValues'][0]['value'] ?? '');
+                    $path = trim($row['dimensionValues'][0]['value'] ?? '');
                     $views = (int)($row['metricValues'][0]['value'] ?? 0);
-                    // Ukloni suffix " / Zagorje.com" ili " - Zagorje.com" ili slično
-                    $cleanTitle = preg_replace('/\s*[\/\-–|]\s*(Zagorje\.com|zagorje\.com|Zagorje)$/iu', '', $gaTitle);
-                    $cleanTitle = trim($cleanTitle);
-                    // Preskoči generic stranice
-                    if (!empty($cleanTitle) && $cleanTitle !== 'Vijesti' && $cleanTitle !== 'Zagorje.com') {
-                        $viewsByTitle[$cleanTitle] = ($viewsByTitle[$cleanTitle] ?? 0) + $views;
+                    // Izvuci slug iz path-a (zadnji dio URL-a)
+                    $slug = basename(parse_url($path, PHP_URL_PATH) ?? $path);
+                    // Ukloni /mobile/ prefix i slično
+                    $path = preg_replace('#^/(mobile|amp)/#', '/', $path);
+                    if (!empty($slug) && $slug !== '/' && strlen($slug) > 5) {
+                        $viewsBySlug[$slug] = ($viewsBySlug[$slug] ?? 0) + $views;
                     }
                 }
             }
 
-            $reportData = ['articles' => $rssArticles, 'viewsByTitle' => $viewsByTitle];
+            $reportData = ['articles' => $rssArticles, 'viewsBySlug' => $viewsBySlug];
             break;
 
         case 'pages':
@@ -728,61 +728,22 @@ $returningPercent = 100 - $newUsersPercent;
 <!-- OBJAVLJENO - RSS ČLANCI -->
 <?php
 $articles = $reportData['articles'];
-$viewsByTitle = $reportData['viewsByTitle'] ?? [];
+$viewsBySlug = $reportData['viewsBySlug'] ?? [];
 $todayStart = strtotime('today');
 
-// Funkcija za normalizaciju naslova
-function normalizeTitle($title) {
-    $t = mb_strtolower(trim($title), 'UTF-8');
-    $t = preg_replace('/[^\p{L}\p{N}\s]/u', '', $t); // ukloni interpunkciju
-    $t = preg_replace('/\s+/', ' ', $t); // normaliziraj razmake
-    return $t;
-}
-
-// Napravi normaliziranu mapu GA4 naslova
-$normalizedGA4 = [];
-foreach ($viewsByTitle as $gaTitle => $views) {
-    $normalized = normalizeTitle($gaTitle);
-    if (!isset($normalizedGA4[$normalized]) || $normalizedGA4[$normalized]['views'] < $views) {
-        $normalizedGA4[$normalized] = ['original' => $gaTitle, 'views' => $views];
-    }
-}
-
-// Funkcija za pronalazak pregleda s fuzzy matchingom
-function findViews($feedlyTitle, $viewsByTitle, $normalizedGA4) {
-    // 1. Točno poklapanje
-    if (isset($viewsByTitle[$feedlyTitle])) {
-        return $viewsByTitle[$feedlyTitle];
-    }
-
-    // 2. Normalizirano poklapanje
-    $normalizedFeedly = normalizeTitle($feedlyTitle);
-    if (isset($normalizedGA4[$normalizedFeedly])) {
-        return $normalizedGA4[$normalizedFeedly]['views'];
-    }
-
-    // 3. Fuzzy matching - traži 85%+ sličnost
-    $bestMatch = 0;
-    $bestViews = 0;
-    foreach ($normalizedGA4 as $normalized => $data) {
-        similar_text($normalizedFeedly, $normalized, $percent);
-        if ($percent > 85 && $percent > $bestMatch) {
-            $bestMatch = $percent;
-            $bestViews = $data['views'];
-        }
-    }
-
-    return $bestViews;
+// Funkcija za izvlačenje slug-a iz URL-a
+function getSlugFromUrl($url) {
+    $path = parse_url($url, PHP_URL_PATH) ?? '';
+    return basename($path);
 }
 
 // Zbroji preglede
 $totalViews = 0;
 $matchedCount = 0;
 foreach ($articles as $article) {
-    $title = trim($article['title']);
-    $views = findViews($title, $viewsByTitle, $normalizedGA4);
-    if ($views > 0) {
-        $totalViews += $views;
+    $slug = getSlugFromUrl($article['link']);
+    if (isset($viewsBySlug[$slug])) {
+        $totalViews += $viewsBySlug[$slug];
         $matchedCount++;
     }
 }
@@ -803,45 +764,26 @@ foreach ($articles as $article) {
     </div>
 </div>
 
-<!-- Debug: Usporedba naslova -->
+<!-- Debug: Info o matchiranju -->
 <?php if (isAdmin()):
-    // Debug za nepoklopljene članke - traži najbliže GA4 naslove
-    $unmatchedDebug = [];
-    $searchTitle = $_GET['debug_title'] ?? '';
-
-    if ($searchTitle) {
-        $normalizedSearch = normalizeTitle($searchTitle);
-        $closest = [];
-        foreach ($normalizedGA4 as $normalized => $data) {
-            similar_text($normalizedSearch, $normalized, $percent);
-            $closest[] = ['title' => $data['original'], 'percent' => round($percent, 1), 'views' => $data['views']];
-        }
-        usort($closest, function($a, $b) { return $b['percent'] <=> $a['percent']; });
-        $unmatchedDebug = array_slice($closest, 0, 5);
+    // Primjeri slug-ova
+    $sampleSlugs = [];
+    $i = 0;
+    foreach ($viewsBySlug as $slug => $views) {
+        if ($i++ >= 5) break;
+        $sampleSlugs[] = ['slug' => $slug, 'views' => $views];
     }
 ?>
 <details style="margin-bottom: 1rem;">
-    <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Pretraži zašto se naslov ne poklapa</summary>
-    <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.75rem;">
-        <form method="GET" style="margin-bottom: 1rem;">
-            <input type="hidden" name="report" value="published">
-            <input type="text" name="debug_title" value="<?= e($searchTitle) ?>" placeholder="Unesi naslov članka..." style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.75rem;">
-            <button type="submit" style="margin-top: 0.5rem; padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">Traži</button>
-        </form>
-
-        <?php if (!empty($unmatchedDebug)): ?>
-        <div style="background: #fef3c7; padding: 0.75rem; border-radius: 4px;">
-            <strong>Najbliži GA4 naslovi za: "<?= e($searchTitle) ?>"</strong>
-            <?php foreach ($unmatchedDebug as $match): ?>
-            <div style="margin-top: 0.5rem; padding: 0.5rem; background: white; border-radius: 4px;">
-                <div style="color: <?= $match['percent'] >= 85 ? '#059669' : ($match['percent'] >= 70 ? '#d97706' : '#dc2626') ?>;">
-                    <strong><?= $match['percent'] ?>%</strong> sličnost
-                </div>
-                <div><?= e($match['title']) ?> <span style="color: #9ca3af;">(<?= number_format($match['views']) ?> pregleda)</span></div>
-            </div>
-            <?php endforeach; ?>
+    <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Slug matching info</summary>
+    <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.7rem;">
+        <div style="margin-bottom: 0.5rem;"><strong>GA4 slugova:</strong> <?= number_format(count($viewsBySlug)) ?></div>
+        <div style="margin-bottom: 0.5rem;"><strong>Top 5 GA4 slugova:</strong></div>
+        <?php foreach ($sampleSlugs as $s): ?>
+        <div style="margin: 0.25rem 0; padding: 0.25rem; background: #dcfce7; border-radius: 4px; word-break: break-all;">
+            <?= e($s['slug']) ?> <span style="color: #9ca3af;">(<?= number_format($s['views']) ?>)</span>
         </div>
-        <?php endif; ?>
+        <?php endforeach; ?>
     </div>
 </details>
 <?php endif; ?>
@@ -869,8 +811,8 @@ foreach ($articles as $article) {
                     $pubDateFormatted = $article['pubDate'] ? date('d.m.Y H:i', $article['pubDate']) : '-';
                     $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
                     $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
-                    $articleTitle = trim($article['title']);
-                    $articleViews = findViews($articleTitle, $viewsByTitle, $normalizedGA4);
+                    $articleSlug = getSlugFromUrl($article['link']);
+                    $articleViews = $viewsBySlug[$articleSlug] ?? 0;
                 ?>
                 <tr>
                     <td>
