@@ -317,22 +317,27 @@ if (!empty(GA4_PROPERTY_ID)) {
                 }
             }
 
-            // Dohvati GA4 podatke za članke (zadnjih 30 dana)
-            $gaData = getGA4Report('30daysAgo', 'today',
-                ['pagePath'],
-                ['screenPageViews'], 1000);
+            // Dohvati GA4 podatke za članke (zadnjih 90 dana za bolji matching)
+            $gaData = getGA4Report('90daysAgo', 'today',
+                ['pageTitle'],
+                ['screenPageViews'], 2000);
 
-            // Napravi mapu path -> pregledi
-            $viewsByPath = [];
+            // Napravi mapu naslov -> pregledi
+            $viewsByTitle = [];
             if ($gaData && isset($gaData['rows'])) {
                 foreach ($gaData['rows'] as $row) {
-                    $path = trim($row['dimensionValues'][0]['value'] ?? '');
+                    $gaTitle = trim($row['dimensionValues'][0]['value'] ?? '');
                     $views = (int)($row['metricValues'][0]['value'] ?? 0);
-                    $viewsByPath[$path] = ($viewsByPath[$path] ?? 0) + $views;
+                    // Ukloni suffix " - Zagorje.com" ili slično
+                    $cleanTitle = preg_replace('/\s*[-–|]\s*(Zagorje\.com|zagorje\.com|Zagorje)$/iu', '', $gaTitle);
+                    $cleanTitle = trim($cleanTitle);
+                    if (!empty($cleanTitle)) {
+                        $viewsByTitle[$cleanTitle] = ($viewsByTitle[$cleanTitle] ?? 0) + $views;
+                    }
                 }
             }
 
-            $reportData = ['articles' => $rssArticles, 'viewsByPath' => $viewsByPath];
+            $reportData = ['articles' => $rssArticles, 'viewsByTitle' => $viewsByTitle];
             break;
 
         case 'pages':
@@ -722,35 +727,47 @@ $returningPercent = 100 - $newUsersPercent;
 <!-- OBJAVLJENO - RSS ČLANCI -->
 <?php
 $articles = $reportData['articles'];
-$viewsByPath = $reportData['viewsByPath'] ?? [];
+$viewsByTitle = $reportData['viewsByTitle'] ?? [];
 $todayStart = strtotime('today');
-
-// Funkcija za izvlačenje path iz URL-a
-function getPathFromUrl($url) {
-    $parsed = parse_url($url);
-    return $parsed['path'] ?? '/';
-}
 
 // Zbroji preglede
 $totalViews = 0;
+$matchedCount = 0;
 foreach ($articles as $article) {
-    $path = getPathFromUrl($article['link']);
-    if (isset($viewsByPath[$path])) {
-        $totalViews += $viewsByPath[$path];
+    $title = trim($article['title']);
+    if (isset($viewsByTitle[$title])) {
+        $totalViews += $viewsByTitle[$title];
+        $matchedCount++;
     }
 }
 ?>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
     <div class="card" style="text-align: center; padding: 1.25rem;">
         <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;"><?= count($articles) ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Članaka u RSS-u</div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Članaka</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 1.25rem;">
+        <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6;"><?= $matchedCount ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Pronađeno u GA</div>
     </div>
     <div class="card" style="text-align: center; padding: 1.25rem;">
         <div style="font-size: 2rem; font-weight: 700; color: #059669;"><?= number_format($totalViews, 0, ',', '.') ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Ukupno pregleda (30d)</div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Pregledi (90d)</div>
     </div>
 </div>
+
+<!-- Debug: Primjer GA4 naslova -->
+<?php if (isAdmin() && !empty($viewsByTitle)): ?>
+<details style="margin-bottom: 1rem;">
+    <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Primjeri GA4 naslova (klikni)</summary>
+    <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+        <?php $i = 0; foreach ($viewsByTitle as $t => $v): if ($i++ >= 20) break; ?>
+        <div style="margin-bottom: 0.25rem;"><?= e($t) ?> <span style="color: #9ca3af;">(<?= number_format($v) ?>)</span></div>
+        <?php endforeach; ?>
+    </div>
+</details>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header">
@@ -775,8 +792,8 @@ foreach ($articles as $article) {
                     $pubDateFormatted = $article['pubDate'] ? date('d.m.Y H:i', $article['pubDate']) : '-';
                     $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
                     $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
-                    $articlePath = getPathFromUrl($article['link']);
-                    $articleViews = $viewsByPath[$articlePath] ?? 0;
+                    $articleTitle = trim($article['title']);
+                    $articleViews = $viewsByTitle[$articleTitle] ?? 0;
                 ?>
                 <tr>
                     <td>
