@@ -3,15 +3,15 @@
  * Email konfiguracija za slanje obavijesti
  */
 
-if (!defined('SMTP_HOST')) define('SMTP_HOST', 'mail.zagorski-list.net');
+if (!defined('SMTP_HOST')) define('SMTP_HOST', 'mail.example.com');
 if (!defined('SMTP_PORT')) define('SMTP_PORT', 465);
-if (!defined('SMTP_USER')) define('SMTP_USER', 'facebook_poruke@zagorski-list.net');
-if (!defined('SMTP_PASS')) define('SMTP_PASS', 'tojemojalozinka');
-if (!defined('SMTP_FROM')) define('SMTP_FROM', 'facebook_poruke@zagorski-list.net');
-if (!defined('SMTP_FROM_NAME')) define('SMTP_FROM_NAME', 'Facebook Poruke');
+if (!defined('SMTP_USER')) define('SMTP_USER', 'user@example.com');
+if (!defined('SMTP_PASS')) define('SMTP_PASS', 'YOUR_PASSWORD_HERE');
+if (!defined('SMTP_FROM')) define('SMTP_FROM', 'user@example.com');
+if (!defined('SMTP_FROM_NAME')) define('SMTP_FROM_NAME', 'Notifications');
 
 // Primatelji obavijesti (može biti više emailova odvojenih zarezom)
-if (!defined('NOTIFICATION_EMAILS')) define('NOTIFICATION_EMAILS', 'facebook_poruke@zagorski-list.net');
+if (!defined('NOTIFICATION_EMAILS')) define('NOTIFICATION_EMAILS', 'your@email.com');
 
 /**
  * Pošalji email preko SMTP
