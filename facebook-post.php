@@ -146,15 +146,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $messageType = empty($successPages) ? 'danger' : 'warning';
             }
         } else {
-            // Zakaži za kasnije (za sad samo CMS, ne podržava više stranica)
+            // Zakaži na Facebook nativno
             $scheduledAt = $scheduledDate . ' ' . $scheduledTime . ':00';
-            $pagesStr = implode(',', $selectedPages);
-            $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, status, created_by) VALUES (?, ?, ?, ?, 'scheduled', ?)");
-            $stmt->execute([$url, $title . ' [' . $pagesStr . ']', $text, $scheduledAt, $_SESSION['user_id']]);
+            $scheduledTimestamp = strtotime($scheduledAt);
 
-            $message = 'Objava zakazana za ' . date('d.m.Y. H:i', strtotime($scheduledAt));
-            $messageType = 'success';
-            logActivity('facebook_schedule', 'social', null, ['url' => $url, 'scheduled' => $scheduledAt]);
+            // Pošalji na Facebook s scheduled_publish_time
+            $results = postToFacebook($url, $text, $selectedPages, $scheduledTimestamp);
+
+            // Ako je samo jedna stranica, pretvori u array
+            if (isset($results['success'])) {
+                $results = [$selectedPages[0] => $results];
+            }
+
+            $successPages = [];
+            $failedPages = [];
+            foreach ($results as $pageKey => $result) {
+                if ($result['success']) {
+                    $successPages[] = $result['page_name'];
+                    // Spremi u bazu kao referencu
+                    $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, post_id, status, created_by) VALUES (?, ?, ?, ?, ?, 'scheduled', ?)");
+                    $stmt->execute([$url, $title . ' [' . $result['page_name'] . ']', $text, $scheduledAt, $result['post_id'], $_SESSION['user_id']]);
+                } else {
+                    $failedPages[] = $result['page_name'] . ': ' . $result['error'];
+                }
+            }
+
+            if (!empty($successPages)) {
+                $message = 'Zakazano na Facebook (' . implode(', ', $successPages) . ') za ' . date('d.m.Y. H:i', $scheduledTimestamp);
+                $messageType = 'success';
+                logActivity('facebook_schedule', 'social', null, ['url' => $url, 'scheduled' => $scheduledAt, 'pages' => $successPages]);
+            }
+            if (!empty($failedPages)) {
+                $message .= (!empty($successPages) ? '<br>' : '') . 'Greška: ' . implode('; ', $failedPages);
+                $messageType = empty($successPages) ? 'danger' : 'warning';
+            }
         }
     }
 }
