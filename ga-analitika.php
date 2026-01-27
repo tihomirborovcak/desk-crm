@@ -1221,10 +1221,12 @@ $lastYearMonthName = date('F Y', strtotime('-1 year'));
 // Debug - prikaži raw response
 if (isset($_GET['debug'])) {
     echo '<pre style="background: #f3f4f6; padding: 1rem; margin-bottom: 1rem; overflow: auto; max-height: 400px;">';
-    echo "Period: $monthStart do $today\n";
-    echo "Usporedba: $lastYearStart do $lastYearEnd\n\n";
-    echo "Total data:\n";
-    print_r($reportData['total']);
+    echo "Period ovaj mjesec: $monthStart do $today\n";
+    echo "Period prošla godina: $lastYearStart do $lastYearEnd\n\n";
+    echo "OVAJ MJESEC - daily rows: " . count($reportData['daily']['rows'] ?? []) . "\n";
+    echo "PROŠLA GODINA - compareDaily rows: " . count($reportData['compareDaily']['rows'] ?? []) . "\n\n";
+    echo "Compare Daily data:\n";
+    print_r($reportData['compareDaily'] ?? 'NEMA PODATAKA');
     echo '</pre>';
 }
 
