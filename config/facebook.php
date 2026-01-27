@@ -53,6 +53,25 @@ function postToFacebook($url, $message = '') {
 }
 
 /**
+ * Dohvati objave s Facebook stranice
+ */
+function getFacebookPosts($limit = 20) {
+    $pageId = FB_PAGE_ID;
+    $token = FB_PAGE_ACCESS_TOKEN;
+
+    $url = "https://graph.facebook.com/v24.0/{$pageId}/posts?fields=id,message,created_time,permalink_url,full_picture,shares,reactions.summary(true),comments.summary(true)&limit={$limit}&access_token={$token}";
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    return $data['data'] ?? [];
+}
+
+/**
  * Dohvati Facebook Page ID i info
  */
 function getFacebookPageId() {
