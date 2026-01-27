@@ -302,7 +302,27 @@ if (!empty(GA4_PROPERTY_ID)) {
                 }
             }
 
-            $reportData = ['articles' => $rssArticles];
+            // Dohvati GA4 podatke za članke (zadnjih 30 dana za bolji matching)
+            $gaData = getGA4Report('30daysAgo', 'today',
+                ['pageTitle', 'pagePath'],
+                ['screenPageViews'], 500);
+
+            // Napravi mapu naslova -> pregledi
+            $viewsByTitle = [];
+            if ($gaData && isset($gaData['rows'])) {
+                foreach ($gaData['rows'] as $row) {
+                    $title = trim($row['dimensionValues'][0]['value'] ?? '');
+                    $views = (int)($row['metricValues'][0]['value'] ?? 0);
+                    // Ukloni " - Zagorje.com" suffix ako postoji
+                    $cleanTitle = preg_replace('/\s*[-–|]\s*(Zagorje\.com|zagorje\.com)$/i', '', $title);
+                    if (!isset($viewsByTitle[$cleanTitle])) {
+                        $viewsByTitle[$cleanTitle] = 0;
+                    }
+                    $viewsByTitle[$cleanTitle] += $views;
+                }
+            }
+
+            $reportData = ['articles' => $rssArticles, 'viewsByTitle' => $viewsByTitle];
             break;
 
         case 'pages':
@@ -692,6 +712,7 @@ $returningPercent = 100 - $newUsersPercent;
 <!-- OBJAVLJENO - RSS ČLANCI -->
 <?php
 $articles = $reportData['articles'];
+$viewsByTitle = $reportData['viewsByTitle'] ?? [];
 $now = time();
 $todayStart = strtotime('today');
 $weekStart = strtotime('-7 days');
@@ -701,6 +722,7 @@ $monthStart = strtotime('-30 days');
 $countToday = 0;
 $countWeek = 0;
 $countMonth = 0;
+$totalViews = 0;
 
 foreach ($articles as $article) {
     if ($article['pubDate']) {
@@ -708,10 +730,15 @@ foreach ($articles as $article) {
         if ($article['pubDate'] >= $weekStart) $countWeek++;
         if ($article['pubDate'] >= $monthStart) $countMonth++;
     }
+    // Zbroji preglede
+    $cleanTitle = trim($article['title']);
+    if (isset($viewsByTitle[$cleanTitle])) {
+        $totalViews += $viewsByTitle[$cleanTitle];
+    }
 }
 ?>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
     <div class="card" style="text-align: center; padding: 1.25rem;">
         <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;"><?= $countToday ?></div>
         <div style="font-size: 0.875rem; color: #6b7280;">Danas</div>
@@ -728,6 +755,10 @@ foreach ($articles as $article) {
         <div style="font-size: 2rem; font-weight: 700; color: #f59e0b;"><?= count($articles) ?></div>
         <div style="font-size: 0.875rem; color: #6b7280;">U RSS-u</div>
     </div>
+    <div class="card" style="text-align: center; padding: 1.25rem;">
+        <div style="font-size: 2rem; font-weight: 700; color: #dc2626;"><?= number_format($totalViews, 0, ',', '.') ?></div>
+        <div style="font-size: 0.875rem; color: #6b7280;">Pregledi (30d)</div>
+    </div>
 </div>
 
 <div class="card">
@@ -743,8 +774,9 @@ foreach ($articles as $article) {
         <table class="table">
             <thead>
                 <tr>
-                    <th style="width: 160px;">Objavljeno</th>
+                    <th style="width: 140px;">Objavljeno</th>
                     <th>Naslov</th>
+                    <th style="width: 100px; text-align: right;">Pregledi</th>
                 </tr>
             </thead>
             <tbody>
@@ -752,6 +784,8 @@ foreach ($articles as $article) {
                     $pubDateFormatted = $article['pubDate'] ? date('d.m.Y H:i', $article['pubDate']) : '-';
                     $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
                     $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
+                    $cleanTitle = trim($article['title']);
+                    $articleViews = $viewsByTitle[$cleanTitle] ?? 0;
                 ?>
                 <tr>
                     <td>
@@ -766,6 +800,15 @@ foreach ($articles as $article) {
                         <a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: inherit;">
                             <div style="font-weight: 500;"><?= e($article['title']) ?></div>
                         </a>
+                    </td>
+                    <td style="text-align: right;">
+                        <?php if ($articleViews > 0): ?>
+                            <span style="font-weight: 600; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#6b7280') ?>;">
+                                <?= number_format($articleViews, 0, ',', '.') ?>
+                            </span>
+                        <?php else: ?>
+                            <span style="color: #d1d5db;">-</span>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
