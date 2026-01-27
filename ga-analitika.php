@@ -328,10 +328,11 @@ if (!empty(GA4_PROPERTY_ID)) {
                 foreach ($gaData['rows'] as $row) {
                     $gaTitle = trim($row['dimensionValues'][0]['value'] ?? '');
                     $views = (int)($row['metricValues'][0]['value'] ?? 0);
-                    // Ukloni suffix " - Zagorje.com" ili slično
-                    $cleanTitle = preg_replace('/\s*[-–|]\s*(Zagorje\.com|zagorje\.com|Zagorje)$/iu', '', $gaTitle);
+                    // Ukloni suffix " / Zagorje.com" ili " - Zagorje.com" ili slično
+                    $cleanTitle = preg_replace('/\s*[\/\-–|]\s*(Zagorje\.com|zagorje\.com|Zagorje)$/iu', '', $gaTitle);
                     $cleanTitle = trim($cleanTitle);
-                    if (!empty($cleanTitle)) {
+                    // Preskoči generic stranice
+                    if (!empty($cleanTitle) && $cleanTitle !== 'Vijesti' && $cleanTitle !== 'Zagorje.com') {
                         $viewsByTitle[$cleanTitle] = ($viewsByTitle[$cleanTitle] ?? 0) + $views;
                     }
                 }
