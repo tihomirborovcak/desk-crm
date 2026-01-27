@@ -242,7 +242,10 @@ include 'includes/header.php';
         </div>
         <div class="messages-container">
             <?php foreach ($messages as $msg): ?>
-            <div class="message <?= $msg['is_from_page'] ? 'sent' : 'received' ?>">
+            <div class="message <?= $msg['is_from_page'] ? 'sent' : 'received' ?> <?= !$msg['is_read'] && !$msg['is_from_page'] ? 'new' : '' ?>">
+                <?php if (!$msg['is_read'] && !$msg['is_from_page']): ?>
+                <span class="new-badge">Nova</span>
+                <?php endif; ?>
                 <div class="message-bubble">
                     <?php if (!empty($msg['attachment_url'])): ?>
                     <a href="<?= e($msg['attachment_url']) ?>" target="_blank">
@@ -396,6 +399,18 @@ include 'includes/header.php';
 }
 .message-image:hover {
     opacity: 0.9;
+}
+.message.new .message-bubble {
+    box-shadow: 0 0 0 2px #22c55e;
+}
+.new-badge {
+    background: #22c55e;
+    color: white;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    display: inline-block;
 }
 </style>
 
