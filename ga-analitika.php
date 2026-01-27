@@ -738,6 +738,11 @@ function getSlugFromUrl($url) {
     return basename($path);
 }
 
+// Sortiraj članke po datumu (najnoviji prvi)
+usort($articles, function($a, $b) {
+    return ($b['pubDate'] ?? 0) <=> ($a['pubDate'] ?? 0);
+});
+
 // Zbroji preglede i članke po danima
 $totalViews = 0;
 $matchedCount = 0;
