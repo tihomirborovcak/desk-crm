@@ -391,18 +391,16 @@ $dayNames = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak
                 $comments = $post['comments']['summary']['total_count'] ?? 0;
                 $shares = $post['shares']['count'] ?? 0;
             ?>
-            <div style="padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.7rem; display: flex; gap: 0.5rem;">
+            <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.5rem;">
                 <?php if (!empty($post['full_picture'])): ?>
-                <img src="<?= e($post['full_picture']) ?>" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                <img src="<?= e($post['full_picture']) ?>" style="width: 55px; height: 55px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
                 <?php endif; ?>
                 <div style="flex: 1; min-width: 0;">
-                    <div style="display: flex; gap: 0.4rem; align-items: baseline;">
-                        <span style="color: #6b7280; font-size: 0.6rem;"><?= date('H:i', strtotime($post['created_time'])) ?></span>
-                        <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                            <?= e($title ?? mb_substr($post['message'] ?? '-', 0, 40)) ?>
-                        </span>
+                    <div style="font-size: 0.7rem; color: #6b7280; margin-bottom: 0.15rem;"><?= date('H:i', strtotime($post['created_time'])) ?></div>
+                    <div style="font-size: 0.8rem; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        <?= e($title ?? mb_substr($post['message'] ?? '-', 0, 80)) ?>
                     </div>
-                    <div style="display: flex; gap: 0.5rem; color: #6b7280; font-size: 0.6rem; margin-top: 0.15rem;">
+                    <div style="display: flex; gap: 0.5rem; color: #6b7280; font-size: 0.7rem; margin-top: 0.2rem;">
                         <span>👍<?= $likes ?></span><span>💬<?= $comments ?></span><span>🔄<?= $shares ?></span>
                         <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
                     </div>
@@ -425,18 +423,16 @@ $dayNames = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak
                 $comments = $post['comments']['summary']['total_count'] ?? 0;
                 $shares = $post['shares']['count'] ?? 0;
             ?>
-            <div style="padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.7rem; display: flex; gap: 0.5rem;">
+            <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.5rem;">
                 <?php if (!empty($post['full_picture'])): ?>
-                <img src="<?= e($post['full_picture']) ?>" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+                <img src="<?= e($post['full_picture']) ?>" style="width: 55px; height: 55px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
                 <?php endif; ?>
                 <div style="flex: 1; min-width: 0;">
-                    <div style="display: flex; gap: 0.4rem; align-items: baseline;">
-                        <span style="color: #6b7280; font-size: 0.6rem;"><?= date('H:i', strtotime($post['created_time'])) ?></span>
-                        <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
-                            <?= e($title ?? mb_substr($post['message'] ?? '-', 0, 40)) ?>
-                        </span>
+                    <div style="font-size: 0.7rem; color: #6b7280; margin-bottom: 0.15rem;"><?= date('H:i', strtotime($post['created_time'])) ?></div>
+                    <div style="font-size: 0.8rem; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        <?= e($title ?? mb_substr($post['message'] ?? '-', 0, 80)) ?>
                     </div>
-                    <div style="display: flex; gap: 0.5rem; color: #6b7280; font-size: 0.6rem; margin-top: 0.15rem;">
+                    <div style="display: flex; gap: 0.5rem; color: #6b7280; font-size: 0.7rem; margin-top: 0.2rem;">
                         <span>👍<?= $likes ?></span><span>💬<?= $comments ?></span><span>🔄<?= $shares ?></span>
                         <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
                     </div>
