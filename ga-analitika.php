@@ -1231,18 +1231,6 @@ $lastMonthStart = date('Y-m-01', strtotime('first day of last month'));
 $lastMonthEnd = date('Y-m-d', strtotime('-1 month'));
 $lastMonthName = date('F Y', strtotime('first day of last month'));
 
-// Debug - prikaži raw response
-if (isset($_GET['debug'])) {
-    echo '<pre style="background: #f3f4f6; padding: 1rem; margin-bottom: 1rem; overflow: auto; max-height: 400px;">';
-    echo "Period ovaj mjesec: $monthStart do $today\n";
-    echo "Period prošli mjesec: $lastMonthStart do $lastMonthEnd\n\n";
-    echo "OVAJ MJESEC - daily rows: " . count($reportData['daily']['rows'] ?? []) . "\n";
-    echo "PROŠLA GODINA - compareDaily rows: " . count($reportData['compareDaily']['rows'] ?? []) . "\n\n";
-    echo "Compare Daily data:\n";
-    print_r($reportData['compareDaily'] ?? 'NEMA PODATAKA');
-    echo '</pre>';
-}
-
 // Izračunaj ukupno iz dnevnih podataka (jer total query vraća 0)
 if (isset($reportData['daily']['rows'])) {
     foreach ($reportData['daily']['rows'] as $row) {
