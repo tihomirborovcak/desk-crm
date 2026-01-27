@@ -59,8 +59,8 @@ function getFacebookPosts($limit = 20, $debug = false) {
     $pageId = FB_PAGE_ID;
     $token = FB_PAGE_ACCESS_TOKEN;
 
-    // S pages_read_engagement možemo dohvatiti i reakcije/komentare/dijeljenja
-    $url = "https://graph.facebook.com/v24.0/{$pageId}/feed?fields=id,message,created_time,permalink_url,full_picture,likes.summary(true),comments.summary(true),shares&limit={$limit}&access_token={$token}";
+    // S pages_read_engagement možemo dohvatiti i reakcije/komentare/dijeljenja + naslov linka
+    $url = "https://graph.facebook.com/v24.0/{$pageId}/feed?fields=id,message,created_time,permalink_url,full_picture,name,link,description,likes.summary(true),comments.summary(true),shares&limit={$limit}&access_token={$token}";
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

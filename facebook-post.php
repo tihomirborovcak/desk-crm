@@ -396,9 +396,16 @@ foreach ($fbPosts as $post) {
                 <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">
                     <?= date('H:i', strtotime($post['created_time'])) ?>
                 </div>
-                <div style="font-size: 0.8rem; line-height: 1.3;">
-                    <?= e(mb_substr($post['message'] ?? '(bez teksta)', 0, 150)) ?><?= mb_strlen($post['message'] ?? '') > 150 ? '...' : '' ?>
+                <?php if (!empty($post['name'])): ?>
+                <div style="font-size: 0.8rem; font-weight: 600; color: #1f2937; margin-bottom: 0.25rem;">
+                    <?= e($post['name']) ?>
                 </div>
+                <?php endif; ?>
+                <?php if (!empty($post['message'])): ?>
+                <div style="font-size: 0.75rem; color: #4b5563; line-height: 1.3;">
+                    <?= e(mb_substr($post['message'], 0, 100)) ?><?= mb_strlen($post['message']) > 100 ? '...' : '' ?>
+                </div>
+                <?php endif; ?>
                 <div style="font-size: 0.7rem; color: #6b7280; margin-top: 0.5rem; display: flex; gap: 1rem; align-items: center;">
                     <?php
                     $likes = $post['likes']['summary']['total_count'] ?? 0;
@@ -429,8 +436,8 @@ foreach ($fbPosts as $post) {
                 <div style="font-size: 0.7rem; color: #9ca3af;">
                     <?= date('d.m. H:i', strtotime($post['created_time'])) ?>
                 </div>
-                <div style="font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    <?= e(mb_substr($post['message'] ?? '(bez teksta)', 0, 80)) ?>
+                <div style="font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: <?= !empty($post['name']) ? '600' : 'normal' ?>;">
+                    <?= e($post['name'] ?? mb_substr($post['message'] ?? '(bez teksta)', 0, 80)) ?>
                 </div>
                 <div style="font-size: 0.65rem; margin-top: 0.25rem; display: flex; gap: 0.75rem; align-items: center;">
                     <?php
