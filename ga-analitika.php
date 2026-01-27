@@ -350,26 +350,26 @@ if (!empty(GA4_PROPERTY_ID)) {
         case 'revenue':
             // Samo za admine
             if (isAdmin()) {
-                // Ukupna zarada
+                // Ukupna zarada - probaj sve moguće revenue metrike
                 $reportData = getGA4Report($startDate, $endDate, [],
-                    ['publisherAdRevenue', 'totalRevenue'], 1);
+                    ['totalAdRevenue', 'publisherAdRevenue', 'totalRevenue'], 1);
                 // Prethodni period
                 $compareData = getGA4Report($compareStart, $compareEnd, [],
-                    ['publisherAdRevenue', 'totalRevenue'], 1);
+                    ['totalAdRevenue', 'publisherAdRevenue', 'totalRevenue'], 1);
                 // Zarada po danima
                 $dailyRevenue = getGA4Report($startDate, $endDate,
                     ['date'],
-                    ['publisherAdRevenue'], 31,
+                    ['totalAdRevenue'], 31,
                     null,
                     [['dimension' => ['dimensionName' => 'date'], 'desc' => true]]);
                 // Top članci po zaradi
                 $topRevenue = getGA4Report($startDate, $endDate,
                     ['pageTitle', 'pagePath'],
-                    ['publisherAdRevenue', 'screenPageViews'], 50);
+                    ['totalAdRevenue', 'screenPageViews'], 50);
                 // Zarada po izvorima
                 $sourceRevenue = getGA4Report($startDate, $endDate,
                     ['sessionSource'],
-                    ['publisherAdRevenue', 'screenPageViews'], 20);
+                    ['totalAdRevenue', 'screenPageViews'], 20);
 
                 $reportData = [
                     'total' => $reportData,
@@ -1185,11 +1185,39 @@ if (isset($reportData['title']['rows'][0])) {
 $currentRevenue = 0;
 $previousRevenue = 0;
 
-if (isset($reportData['total']['rows'][0])) {
-    $currentRevenue = (float)($reportData['total']['rows'][0]['metricValues'][0]['value'] ?? 0);
+// Debug - prikaži raw response
+if (isset($_GET['debug'])) {
+    echo '<pre style="background: #f3f4f6; padding: 1rem; margin-bottom: 1rem; overflow: auto; max-height: 400px;">';
+    echo "Total data:\n";
+    print_r($reportData['total']);
+    echo '</pre>';
 }
-if (isset($reportData['compare']['rows'][0])) {
-    $previousRevenue = (float)($reportData['compare']['rows'][0]['metricValues'][0]['value'] ?? 0);
+
+// Probaj sve revenue metrike (totalAdRevenue, publisherAdRevenue, totalRevenue)
+if (isset($reportData['total']['rows'][0]['metricValues'])) {
+    $metrics = $reportData['total']['rows'][0]['metricValues'];
+    // Uzmi prvu koja nije 0
+    foreach ($metrics as $m) {
+        $val = (float)($m['value'] ?? 0);
+        if ($val > 0) {
+            $currentRevenue = $val;
+            break;
+        }
+    }
+    // Ako su sve 0, uzmi prvu
+    if ($currentRevenue == 0 && isset($metrics[0])) {
+        $currentRevenue = (float)($metrics[0]['value'] ?? 0);
+    }
+}
+if (isset($reportData['compare']['rows'][0]['metricValues'])) {
+    $metrics = $reportData['compare']['rows'][0]['metricValues'];
+    foreach ($metrics as $m) {
+        $val = (float)($m['value'] ?? 0);
+        if ($val > 0) {
+            $previousRevenue = $val;
+            break;
+        }
+    }
 }
 $revenueChange = calcChange($currentRevenue, $previousRevenue);
 ?>
