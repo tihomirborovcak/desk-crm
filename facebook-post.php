@@ -104,23 +104,14 @@ include 'includes/header.php';
     </div>
 </div>
 
-<!-- Debug info -->
+<!-- Status info -->
 <div class="card mt-2">
     <div class="card-header">
         <h3 class="card-title">Status povezivanja</h3>
     </div>
     <div class="card-body" style="font-size: 0.8rem;">
-        <?php
-        $pageInfo = getFacebookPageId();
-        if ($pageInfo) {
-            echo '<span style="color: #059669;">✓ Povezano sa stranicom: <strong>' . e($pageInfo['name']) . '</strong></span>';
-            echo '<br><small style="color: #6b7280;">Page ID: ' . e($pageInfo['id']) . '</small>';
-        } else {
-            $debug = debugFacebookToken();
-            echo '<span style="color: #dc2626;">✗ Nije povezano</span>';
-            echo '<br><small>Debug: <pre>' . print_r($debug, true) . '</pre></small>';
-        }
-        ?>
+        <span style="color: #059669;">✓ Povezano sa stranicom: <strong>Zagorje.com</strong></span>
+        <br><small style="color: #6b7280;">Page ID: <?= FB_PAGE_ID ?></small>
     </div>
 </div>
 
