@@ -302,27 +302,22 @@ if (!empty(GA4_PROPERTY_ID)) {
                 }
             }
 
-            // Dohvati GA4 podatke za članke (zadnjih 30 dana za bolji matching)
+            // Dohvati GA4 podatke za članke (zadnjih 30 dana)
             $gaData = getGA4Report('30daysAgo', 'today',
-                ['pageTitle', 'pagePath'],
-                ['screenPageViews'], 500);
+                ['pagePath'],
+                ['screenPageViews'], 1000);
 
-            // Napravi mapu naslova -> pregledi
-            $viewsByTitle = [];
+            // Napravi mapu path -> pregledi
+            $viewsByPath = [];
             if ($gaData && isset($gaData['rows'])) {
                 foreach ($gaData['rows'] as $row) {
-                    $title = trim($row['dimensionValues'][0]['value'] ?? '');
+                    $path = trim($row['dimensionValues'][0]['value'] ?? '');
                     $views = (int)($row['metricValues'][0]['value'] ?? 0);
-                    // Ukloni " - Zagorje.com" suffix ako postoji
-                    $cleanTitle = preg_replace('/\s*[-–|]\s*(Zagorje\.com|zagorje\.com)$/i', '', $title);
-                    if (!isset($viewsByTitle[$cleanTitle])) {
-                        $viewsByTitle[$cleanTitle] = 0;
-                    }
-                    $viewsByTitle[$cleanTitle] += $views;
+                    $viewsByPath[$path] = ($viewsByPath[$path] ?? 0) + $views;
                 }
             }
 
-            $reportData = ['articles' => $rssArticles, 'viewsByTitle' => $viewsByTitle];
+            $reportData = ['articles' => $rssArticles, 'viewsByPath' => $viewsByPath];
             break;
 
         case 'pages':
@@ -712,15 +707,21 @@ $returningPercent = 100 - $newUsersPercent;
 <!-- OBJAVLJENO - RSS ČLANCI -->
 <?php
 $articles = $reportData['articles'];
-$viewsByTitle = $reportData['viewsByTitle'] ?? [];
+$viewsByPath = $reportData['viewsByPath'] ?? [];
 $todayStart = strtotime('today');
+
+// Funkcija za izvlačenje path iz URL-a
+function getPathFromUrl($url) {
+    $parsed = parse_url($url);
+    return $parsed['path'] ?? '/';
+}
 
 // Zbroji preglede
 $totalViews = 0;
 foreach ($articles as $article) {
-    $cleanTitle = trim($article['title']);
-    if (isset($viewsByTitle[$cleanTitle])) {
-        $totalViews += $viewsByTitle[$cleanTitle];
+    $path = getPathFromUrl($article['link']);
+    if (isset($viewsByPath[$path])) {
+        $totalViews += $viewsByPath[$path];
     }
 }
 ?>
@@ -759,8 +760,8 @@ foreach ($articles as $article) {
                     $pubDateFormatted = $article['pubDate'] ? date('d.m.Y H:i', $article['pubDate']) : '-';
                     $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
                     $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
-                    $cleanTitle = trim($article['title']);
-                    $articleViews = $viewsByTitle[$cleanTitle] ?? 0;
+                    $articlePath = getPathFromUrl($article['link']);
+                    $articleViews = $viewsByPath[$articlePath] ?? 0;
                 ?>
                 <tr>
                     <td>
