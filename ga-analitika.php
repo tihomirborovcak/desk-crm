@@ -778,7 +778,36 @@ foreach ($articles as $article) {
     <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Slug matching info</summary>
     <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.7rem;">
         <div style="margin-bottom: 0.5rem;"><strong>GA4 slugova:</strong> <?= number_format(count($viewsBySlug)) ?></div>
-        <div style="margin-bottom: 0.5rem;"><strong>Top 5 GA4 slugova:</strong></div>
+
+        <form method="GET" style="margin: 0.5rem 0;">
+            <input type="hidden" name="report" value="published">
+            <input type="text" name="search_slug" value="<?= e($_GET['search_slug'] ?? '') ?>" placeholder="Traži slug u GA4..." style="width: 100%; padding: 0.4rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.7rem;">
+        </form>
+
+        <?php
+        $searchSlug = $_GET['search_slug'] ?? '';
+        if ($searchSlug):
+            $found = [];
+            foreach ($viewsBySlug as $slug => $views) {
+                if (stripos($slug, $searchSlug) !== false) {
+                    $found[$slug] = $views;
+                }
+                if (count($found) >= 10) break;
+            }
+        ?>
+        <div style="margin: 0.5rem 0; padding: 0.5rem; background: <?= empty($found) ? '#fee2e2' : '#dcfce7' ?>; border-radius: 4px;">
+            <?php if (empty($found)): ?>
+                <strong>Nije pronađen slug koji sadrži "<?= e($searchSlug) ?>"</strong>
+            <?php else: ?>
+                <strong>Pronađeno (<?= count($found) ?>):</strong>
+                <?php foreach ($found as $slug => $views): ?>
+                <div style="margin-top: 0.25rem; word-break: break-all;"><?= e($slug) ?> <span style="color: #6b7280;">(<?= number_format($views) ?>)</span></div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <div style="margin-top: 0.5rem;"><strong>Top 5 GA4 slugova:</strong></div>
         <?php foreach ($sampleSlugs as $s): ?>
         <div style="margin: 0.25rem 0; padding: 0.25rem; background: #dcfce7; border-radius: 4px; word-break: break-all;">
             <?= e($s['slug']) ?> <span style="color: #9ca3af;">(<?= number_format($s['views']) ?>)</span>
@@ -826,6 +855,9 @@ foreach ($articles as $article) {
                     <td>
                         <a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: inherit;">
                             <div style="font-weight: 500;"><?= e($article['title']) ?></div>
+                            <?php if ($articleViews == 0 && isAdmin()): ?>
+                            <div style="font-size: 0.65rem; color: #9ca3af; word-break: break-all;">slug: <?= e($articleSlug) ?></div>
+                            <?php endif; ?>
                         </a>
                     </td>
                     <td style="text-align: right;">
