@@ -318,9 +318,10 @@ if (!empty(GA4_PROPERTY_ID)) {
             }
 
             // Dohvati GA4 podatke po URL path-u (pouzdanije od naslova)
+            // Limit 10000 da uhvatimo i članke s manje pregleda
             $gaData = getGA4Report('90daysAgo', 'today',
                 ['pagePath'],
-                ['screenPageViews'], 5000);
+                ['screenPageViews'], 10000);
 
             // Napravi mapu slug -> pregledi
             $viewsBySlug = [];
