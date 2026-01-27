@@ -805,13 +805,37 @@ $daysHr = ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'];
 <?php
 // Pripremi top i bottom članke po pregledima
 $articlesWithViews = [];
+$viewsByHour = array_fill(0, 24, ['views' => 0, 'count' => 0]); // Za graf po satima
+
 foreach ($articles as $art) {
     $slug = getSlugFromUrl($art['link']);
     $views = $viewsBySlug[$slug] ?? 0;
     if ($views > 0) {
-        $articlesWithViews[] = ['title' => $art['title'], 'link' => $art['link'], 'views' => $views, 'date' => $art['pubDate']];
+        $articlesWithViews[] = [
+            'title' => $art['title'],
+            'link' => $art['link'],
+            'views' => $views,
+            'date' => $art['pubDate'],
+            'hour' => $art['pubDate'] ? (int)date('G', $art['pubDate']) : null
+        ];
+        // Grupiraj po satu objave
+        if ($art['pubDate']) {
+            $hour = (int)date('G', $art['pubDate']);
+            $viewsByHour[$hour]['views'] += $views;
+            $viewsByHour[$hour]['count']++;
+        }
     }
 }
+
+// Izračunaj prosječne preglede po satu
+$avgViewsByHour = [];
+$maxAvg = 0;
+foreach ($viewsByHour as $hour => $data) {
+    $avg = $data['count'] > 0 ? round($data['views'] / $data['count']) : 0;
+    $avgViewsByHour[$hour] = $avg;
+    if ($avg > $maxAvg) $maxAvg = $avg;
+}
+
 usort($articlesWithViews, fn($a, $b) => $b['views'] <=> $a['views']);
 $topArticles = array_slice($articlesWithViews, 0, 20);
 $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
@@ -865,17 +889,48 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
     </div>
 
     <!-- Sidebar: Top i Bottom članci -->
-    <div style="width: 380px; flex-shrink: 0;">
+    <div style="width: 400px; flex-shrink: 0;">
+        <!-- Graf: Prosječni pregledi po satu objave -->
+        <div class="card" style="margin-bottom: 0.75rem;">
+            <div style="padding: 0.5rem 0.75rem; background: #eff6ff; border-radius: 8px 8px 0 0;">
+                <div style="font-size: 0.75rem; font-weight: 600; color: #1e40af;">⏰ Prosječni pregledi po satu objave</div>
+            </div>
+            <div style="padding: 0.5rem;">
+                <div style="display: flex; align-items: flex-end; gap: 2px; height: 60px;">
+                    <?php for ($h = 6; $h <= 23; $h++):
+                        $avg = $avgViewsByHour[$h];
+                        $height = $maxAvg > 0 ? ($avg / $maxAvg * 100) : 0;
+                        $isGood = $avg > ($maxAvg * 0.7);
+                        $isBad = $avg < ($maxAvg * 0.3);
+                    ?>
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center;" title="<?= $h ?>:00 - <?= number_format($avg) ?> pregleda">
+                        <div style="width: 100%; background: <?= $isGood ? '#22c55e' : ($isBad ? '#f87171' : '#3b82f6') ?>; border-radius: 2px 2px 0 0; height: <?= max($height, 3) ?>%;"></div>
+                    </div>
+                    <?php endfor; ?>
+                </div>
+                <div style="display: flex; gap: 2px; margin-top: 2px;">
+                    <?php for ($h = 6; $h <= 23; $h++): ?>
+                    <div style="flex: 1; text-align: center; font-size: 0.5rem; color: #9ca3af;"><?= $h ?></div>
+                    <?php endfor; ?>
+                </div>
+                <div style="font-size: 0.6rem; color: #6b7280; margin-top: 0.25rem; text-align: center;">
+                    Najbolje: <strong style="color: #22c55e;"><?= array_search(max($avgViewsByHour), $avgViewsByHour) ?>h</strong>
+                    (<?= number_format(max($avgViewsByHour)) ?> pregleda)
+                </div>
+            </div>
+        </div>
+
         <!-- Top članci -->
         <div class="card" style="margin-bottom: 0.75rem;">
             <div style="padding: 0.5rem 0.75rem; background: #dcfce7; border-radius: 8px 8px 0 0;">
                 <div style="font-size: 0.75rem; font-weight: 600; color: #166534;">🔥 Najviše pregleda (20)</div>
             </div>
-            <div style="font-size: 0.7rem; max-height: 400px; overflow-y: auto;">
+            <div style="font-size: 0.7rem; max-height: 350px; overflow-y: auto;">
                 <?php foreach ($topArticles as $i => $art): ?>
                 <div style="padding: 0.25rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.4rem; align-items: center;">
                     <span style="color: #059669; font-weight: 600; min-width: 42px; font-size: 0.65rem;"><?= number_format($art['views'], 0, ',', '.') ?></span>
-                    <span style="color: #9ca3af; font-size: 0.6rem; min-width: 38px;"><?= $art['date'] ? date('d.m.', $art['date']) : '-' ?></span>
+                    <span style="color: #6b7280; font-size: 0.6rem; min-width: 32px; font-weight: 500;"><?= $art['date'] ? date('H:i', $art['date']) : '-' ?></span>
+                    <span style="color: #9ca3af; font-size: 0.55rem; min-width: 28px;"><?= $art['date'] ? date('d.m', $art['date']) : '' ?></span>
                     <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;"><?= e($art['title']) ?></a>
                 </div>
                 <?php endforeach; ?>
@@ -887,11 +942,12 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
             <div style="padding: 0.5rem 0.75rem; background: #fee2e2; border-radius: 8px 8px 0 0;">
                 <div style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">📉 Najmanje pregleda (20)</div>
             </div>
-            <div style="font-size: 0.7rem; max-height: 400px; overflow-y: auto;">
+            <div style="font-size: 0.7rem; max-height: 350px; overflow-y: auto;">
                 <?php foreach ($bottomArticles as $i => $art): ?>
                 <div style="padding: 0.25rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.4rem; align-items: center;">
                     <span style="color: #dc2626; font-weight: 600; min-width: 42px; font-size: 0.65rem;"><?= number_format($art['views'], 0, ',', '.') ?></span>
-                    <span style="color: #9ca3af; font-size: 0.6rem; min-width: 38px;"><?= $art['date'] ? date('d.m.', $art['date']) : '-' ?></span>
+                    <span style="color: #6b7280; font-size: 0.6rem; min-width: 32px; font-weight: 500;"><?= $art['date'] ? date('H:i', $art['date']) : '-' ?></span>
+                    <span style="color: #9ca3af; font-size: 0.55rem; min-width: 28px;"><?= $art['date'] ? date('d.m', $art['date']) : '' ?></span>
                     <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;"><?= e($art['title']) ?></a>
                 </div>
                 <?php endforeach; ?>
@@ -903,18 +959,18 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
 <?php elseif ($reportType === 'pages' && $reportData && isset($reportData['rows'])): ?>
 <!-- ČLANCI -->
 <div class="card">
-    <div class="card-header">
-        <h2 class="card-title">Najčitaniji članci</h2>
+    <div class="card-header" style="padding: 0.5rem 0.75rem;">
+        <h2 class="card-title" style="font-size: 0.9rem;">Najčitaniji članci</h2>
     </div>
     <div class="table-responsive">
-        <table class="table">
+        <table class="table" style="font-size: 0.75rem;">
             <thead>
-                <tr>
-                    <th style="width: 50px;">#</th>
-                    <th>Naslov</th>
-                    <th style="text-align: right;">Pregledi</th>
-                    <th style="text-align: right;">Vrijeme</th>
-                    <th style="text-align: right;">Bounce</th>
+                <tr style="background: #f9fafb;">
+                    <th style="padding: 0.3rem 0.4rem; width: 30px;">#</th>
+                    <th style="padding: 0.3rem 0.4rem;">Naslov</th>
+                    <th style="padding: 0.3rem 0.4rem; text-align: right; width: 70px;">Pregledi</th>
+                    <th style="padding: 0.3rem 0.4rem; text-align: right; width: 50px;">Vrijeme</th>
+                    <th style="padding: 0.3rem 0.4rem; text-align: right; width: 50px;">Bounce</th>
                 </tr>
             </thead>
             <tbody>
@@ -931,22 +987,15 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
                     $i++;
                     if ($i > 50) break;
                 ?>
-                <tr>
-                    <td style="color: #9ca3af;"><?= $i ?></td>
-                    <td>
-                        <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($path) ?>" style="text-decoration: none; color: inherit;">
-                            <div style="font-weight: 500;"><?= e(truncate($title, 60)) ?></div>
-                            <div style="font-size: 0.75rem; color: #9ca3af;"><?= e(truncate($path, 50)) ?></div>
-                        </a>
+                <tr style="background: <?= $i % 2 === 0 ? '#f9fafb' : 'white' ?>;">
+                    <td style="padding: 0.2rem 0.4rem; color: #9ca3af;"><?= $i ?></td>
+                    <td style="padding: 0.2rem 0.4rem;">
+                        <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($path) ?>" style="text-decoration: none; color: #1f2937;"><?= e(truncate($title, 70)) ?></a>
                     </td>
-                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
-                    <td style="text-align: right; color: #6b7280;"><?= formatDuration($duration) ?></td>
-                    <td style="text-align: right;">
-                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;
-                                     background: <?= $bounce > 70 ? '#fee2e2' : ($bounce > 50 ? '#fef3c7' : '#dcfce7') ?>;
-                                     color: <?= $bounce > 70 ? '#dc2626' : ($bounce > 50 ? '#d97706' : '#16a34a') ?>;">
-                            <?= round($bounce) ?>%
-                        </span>
+                    <td style="padding: 0.2rem 0.4rem; text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
+                    <td style="padding: 0.2rem 0.4rem; text-align: right; color: #6b7280;"><?= formatDuration($duration) ?></td>
+                    <td style="padding: 0.2rem 0.4rem; text-align: right;">
+                        <span style="padding: 1px 4px; border-radius: 3px; font-size: 0.65rem; background: <?= $bounce > 70 ? '#fee2e2' : ($bounce > 50 ? '#fef3c7' : '#dcfce7') ?>; color: <?= $bounce > 70 ? '#dc2626' : ($bounce > 50 ? '#d97706' : '#16a34a') ?>;"><?= round($bounce) ?>%</span>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -1001,38 +1050,38 @@ $trending = array_slice($trending, 0, 30, true);
 ?>
 
 <div class="card">
-    <div class="card-header">
-        <h2 class="card-title">🔥 Trending članci (najveći rast)</h2>
+    <div class="card-header" style="padding: 0.5rem 0.75rem;">
+        <h2 class="card-title" style="font-size: 0.9rem;">🔥 Trending članci (najveći rast)</h2>
     </div>
     <div class="table-responsive">
-        <table class="table">
+        <table class="table" style="font-size: 0.75rem;">
             <thead>
                 <tr>
-                    <th style="width: 50px;">#</th>
-                    <th>Naslov</th>
-                    <th style="text-align: right;">Sada</th>
-                    <th style="text-align: right;">Prije</th>
-                    <th style="text-align: right;">Promjena</th>
+                    <th style="width: 30px; padding: 0.3rem 0.5rem;">#</th>
+                    <th style="padding: 0.3rem 0.5rem;">Naslov</th>
+                    <th style="text-align: right; padding: 0.3rem 0.5rem;">Sada</th>
+                    <th style="text-align: right; padding: 0.3rem 0.5rem;">Prije</th>
+                    <th style="text-align: right; padding: 0.3rem 0.5rem;">Promjena</th>
                 </tr>
             </thead>
             <tbody>
                 <?php $i = 0; foreach ($trending as $article): $i++; ?>
-                <tr>
-                    <td style="color: #9ca3af;"><?= $i ?></td>
-                    <td>
+                <tr style="<?= $i % 2 === 0 ? 'background: #f9fafb;' : '' ?>">
+                    <td style="color: #9ca3af; padding: 0.2rem 0.5rem;"><?= $i ?></td>
+                    <td style="padding: 0.2rem 0.5rem;">
                         <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($article['path']) ?>" style="text-decoration: none; color: inherit;">
-                            <?= e(truncate($article['title'], 60)) ?>
+                            <?= e(truncate($article['title'], 70)) ?>
                         </a>
                     </td>
-                    <td style="text-align: right; font-weight: 600;"><?= number_format($article['current']) ?></td>
-                    <td style="text-align: right; color: #9ca3af;"><?= number_format($article['previous']) ?></td>
-                    <td style="text-align: right;">
+                    <td style="text-align: right; font-weight: 600; padding: 0.2rem 0.5rem;"><?= number_format($article['current']) ?></td>
+                    <td style="text-align: right; color: #9ca3af; padding: 0.2rem 0.5rem;"><?= number_format($article['previous']) ?></td>
+                    <td style="text-align: right; padding: 0.2rem 0.5rem;">
                         <?php if ($article['change'] > 0): ?>
-                        <span style="background: #dcfce7; color: #16a34a; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                        <span style="background: #dcfce7; color: #16a34a; padding: 1px 4px; border-radius: 3px; font-weight: 600; font-size: 0.7rem;">
                             ↑ +<?= $article['change'] ?>%
                         </span>
                         <?php elseif ($article['change'] < 0): ?>
-                        <span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 4px;">
+                        <span style="background: #fee2e2; color: #dc2626; padding: 1px 4px; border-radius: 3px; font-size: 0.7rem;">
                             ↓ <?= $article['change'] ?>%
                         </span>
                         <?php else: ?>
@@ -1325,19 +1374,19 @@ foreach ($reportData['rows'] as $row) {
 <?php elseif ($reportType === 'landing' && $reportData && isset($reportData['rows'])): ?>
 <!-- LANDING PAGES -->
 <div class="card">
-    <div class="card-header">
-        <h2 class="card-title">🚪 Landing stranice</h2>
-        <p style="color: #6b7280; margin: 0.25rem 0 0 0; font-size: 0.875rem;">Na koje stranice korisnici prvo dolaze</p>
+    <div class="card-header" style="padding: 0.5rem 0.75rem;">
+        <h2 class="card-title" style="font-size: 0.9rem;">🚪 Landing stranice</h2>
+        <p style="color: #6b7280; margin: 0.15rem 0 0 0; font-size: 0.7rem;">Na koje stranice korisnici prvo dolaze</p>
     </div>
     <div class="table-responsive">
-        <table class="table">
+        <table class="table" style="font-size: 0.75rem;">
             <thead>
                 <tr>
-                    <th style="width: 50px;">#</th>
-                    <th>Stranica</th>
-                    <th style="text-align: right;">Sesije</th>
-                    <th style="text-align: right;">Korisnici</th>
-                    <th style="text-align: right;">Bounce</th>
+                    <th style="width: 30px; padding: 0.3rem 0.5rem;">#</th>
+                    <th style="padding: 0.3rem 0.5rem;">Stranica</th>
+                    <th style="text-align: right; padding: 0.3rem 0.5rem;">Sesije</th>
+                    <th style="text-align: right; padding: 0.3rem 0.5rem;">Korisnici</th>
+                    <th style="text-align: right; padding: 0.3rem 0.5rem;">Bounce</th>
                 </tr>
             </thead>
             <tbody>
@@ -1348,18 +1397,18 @@ foreach ($reportData['rows'] as $row) {
                     $bounce = (float)($row['metricValues'][2]['value'] ?? 0) * 100;
                     if ($i > 30) break;
                 ?>
-                <tr>
-                    <td style="color: #9ca3af;"><?= $i ?></td>
-                    <td>
+                <tr style="<?= $i % 2 === 0 ? 'background: #f9fafb;' : '' ?>">
+                    <td style="color: #9ca3af; padding: 0.2rem 0.5rem;"><?= $i ?></td>
+                    <td style="padding: 0.2rem 0.5rem;">
                         <a href="?period=<?= $period ?>&report=article&page=<?= urlencode(parse_url($path, PHP_URL_PATH) ?: $path) ?>"
                            style="text-decoration: none; color: inherit;">
-                            <?= e(truncate($path, 70)) ?>
+                            <?= e(truncate($path, 80)) ?>
                         </a>
                     </td>
-                    <td style="text-align: right; font-weight: 600;"><?= number_format($sessions) ?></td>
-                    <td style="text-align: right;"><?= number_format($users) ?></td>
-                    <td style="text-align: right;">
-                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;
+                    <td style="text-align: right; font-weight: 600; padding: 0.2rem 0.5rem;"><?= number_format($sessions) ?></td>
+                    <td style="text-align: right; padding: 0.2rem 0.5rem;"><?= number_format($users) ?></td>
+                    <td style="text-align: right; padding: 0.2rem 0.5rem;">
+                        <span style="padding: 1px 4px; border-radius: 3px; font-size: 0.65rem;
                                      background: <?= $bounce > 70 ? '#fee2e2' : ($bounce > 50 ? '#fef3c7' : '#dcfce7') ?>;
                                      color: <?= $bounce > 70 ? '#dc2626' : ($bounce > 50 ? '#d97706' : '#16a34a') ?>;">
                             <?= round($bounce) ?>%
