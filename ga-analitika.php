@@ -738,30 +738,57 @@ function getSlugFromUrl($url) {
     return basename($path);
 }
 
-// Zbroji preglede
+// Zbroji preglede i članke po danima
 $totalViews = 0;
 $matchedCount = 0;
+$articlesByDay = [];
+
 foreach ($articles as $article) {
     $slug = getSlugFromUrl($article['link']);
     if (isset($viewsBySlug[$slug])) {
         $totalViews += $viewsBySlug[$slug];
         $matchedCount++;
     }
+    // Grupiraj po danu
+    if ($article['pubDate']) {
+        $day = date('Y-m-d', $article['pubDate']);
+        $articlesByDay[$day] = ($articlesByDay[$day] ?? 0) + 1;
+    }
 }
+krsort($articlesByDay); // Sortiraj od najnovijeg
+$articlesByDay = array_slice($articlesByDay, 0, 14, true); // Zadnjih 14 dana
+$maxPerDay = max($articlesByDay ?: [1]);
 ?>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-    <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #3b82f6;"><?= count($articles) ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Članaka</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+    <div class="card" style="text-align: center; padding: 1rem;">
+        <div style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;"><?= count($articles) ?></div>
+        <div style="font-size: 0.75rem; color: #6b7280;">Članaka</div>
     </div>
-    <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6;"><?= $matchedCount ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Pronađeno u GA</div>
+    <div class="card" style="text-align: center; padding: 1rem;">
+        <div style="font-size: 1.75rem; font-weight: 700; color: #8b5cf6;"><?= $matchedCount ?></div>
+        <div style="font-size: 0.75rem; color: #6b7280;">U GA4</div>
     </div>
-    <div class="card" style="text-align: center; padding: 1.25rem;">
-        <div style="font-size: 2rem; font-weight: 700; color: #059669;"><?= number_format($totalViews, 0, ',', '.') ?></div>
-        <div style="font-size: 0.875rem; color: #6b7280;">Pregledi (90d)</div>
+    <div class="card" style="text-align: center; padding: 1rem;">
+        <div style="font-size: 1.75rem; font-weight: 700; color: #059669;"><?= number_format($totalViews, 0, ',', '.') ?></div>
+        <div style="font-size: 0.75rem; color: #6b7280;">Pregledi</div>
+    </div>
+</div>
+
+<!-- Graf po danima -->
+<div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+    <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">Objavljeno po danima</div>
+    <div style="display: flex; align-items: flex-end; gap: 3px; height: 60px;">
+        <?php foreach (array_reverse($articlesByDay, true) as $day => $count):
+            $height = ($count / $maxPerDay) * 100;
+            $isToday = $day === date('Y-m-d');
+        ?>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0;">
+            <div style="font-size: 0.6rem; color: #374151; margin-bottom: 2px;"><?= $count ?></div>
+            <div style="width: 100%; height: <?= $height ?>%; min-height: 4px; background: <?= $isToday ? '#3b82f6' : '#93c5fd' ?>; border-radius: 2px 2px 0 0;"></div>
+            <div style="font-size: 0.55rem; color: #9ca3af; margin-top: 2px;"><?= date('d.m', strtotime($day)) ?></div>
+        </div>
+        <?php endforeach; ?>
     </div>
 </div>
 
