@@ -249,13 +249,14 @@ include 'includes/header.php';
                             </div>
                         </div>
                         <div style="font-size: 0.85rem; font-weight: 600; margin-top: 0.25rem; line-height: 1.3;">
-                            <a href="<?= e($post['url']) ?>" target="_blank" style="color: #1f2937; text-decoration: none;">
-                                <?= e($displayTitle ?: 'Članak') ?>
-                            </a>
+                            <?= e($displayTitle ?: 'Članak') ?>
                         </div>
                         <?php if ($post['message']): ?>
                         <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.2rem;"><?= e(mb_substr($post['message'], 0, 100)) ?><?= mb_strlen($post['message']) > 100 ? '...' : '' ?></div>
                         <?php endif; ?>
+                        <div style="font-size: 0.7rem; margin-top: 0.2rem;">
+                            <a href="<?= e($post['url']) ?>" target="_blank" style="color: #1877f2; word-break: break-all;">↗ <?= e($post['url']) ?></a>
+                        </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
