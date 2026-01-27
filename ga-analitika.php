@@ -232,6 +232,21 @@ switch ($period) {
         $periodLabel = 'Ovaj mjesec';
         break;
     default:
+        // Provjeri je li odabran specifičan mjesec (format: month_YYYY_MM)
+        if (preg_match('/^month_(\d{4})_(\d{2})$/', $period, $matches)) {
+            $year = $matches[1];
+            $month = $matches[2];
+            $startDate = "$year-$month-01";
+            $endDate = date('Y-m-t', strtotime($startDate)); // Zadnji dan mjeseca
+
+            // Usporedba s istim mjesecom prošle godine
+            $prevYear = $year - 1;
+            $compareStart = "$prevYear-$month-01";
+            $compareEnd = date('Y-m-t', strtotime($compareStart));
+
+            $periodLabel = strftime('%B %Y', strtotime($startDate));
+            break;
+        }
         $startDate = '7daysAgo';
         $endDate = 'today';
         $compareStart = '14daysAgo';
@@ -446,12 +461,28 @@ include 'includes/header.php';
     <div class="card-body" style="padding: 0.75rem;">
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
             <div style="display: flex; gap: 0; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;">
-                <?php foreach (['today' => 'Danas', 'yesterday' => 'Jučer', '7days' => '7 dana', '30days' => '30 dana', 'month' => 'Ovaj mjesec'] as $p => $label): ?>
+                <?php foreach (['today' => 'Danas', 'yesterday' => 'Jučer', '7days' => '7 dana', '30days' => '30 dana'] as $p => $label): ?>
                 <a href="?period=<?= $p ?>&report=<?= $reportType ?>"
                    class="btn btn-sm <?= $period === $p ? 'btn-primary' : 'btn-outline' ?>"
                    style="border-radius: 0; border: none; <?= $p !== 'today' ? 'border-left: 1px solid #d1d5db;' : '' ?>"><?= $label ?></a>
                 <?php endforeach; ?>
             </div>
+
+            <!-- Odabir mjeseca -->
+            <select onchange="if(this.value) window.location='?period='+this.value+'&report=<?= $reportType ?>'"
+                    class="form-control" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.875rem;">
+                <option value="">-- Odaberi mjesec --</option>
+                <?php
+                for ($i = 0; $i < 12; $i++) {
+                    $monthDate = strtotime("-$i months");
+                    $monthKey = 'month_' . date('Y_m', $monthDate);
+                    $monthLabel = strftime('%B %Y', $monthDate);
+                    $selected = ($period === $monthKey) ? 'selected' : '';
+                    echo "<option value=\"$monthKey\" $selected>$monthLabel</option>";
+                }
+                ?>
+            </select>
+
             <span style="color: #6b7280; margin-left: auto; font-size: 0.875rem;"><?= $periodLabel ?></span>
         </div>
     </div>
