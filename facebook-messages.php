@@ -138,7 +138,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
 // Dohvati konverzacije
 $conversations = $db->query("
     SELECT c.*,
-           (SELECT message_text FROM facebook_messages m WHERE m.conversation_id = c.conversation_id ORDER BY sent_at DESC LIMIT 1) as last_message
+           (SELECT message_text FROM facebook_messages m WHERE m.conversation_id = c.conversation_id ORDER BY sent_at DESC LIMIT 1) as last_message,
+           (SELECT COUNT(*) FROM facebook_messages m WHERE m.conversation_id = c.conversation_id AND m.attachment_url IS NOT NULL AND m.attachment_url != '') as has_photos
     FROM facebook_conversations c
     ORDER BY c.last_message_at DESC
     LIMIT 50
@@ -208,7 +209,10 @@ include 'includes/header.php';
                         <span class="badge badge-danger" style="font-size: 0.6rem;"><?= $conv['unread_count'] ?></span>
                         <?php endif; ?>
                     </div>
-                    <div class="conv-preview"><?= e(mb_substr($conv['last_message'] ?? '', 0, 40)) ?>...</div>
+                    <div class="conv-preview">
+                        <?php if ($conv['has_photos'] > 0): ?><span title="<?= $conv['has_photos'] ?> slika">📷</span> <?php endif; ?>
+                        <?= e(mb_substr($conv['last_message'] ?? '', 0, 40)) ?>...
+                    </div>
                     <div class="conv-time"><?= $conv['last_message_at'] ? date('d.m. H:i', strtotime($conv['last_message_at'])) : '' ?></div>
                 </div>
             </a>
@@ -394,5 +398,17 @@ include 'includes/header.php';
     opacity: 0.9;
 }
 </style>
+
+<?php if ($selectedConv): ?>
+<script>
+// Scroll to bottom of messages
+document.addEventListener('DOMContentLoaded', function() {
+    var container = document.querySelector('.messages-container');
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
+});
+</script>
+<?php endif; ?>
 
 <?php include 'includes/footer.php'; ?>
