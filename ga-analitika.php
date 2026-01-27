@@ -776,17 +776,22 @@ $maxPerDay = max($articlesByDay ?: [1]);
 </div>
 
 <!-- Graf po danima -->
+<?php
+$daysHr = ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'];
+?>
 <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
     <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">Objavljeno po danima</div>
-    <div style="display: flex; align-items: flex-end; gap: 3px; height: 60px;">
+    <div style="display: flex; align-items: flex-end; gap: 3px; height: 70px;">
         <?php foreach (array_reverse($articlesByDay, true) as $day => $count):
             $height = ($count / $maxPerDay) * 100;
             $isToday = $day === date('Y-m-d');
+            $dayOfWeek = $daysHr[date('w', strtotime($day))];
         ?>
         <div style="flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0;">
             <div style="font-size: 0.6rem; color: #374151; margin-bottom: 2px;"><?= $count ?></div>
             <div style="width: 100%; height: <?= $height ?>%; min-height: 4px; background: <?= $isToday ? '#3b82f6' : '#93c5fd' ?>; border-radius: 2px 2px 0 0;"></div>
-            <div style="font-size: 0.55rem; color: #9ca3af; margin-top: 2px;"><?= date('d.m', strtotime($day)) ?></div>
+            <div style="font-size: 0.55rem; color: <?= $isToday ? '#3b82f6' : '#6b7280' ?>; margin-top: 2px; font-weight: <?= $isToday ? '600' : '400' ?>;"><?= $dayOfWeek ?></div>
+            <div style="font-size: 0.5rem; color: #9ca3af;"><?= date('d.m', strtotime($day)) ?></div>
         </div>
         <?php endforeach; ?>
     </div>
@@ -803,25 +808,38 @@ $maxPerDay = max($articlesByDay ?: [1]);
     <?php else: ?>
     <div class="table-responsive">
         <table class="table" style="font-size: 0.8rem;">
-            <thead>
-                <tr style="background: #f9fafb;">
-                    <th style="padding: 0.4rem 0.5rem; width: 110px;">Datum</th>
-                    <th style="padding: 0.4rem 0.5rem;">Naslov</th>
-                    <th style="padding: 0.4rem 0.5rem; width: 70px; text-align: right;">Pregledi</th>
-                </tr>
-            </thead>
             <tbody>
-                <?php foreach ($articles as $article):
-                    $pubDateFormatted = $article['pubDate'] ? date('d.m. H:i', $article['pubDate']) : '-';
+                <?php
+                $prevDay = null;
+                foreach ($articles as $article):
+                    $articleDay = $article['pubDate'] ? date('Y-m-d', $article['pubDate']) : null;
+
+                    // Separator za novi dan
+                    if ($articleDay && $articleDay !== $prevDay):
+                        $dayCount = $articlesByDay[$articleDay] ?? 0;
+                        $dayName = $daysHr[date('w', strtotime($articleDay))];
+                        $dayFormatted = date('d.m.Y', strtotime($articleDay));
+                        $isDayToday = $articleDay === date('Y-m-d');
+                ?>
+                <tr style="background: <?= $isDayToday ? '#eff6ff' : '#f9fafb' ?>;">
+                    <td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem; font-weight: 600; color: <?= $isDayToday ? '#2563eb' : '#374151' ?>;">
+                        <?= $dayName ?>, <?= $dayFormatted ?> <span style="font-weight: 400; color: #6b7280;">(<?= $dayCount ?> čl.)</span>
+                    </td>
+                </tr>
+                <?php
+                        $prevDay = $articleDay;
+                    endif;
+
+                    $pubTimeFormatted = $article['pubDate'] ? date('H:i', $article['pubDate']) : '-';
                     $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
                     $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
                     $articleSlug = getSlugFromUrl($article['link']);
                     $articleViews = $viewsBySlug[$articleSlug] ?? 0;
                 ?>
                 <tr style="border-bottom: 1px solid #f3f4f6;">
-                    <td style="padding: 0.3rem 0.5rem; white-space: nowrap; <?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669;' : 'color: #9ca3af;') ?>"><?= $pubDateFormatted ?><?php if ($isRecent): ?> <span style="background: #fee2e2; color: #dc2626; font-size: 0.6rem; padding: 1px 3px; border-radius: 2px;">N</span><?php endif; ?></td>
-                    <td style="padding: 0.3rem 0.5rem;"><a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: #1f2937;"><?= e($article['title']) ?></a></td>
-                    <td style="padding: 0.3rem 0.5rem; text-align: right; font-weight: 500; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#9ca3af') ?>;"><?= $articleViews > 0 ? number_format($articleViews, 0, ',', '.') : '-' ?></td>
+                    <td style="padding: 0.25rem 0.5rem; width: 50px; white-space: nowrap; <?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669;' : 'color: #9ca3af;') ?>"><?= $pubTimeFormatted ?><?php if ($isRecent): ?> <span style="background: #fee2e2; color: #dc2626; font-size: 0.55rem; padding: 1px 2px; border-radius: 2px;">N</span><?php endif; ?></td>
+                    <td style="padding: 0.25rem 0.5rem;"><a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: #1f2937;"><?= e($article['title']) ?></a></td>
+                    <td style="padding: 0.25rem 0.5rem; width: 60px; text-align: right; font-weight: 500; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#9ca3af') ?>;"><?= $articleViews > 0 ? number_format($articleViews, 0, ',', '.') : '-' ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
