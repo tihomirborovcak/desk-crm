@@ -759,10 +759,41 @@ foreach ($articles as $article) {
 </div>
 
 <!-- Debug: Usporedba naslova -->
-<?php if (isAdmin()): ?>
+<?php if (isAdmin()):
+    // Traži djelomična poklapanja
+    $partialMatches = [];
+    foreach ($articles as $art) {
+        $feedlyTitle = trim($art['title']);
+        $firstWords = implode(' ', array_slice(explode(' ', $feedlyTitle), 0, 4)); // Prve 4 riječi
+        foreach ($viewsByTitle as $gaTitle => $views) {
+            if (stripos($gaTitle, $firstWords) !== false || stripos($feedlyTitle, substr($gaTitle, 0, 30)) !== false) {
+                $partialMatches[] = [
+                    'feedly' => $feedlyTitle,
+                    'ga4' => $gaTitle,
+                    'views' => $views
+                ];
+                break;
+            }
+        }
+        if (count($partialMatches) >= 3) break;
+    }
+?>
 <details style="margin-bottom: 1rem;" open>
     <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Usporedba Feedly vs GA4 naslova</summary>
     <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.7rem; max-height: 400px; overflow-y: auto;">
+
+        <?php if (!empty($partialMatches)): ?>
+        <div style="margin-bottom: 1rem; padding: 0.5rem; background: #fef3c7; border-radius: 4px;">
+            <strong>Djelomična poklapanja pronađena:</strong>
+            <?php foreach ($partialMatches as $pm): ?>
+            <div style="margin-top: 0.5rem; padding: 0.5rem; background: white; border-radius: 4px;">
+                <div><strong>Feedly:</strong> <?= e($pm['feedly']) ?></div>
+                <div><strong>GA4:</strong> <?= e($pm['ga4']) ?> (<?= number_format($pm['views']) ?>)</div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
         <div style="margin-bottom: 1rem;">
             <strong>Prvih 5 Feedly naslova:</strong>
             <?php $i = 0; foreach ($articles as $art): if ($i++ >= 5) break; ?>
