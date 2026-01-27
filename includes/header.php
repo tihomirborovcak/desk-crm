@@ -21,7 +21,7 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Portal CMS">
     <title><?= e(PAGE_TITLE) ?> - Portal CMS</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?= time() ?>">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 </head>
