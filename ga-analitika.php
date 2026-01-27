@@ -813,8 +813,8 @@ foreach ($articles as $art) {
     }
 }
 usort($articlesWithViews, fn($a, $b) => $b['views'] <=> $a['views']);
-$topArticles = array_slice($articlesWithViews, 0, 10);
-$bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 10);
+$topArticles = array_slice($articlesWithViews, 0, 20);
+$bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
 ?>
 
 <div style="display: flex; gap: 1rem; align-items: flex-start;">
@@ -865,17 +865,18 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 10);
     </div>
 
     <!-- Sidebar: Top i Bottom članci -->
-    <div style="width: 280px; flex-shrink: 0;">
+    <div style="width: 380px; flex-shrink: 0;">
         <!-- Top članci -->
         <div class="card" style="margin-bottom: 0.75rem;">
             <div style="padding: 0.5rem 0.75rem; background: #dcfce7; border-radius: 8px 8px 0 0;">
-                <div style="font-size: 0.75rem; font-weight: 600; color: #166534;">🔥 Najviše pregleda</div>
+                <div style="font-size: 0.75rem; font-weight: 600; color: #166534;">🔥 Najviše pregleda (20)</div>
             </div>
-            <div style="font-size: 0.7rem;">
+            <div style="font-size: 0.7rem; max-height: 400px; overflow-y: auto;">
                 <?php foreach ($topArticles as $i => $art): ?>
-                <div style="padding: 0.3rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.5rem;">
-                    <span style="color: #059669; font-weight: 600; min-width: 45px;"><?= number_format($art['views'], 0, ',', '.') ?></span>
-                    <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= e($art['title']) ?></a>
+                <div style="padding: 0.25rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.4rem; align-items: center;">
+                    <span style="color: #059669; font-weight: 600; min-width: 42px; font-size: 0.65rem;"><?= number_format($art['views'], 0, ',', '.') ?></span>
+                    <span style="color: #9ca3af; font-size: 0.6rem; min-width: 38px;"><?= $art['date'] ? date('d.m.', $art['date']) : '-' ?></span>
+                    <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;"><?= e($art['title']) ?></a>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -884,13 +885,14 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 10);
         <!-- Bottom članci -->
         <div class="card">
             <div style="padding: 0.5rem 0.75rem; background: #fee2e2; border-radius: 8px 8px 0 0;">
-                <div style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">📉 Najmanje pregleda</div>
+                <div style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">📉 Najmanje pregleda (20)</div>
             </div>
-            <div style="font-size: 0.7rem;">
+            <div style="font-size: 0.7rem; max-height: 400px; overflow-y: auto;">
                 <?php foreach ($bottomArticles as $i => $art): ?>
-                <div style="padding: 0.3rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.5rem;">
-                    <span style="color: #dc2626; font-weight: 600; min-width: 45px;"><?= number_format($art['views'], 0, ',', '.') ?></span>
-                    <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= e($art['title']) ?></a>
+                <div style="padding: 0.25rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.4rem; align-items: center;">
+                    <span style="color: #dc2626; font-weight: 600; min-width: 42px; font-size: 0.65rem;"><?= number_format($art['views'], 0, ',', '.') ?></span>
+                    <span style="color: #9ca3af; font-size: 0.6rem; min-width: 38px;"><?= $art['date'] ? date('d.m.', $art['date']) : '-' ?></span>
+                    <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;"><?= e($art['title']) ?></a>
                 </div>
                 <?php endforeach; ?>
             </div>
