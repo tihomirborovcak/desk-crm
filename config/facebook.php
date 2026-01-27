@@ -34,8 +34,12 @@ function getFBPages() {
 
 /**
  * Objavi link na Facebook stranicu/e
+ * @param string $url URL članka
+ * @param string $message Tekst objave
+ * @param array $pages Stranice na koje objaviti
+ * @param int|null $scheduledTime Unix timestamp za zakazivanje (null = odmah)
  */
-function postToFacebook($url, $message = '', $pages = ['zagorje']) {
+function postToFacebook($url, $message = '', $pages = ['zagorje'], $scheduledTime = null) {
     global $FB_PAGES;
     $results = [];
 
@@ -56,6 +60,22 @@ function postToFacebook($url, $message = '', $pages = ['zagorje']) {
 
         if (!empty($message)) {
             $postData['message'] = $message;
+        }
+
+        // Ako je zakazano, dodaj scheduled_publish_time
+        if ($scheduledTime !== null) {
+            // FB zahtijeva da vrijeme bude između 10 min i 6 mjeseci od sad
+            $minTime = time() + 600; // 10 minuta
+            $maxTime = time() + (6 * 30 * 24 * 60 * 60); // ~6 mjeseci
+
+            if ($scheduledTime < $minTime) {
+                $scheduledTime = $minTime;
+            } elseif ($scheduledTime > $maxTime) {
+                $scheduledTime = $maxTime;
+            }
+
+            $postData['scheduled_publish_time'] = $scheduledTime;
+            $postData['published'] = 'false';
         }
 
         $ch = curl_init($postUrl);
