@@ -1,6 +1,6 @@
 <?php
 /**
- * Brzo dodavanje dežurstva
+ * Brzo dodavanje/izmjena dežurstva
  */
 
 require_once 'includes/auth.php';
@@ -9,11 +9,11 @@ require_once 'includes/functions.php';
 requireLogin();
 
 if (!isEditor()) {
-    redirectWith('shifts.php', 'danger', 'Nemate ovlasti');
+    redirectWith('events.php', 'danger', 'Nemate ovlasti');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verifyCSRFToken($_POST['csrf_token'] ?? '')) {
-    redirectWith('shifts.php', 'danger', 'Nevažeći zahtjev');
+    redirectWith('events.php', 'danger', 'Nevažeći zahtjev');
 }
 
 $db = getDB();
@@ -23,8 +23,12 @@ $shiftDate = $_POST['shift_date'] ?? '';
 $shiftType = $_POST['shift_type'] ?? '';
 $assignedUserId = intval($_POST['user_id'] ?? 0);
 
+// Redirect će ići na events.php s pravim mjesecom
+$monthParam = !empty($shiftDate) ? date('Y-m', strtotime($shiftDate)) : date('Y-m');
+$redirectUrl = "events.php?month=$monthParam";
+
 if (empty($shiftDate) || empty($shiftType) || !$assignedUserId) {
-    redirectWith('shifts.php', 'danger', 'Sva polja su obavezna');
+    redirectWith($redirectUrl, 'danger', 'Sva polja su obavezna');
 }
 
 // Mapiranje starih naziva na nove enum vrijednosti ako je potrebno
@@ -41,40 +45,41 @@ $mappedShiftType = $shiftTypeMap[$shiftType] ?? $shiftType;
 
 // Validiraj shift type
 if (!in_array($mappedShiftType, ['morning', 'afternoon', 'full'])) {
-    redirectWith('shifts.php', 'danger', 'Nevažeći tip smjene');
+    redirectWith($redirectUrl, 'danger', 'Nevažeći tip smjene');
 }
 
 // Provjeri da li korisnik postoji
 $stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
 $stmt->execute([$assignedUserId]);
 if (!$stmt->fetch()) {
-    redirectWith('shifts.php', 'danger', 'Korisnik nije pronađen');
+    redirectWith($redirectUrl, 'danger', 'Korisnik nije pronađen');
 }
 
-// Provjeri da li već postoji ista smjena za isti dan i korisnika
-$stmt = $db->prepare("
-    SELECT id FROM shifts
-    WHERE shift_date = ? AND shift_type = ? AND user_id = ?
-");
-$stmt->execute([$shiftDate, $mappedShiftType, $assignedUserId]);
-if ($stmt->fetch()) {
-    redirectWith('shifts.php', 'warning', 'Ta smjena već postoji za tog korisnika na taj dan');
-}
-
-// Dodaj dežurstvo u shifts tablicu
 try {
-    $stmt = $db->prepare("
-        INSERT INTO shifts (user_id, shift_date, shift_type, assigned_by)
-        VALUES (?, ?, ?, ?)
-    ");
-    $stmt->execute([$assignedUserId, $shiftDate, $mappedShiftType, $userId]);
+    // Provjeri da li već postoji smjena za taj dan i tip (bilo koji korisnik)
+    $stmt = $db->prepare("SELECT id, user_id FROM shifts WHERE shift_date = ? AND shift_type = ?");
+    $stmt->execute([$shiftDate, $mappedShiftType]);
+    $existingShift = $stmt->fetch();
 
-    $shiftId = $db->lastInsertId();
-    logActivity('shift_add', 'shift', $shiftId);
+    if ($existingShift) {
+        // Ako postoji, ažuriraj korisnika
+        $stmt = $db->prepare("UPDATE shifts SET user_id = ?, assigned_by = ? WHERE id = ?");
+        $stmt->execute([$assignedUserId, $userId, $existingShift['id']]);
 
-    // Redirect natrag na events.php kalendar
-    $monthParam = date('Y-m', strtotime($shiftDate));
-    redirectWith("events.php?month=$monthParam", 'success', 'Dežurstvo dodano');
+        logActivity('shift_update', 'shift', $existingShift['id']);
+        redirectWith($redirectUrl, 'success', 'Dežurstvo ažurirano');
+    } else {
+        // Ako ne postoji, dodaj novo
+        $stmt = $db->prepare("
+            INSERT INTO shifts (user_id, shift_date, shift_type, assigned_by)
+            VALUES (?, ?, ?, ?)
+        ");
+        $stmt->execute([$assignedUserId, $shiftDate, $mappedShiftType, $userId]);
+
+        $shiftId = $db->lastInsertId();
+        logActivity('shift_add', 'shift', $shiftId);
+        redirectWith($redirectUrl, 'success', 'Dežurstvo dodano');
+    }
 } catch (PDOException $e) {
-    redirectWith('events.php', 'danger', 'Greška pri dodavanju: ' . $e->getMessage());
+    redirectWith($redirectUrl, 'danger', 'Greška: ' . $e->getMessage());
 }
