@@ -899,13 +899,11 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
                 <div style="display: flex; align-items: flex-end; gap: 2px; height: 60px;">
                     <?php for ($h = 6; $h <= 23; $h++):
                         $avg = $avgViewsByHour[$h];
-                        $height = $maxAvg > 0 ? ($avg / $maxAvg * 100) : 0;
+                        $heightPx = $maxAvg > 0 ? round($avg / $maxAvg * 55) : 0;
                         $isGood = $avg > ($maxAvg * 0.7);
-                        $isBad = $avg < ($maxAvg * 0.3);
+                        $isBad = $avg < ($maxAvg * 0.3) && $avg > 0;
                     ?>
-                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center;" title="<?= $h ?>:00 - <?= number_format($avg) ?> pregleda">
-                        <div style="width: 100%; background: <?= $isGood ? '#22c55e' : ($isBad ? '#f87171' : '#3b82f6') ?>; border-radius: 2px 2px 0 0; height: <?= max($height, 3) ?>%;"></div>
-                    </div>
+                    <div style="flex: 1; height: <?= max($heightPx, 3) ?>px; background: <?= $isGood ? '#22c55e' : ($isBad ? '#f87171' : '#3b82f6') ?>; border-radius: 2px 2px 0 0;" title="<?= $h ?>:00 - <?= number_format($avg) ?> pros. pregleda (<?= $viewsByHour[$h]['count'] ?> čl.)"></div>
                     <?php endfor; ?>
                 </div>
                 <div style="display: flex; gap: 2px; margin-top: 2px;">
@@ -915,7 +913,7 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 20);
                 </div>
                 <div style="font-size: 0.6rem; color: #6b7280; margin-top: 0.25rem; text-align: center;">
                     Najbolje: <strong style="color: #22c55e;"><?= array_search(max($avgViewsByHour), $avgViewsByHour) ?>h</strong>
-                    (<?= number_format(max($avgViewsByHour)) ?> pregleda)
+                    (<?= number_format(max($avgViewsByHour)) ?> pros. pregleda)
                 </div>
             </div>
         </div>
