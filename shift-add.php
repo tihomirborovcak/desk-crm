@@ -9,11 +9,11 @@ require_once 'includes/functions.php';
 requireLogin();
 
 if (!isEditor()) {
-    redirectWith('events.php', 'danger', 'Nemate ovlasti');
+    redirectWith('shifts.php', 'danger', 'Nemate ovlasti');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verifyCSRFToken($_POST['csrf_token'] ?? '')) {
-    redirectWith('events.php', 'danger', 'Nevažeći zahtjev');
+    redirectWith('shifts.php', 'danger', 'Nevažeći zahtjev');
 }
 
 $db = getDB();
@@ -24,56 +24,58 @@ $shiftType = $_POST['shift_type'] ?? '';
 $assignedUserId = intval($_POST['user_id'] ?? 0);
 
 if (empty($shiftDate) || empty($shiftType) || !$assignedUserId) {
-    redirectWith('events.php', 'danger', 'Sva polja su obavezna');
+    redirectWith('shifts.php', 'danger', 'Sva polja su obavezna');
 }
 
-// Dohvati ime korisnika
-$stmt = $db->prepare("SELECT full_name FROM users WHERE id = ?");
-$stmt->execute([$assignedUserId]);
-$user = $stmt->fetch();
-
-if (!$user) {
-    redirectWith('events.php', 'danger', 'Korisnik nije pronađen');
-}
-
-// Smjena detalji
-$shiftLabels = [
-    'jutarnja' => ['☀️ Jutarnja smjena', '07:30', '12:00'],
-    'popodnevna' => ['🌤️ Popodnevna smjena', '12:00', '19:30'],
-    'vecernja' => ['🌙 Večernja smjena', '19:30', '07:30']
+// Mapiranje starih naziva na nove enum vrijednosti ako je potrebno
+$shiftTypeMap = [
+    'jutarnja' => 'morning',
+    'popodnevna' => 'afternoon',
+    'vecernja' => 'full',
+    'morning' => 'morning',
+    'afternoon' => 'afternoon',
+    'full' => 'full'
 ];
 
-$label = $shiftLabels[$shiftType] ?? ['Dežurstvo', null, null];
-$title = $label[0] . ' - ' . $user['full_name'];
+$mappedShiftType = $shiftTypeMap[$shiftType] ?? $shiftType;
 
-// Provjeri da li već postoji ista smjena za isti dan
-$stmt = $db->prepare("
-    SELECT id FROM events 
-    WHERE event_date = ? AND event_type = 'dezurstvo' AND title LIKE ?
-");
-$stmt->execute([$shiftDate, '%' . $shiftType . '%']);
-if ($stmt->fetch()) {
-    redirectWith('events.php', 'warning', 'Ta smjena već postoji za taj dan');
+// Validiraj shift type
+if (!in_array($mappedShiftType, ['morning', 'afternoon', 'full'])) {
+    redirectWith('shifts.php', 'danger', 'Nevažeći tip smjene');
 }
 
-// Dodaj događaj
+// Provjeri da li korisnik postoji
+$stmt = $db->prepare("SELECT id FROM users WHERE id = ?");
+$stmt->execute([$assignedUserId]);
+if (!$stmt->fetch()) {
+    redirectWith('shifts.php', 'danger', 'Korisnik nije pronađen');
+}
+
+// Provjeri da li već postoji ista smjena za isti dan i korisnika
 $stmt = $db->prepare("
-    INSERT INTO events (title, event_date, event_time, end_time, event_type, importance, created_by)
-    VALUES (?, ?, ?, ?, 'dezurstvo', 'normal', ?)
+    SELECT id FROM shifts
+    WHERE shift_date = ? AND shift_type = ? AND user_id = ?
 ");
-$stmt->execute([$title, $shiftDate, $label[1], $label[2], $userId]);
+$stmt->execute([$shiftDate, $mappedShiftType, $assignedUserId]);
+if ($stmt->fetch()) {
+    redirectWith('shifts.php', 'warning', 'Ta smjena već postoji za tog korisnika na taj dan');
+}
 
-$eventId = $db->lastInsertId();
+// Dodaj dežurstvo u shifts tablicu
+try {
+    $stmt = $db->prepare("
+        INSERT INTO shifts (user_id, shift_date, shift_type, assigned_by)
+        VALUES (?, ?, ?, ?)
+    ");
+    $stmt->execute([$assignedUserId, $shiftDate, $mappedShiftType, $userId]);
 
-// Dodaj assignment
-$stmt = $db->prepare("
-    INSERT INTO event_assignments (event_id, user_id, role)
-    VALUES (?, ?, 'dezurni')
-");
-$stmt->execute([$eventId, $assignedUserId]);
+    $shiftId = $db->lastInsertId();
+    logActivity('shift_add', 'shift', $shiftId);
 
-logActivity('shift_add', 'event', $eventId);
-
-// Redirect na mjesec tog datuma
-$month = date('Y-m', strtotime($shiftDate));
-redirectWith("events.php?month=$month", 'success', 'Dežurstvo dodano');
+    // Redirect na mjesec tog datuma
+    $year = date('Y', strtotime($shiftDate));
+    $month = date('n', strtotime($shiftDate));
+    redirectWith("shifts.php?year=$year&month=$month", 'success', 'Dežurstvo dodano');
+} catch (PDOException $e) {
+    redirectWith('shifts.php', 'danger', 'Greška pri dodavanju: ' . $e->getMessage());
+}

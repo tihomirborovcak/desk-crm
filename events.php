@@ -171,9 +171,9 @@ include 'includes/header.php';
                 <div class="form-group">
                     <label class="form-label">Smjena *</label>
                     <select name="shift_type" class="form-control" required>
-                        <option value="jutarnja">☀️ Jutarnja (7:30-12h)</option>
-                        <option value="popodnevna">🌤️ Popodnevna (12-19:30h)</option>
-                        <option value="vecernja">🌙 Večernja (19:30-7:30h)</option>
+                        <option value="morning">☀️ Jutarnja (7:30-12h)</option>
+                        <option value="afternoon">🌤️ Popodnevna (12-19:30h)</option>
+                        <option value="full">🌙 Večernja (19:30-7:30h)</option>
                     </select>
                 </div>
                 
@@ -286,58 +286,54 @@ include 'includes/header.php';
         <?php endfor; ?>
         
         <!-- Dani u mjesecu -->
-        <?php for ($day = 1; $day <= $daysInMonth; $day++): 
+        <?php for ($day = 1; $day <= $daysInMonth; $day++):
             $date = $month . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
             $isToday = $date === $today;
+            $isWeekend = (date('N', strtotime($date)) >= 6); // 6=Subota, 7=Nedjelja
             $hasEvents = isset($eventsByDate[$date]);
             $dayEvents = $eventsByDate[$date] ?? [];
-            
-            // Odvoji dežurstva od ostalih događaja
-            $shifts = ['jutarnja' => null, 'popodnevna' => null, 'vecernja' => null];
+
+            // Dohvati dežurstva iz već izgrađenog $shiftsByDate
+            $dayShifts = $shiftsByDate[$date] ?? ['morning' => null, 'afternoon' => null, 'full' => null];
+            $hasShifts = $dayShifts['morning'] || $dayShifts['afternoon'] || $dayShifts['full'];
+
+            // Filtriraj samo regularne događaje (bez dežurstava iz events tablice)
             $regularEvents = [];
-            
             foreach ($dayEvents as $evt) {
-                if ($evt['event_type'] === 'dezurstvo') {
-                    // Odredi tip smjene iz naslova
-                    if (stripos($evt['title'], 'jutarn') !== false) {
-                        $shifts['jutarnja'] = $evt;
-                    } elseif (stripos($evt['title'], 'popodnevn') !== false) {
-                        $shifts['popodnevna'] = $evt;
-                    } elseif (stripos($evt['title'], 'večern') !== false || stripos($evt['title'], 'vecern') !== false) {
-                        $shifts['vecernja'] = $evt;
-                    }
-                } else {
+                if ($evt['event_type'] !== 'dezurstvo') {
                     $regularEvents[] = $evt;
                 }
             }
-            
-            $hasShifts = $shifts['jutarnja'] || $shifts['popodnevna'] || $shifts['vecernja'];
         ?>
-        <div class="calendar-day <?= $isToday ? 'today' : '' ?> <?= $hasEvents ? 'has-events' : '' ?>">
+        <div class="calendar-day <?= $isToday ? 'today' : '' ?> <?= $isWeekend ? 'weekend' : '' ?> <?= $hasEvents ? 'has-events' : '' ?>">
             <div class="calendar-day-number"><?= $day ?></div>
-            
-            <?php if ($hasShifts): ?>
+
             <div class="shifts-compact">
                 <div class="shift-row">
                     <span class="shift-label">J:</span>
-                    <?php if ($shifts['jutarnja']): ?>
-                    <a href="event-edit.php?id=<?= $shifts['jutarnja']['id'] ?>" class="shift-name"><?= e($shifts['jutarnja']['assigned_people'] ?: '—') ?></a>
-                    <?php else: ?><span class="shift-name">—</span><?php endif; ?>
+                    <?php if ($isEditorRole): ?>
+                    <a href="#" class="shift-name shift-link" data-date="<?= $date ?>" data-type="morning"><?= $dayShifts['morning'] ? e($dayShifts['morning']) : '—' ?></a>
+                    <?php else: ?>
+                    <span class="shift-name"><?= $dayShifts['morning'] ? e($dayShifts['morning']) : '—' ?></span>
+                    <?php endif; ?>
                 </div>
                 <div class="shift-row">
                     <span class="shift-label">P:</span>
-                    <?php if ($shifts['popodnevna']): ?>
-                    <a href="event-edit.php?id=<?= $shifts['popodnevna']['id'] ?>" class="shift-name"><?= e($shifts['popodnevna']['assigned_people'] ?: '—') ?></a>
-                    <?php else: ?><span class="shift-name">—</span><?php endif; ?>
+                    <?php if ($isEditorRole): ?>
+                    <a href="#" class="shift-name shift-link" data-date="<?= $date ?>" data-type="afternoon"><?= $dayShifts['afternoon'] ? e($dayShifts['afternoon']) : '—' ?></a>
+                    <?php else: ?>
+                    <span class="shift-name"><?= $dayShifts['afternoon'] ? e($dayShifts['afternoon']) : '—' ?></span>
+                    <?php endif; ?>
                 </div>
                 <div class="shift-row">
                     <span class="shift-label">V:</span>
-                    <?php if ($shifts['vecernja']): ?>
-                    <a href="event-edit.php?id=<?= $shifts['vecernja']['id'] ?>" class="shift-name"><?= e($shifts['vecernja']['assigned_people'] ?: '—') ?></a>
-                    <?php else: ?><span class="shift-name">—</span><?php endif; ?>
+                    <?php if ($isEditorRole): ?>
+                    <a href="#" class="shift-name shift-link" data-date="<?= $date ?>" data-type="full"><?= $dayShifts['full'] ? e($dayShifts['full']) : '—' ?></a>
+                    <?php else: ?>
+                    <span class="shift-name"><?= $dayShifts['full'] ? e($dayShifts['full']) : '—' ?></span>
+                    <?php endif; ?>
                 </div>
             </div>
-            <?php endif; ?>
             
             <?php if (!empty($regularEvents)): ?>
             <div class="calendar-events">
@@ -600,6 +596,9 @@ $daysHrFull = [
 .calendar-day.today {
     background: #e3f2fd;
 }
+.calendar-day.weekend {
+    background: #e8f5e9;
+}
 .calendar-day.today .calendar-day-number {
     background: var(--primary);
     color: white;
@@ -803,6 +802,40 @@ a.shift-name:hover {
 .user-patrik { background: #fef9c3 !important; }
 .user-rikard { background: #fed7aa !important; }
 .user-sabina { background: #dbeafe !important; }
+
+/* Klikabilne smjene */
+.shift-link {
+    color: var(--gray-700);
+    text-decoration: none;
+    cursor: pointer;
+}
+.shift-link:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
 </style>
+
+<script>
+// Klik na smjenu otvara modal s popunjenim podacima
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.shift-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var date = this.dataset.date;
+            var type = this.dataset.type;
+
+            // Popuni modal
+            var dateInput = document.querySelector('#shiftModal input[name="shift_date"]');
+            var typeSelect = document.querySelector('#shiftModal select[name="shift_type"]');
+
+            if (dateInput) dateInput.value = date;
+            if (typeSelect) typeSelect.value = type;
+
+            // Otvori modal (koristi globalnu funkciju)
+            openModal('shiftModal');
+        });
+    });
+});
+</script>
 
 <?php include 'includes/footer.php'; ?>
