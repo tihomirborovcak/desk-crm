@@ -79,7 +79,7 @@ function getGoogleAccessToken() {
 /**
  * Dohvati GA4 podatke
  */
-function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50) {
+function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50, $dimensionFilter = null) {
     if (empty(GA4_PROPERTY_ID)) {
         return ['error' => 'GA4 Property ID nije postavljen'];
     }
@@ -102,6 +102,10 @@ function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50) 
             ['metric' => ['metricName' => $metrics[0]], 'desc' => true]
         ]
     ];
+
+    if ($dimensionFilter) {
+        $requestBody['dimensionFilter'] = $dimensionFilter;
+    }
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -130,6 +134,7 @@ function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50) 
 // Parametri
 $period = $_GET['period'] ?? '7days';
 $reportType = $_GET['report'] ?? 'pages';
+$pagePath = $_GET['page'] ?? '';
 
 switch ($period) {
     case 'today':
@@ -160,13 +165,37 @@ switch ($period) {
 
 // Dohvati podatke
 $reportData = null;
+$sourcesData = null;
+$pageTitle = '';
 $error = null;
 
 if (!empty(GA4_PROPERTY_ID)) {
     if ($reportType === 'pages') {
-        $reportData = getGA4Report($startDate, $endDate, ['pageTitle', 'pagePath'], ['screenPageViews', 'averageSessionDuration'], 50);
+        // Članci s izvorima prometa
+        $reportData = getGA4Report($startDate, $endDate, ['pageTitle', 'pagePath', 'sessionSource'], ['screenPageViews'], 200);
     } elseif ($reportType === 'daily') {
         $reportData = getGA4Report($startDate, $endDate, ['date'], ['screenPageViews', 'totalUsers', 'sessions'], 31);
+    } elseif ($reportType === 'sources') {
+        // Top izvori prometa
+        $reportData = getGA4Report($startDate, $endDate, ['sessionSource', 'sessionMedium'], ['screenPageViews', 'totalUsers'], 30);
+    } elseif ($reportType === 'article' && $pagePath) {
+        // Detalji članka - izvori prometa
+        $filter = [
+            'filter' => [
+                'fieldName' => 'pagePath',
+                'stringFilter' => [
+                    'matchType' => 'EXACT',
+                    'value' => $pagePath
+                ]
+            ]
+        ];
+        $sourcesData = getGA4Report($startDate, $endDate, ['sessionSource', 'sessionMedium'], ['screenPageViews', 'totalUsers'], 20, $filter);
+
+        // Dohvati naslov članka
+        $titleData = getGA4Report($startDate, $endDate, ['pageTitle'], ['screenPageViews'], 1, $filter);
+        if (isset($titleData['rows'][0])) {
+            $pageTitle = $titleData['rows'][0]['dimensionValues'][0]['value'] ?? '';
+        }
     }
 
     if (isset($reportData['error'])) {
@@ -175,6 +204,45 @@ if (!empty(GA4_PROPERTY_ID)) {
     }
 } else {
     $error = 'GA4 Property ID nije postavljen. Kontaktirajte administratora.';
+}
+
+// Grupiraj članke s izvorima
+$articlesWithSources = [];
+if ($reportType === 'pages' && $reportData && isset($reportData['rows'])) {
+    foreach ($reportData['rows'] as $row) {
+        $title = $row['dimensionValues'][0]['value'] ?? '-';
+        $path = $row['dimensionValues'][1]['value'] ?? '';
+        $source = $row['dimensionValues'][2]['value'] ?? '(direct)';
+        $views = (int)($row['metricValues'][0]['value'] ?? 0);
+
+        // Preskoči homepage i admin stranice
+        if ($path === '/' || strpos($path, '/admin') === 0 || $title === '(not set)') continue;
+
+        if (!isset($articlesWithSources[$path])) {
+            $articlesWithSources[$path] = [
+                'title' => $title,
+                'path' => $path,
+                'totalViews' => 0,
+                'sources' => []
+            ];
+        }
+        $articlesWithSources[$path]['totalViews'] += $views;
+        $articlesWithSources[$path]['sources'][$source] = ($articlesWithSources[$path]['sources'][$source] ?? 0) + $views;
+    }
+
+    // Sortiraj po ukupnim pregledima
+    uasort($articlesWithSources, function($a, $b) {
+        return $b['totalViews'] - $a['totalViews'];
+    });
+
+    // Uzmi top 50
+    $articlesWithSources = array_slice($articlesWithSources, 0, 50, true);
+
+    // Sortiraj izvore za svaki članak
+    foreach ($articlesWithSources as &$article) {
+        arsort($article['sources']);
+        $article['sources'] = array_slice($article['sources'], 0, 5, true);
+    }
 }
 
 include 'includes/header.php';
@@ -188,22 +256,6 @@ include 'includes/header.php';
 <?php if ($error): ?>
 <div class="alert alert-danger">
     <?= e($error) ?>
-</div>
-
-<div class="card">
-    <div class="card-body">
-        <h3>Upute za postavljanje</h3>
-        <ol style="line-height: 2;">
-            <li>Otvori <a href="https://analytics.google.com" target="_blank">Google Analytics</a></li>
-            <li>Idi na Admin > Property Settings</li>
-            <li>Kopiraj <strong>Property ID</strong> (broj)</li>
-            <li>U GA4 Admin > Property Access Management dodaj email:<br>
-                <code style="background: #f3f4f6; padding: 4px 8px; border-radius: 4px;">vertex-express@robotic-flash-428407-f0.iam.gserviceaccount.com</code><br>
-                s ulogom <strong>Viewer</strong>
-            </li>
-            <li>Javi Property ID administratoru da ga postavi u sustav</li>
-        </ol>
-    </div>
 </div>
 <?php else: ?>
 
@@ -230,6 +282,9 @@ include 'includes/header.php';
                 <a href="?period=<?= $period ?>&report=pages"
                    class="btn btn-sm <?= $reportType === 'pages' ? 'btn-primary' : 'btn-outline' ?>"
                    style="border-radius: 0; border: none;">Članci</a>
+                <a href="?period=<?= $period ?>&report=sources"
+                   class="btn btn-sm <?= $reportType === 'sources' ? 'btn-primary' : 'btn-outline' ?>"
+                   style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">Izvori</a>
                 <a href="?period=<?= $period ?>&report=daily"
                    class="btn btn-sm <?= $reportType === 'daily' ? 'btn-primary' : 'btn-outline' ?>"
                    style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">Po danima</a>
@@ -240,8 +295,68 @@ include 'includes/header.php';
     </div>
 </div>
 
-<?php if ($reportType === 'pages' && $reportData && isset($reportData['rows'])): ?>
-<!-- Najčitaniji članci -->
+<?php if ($reportType === 'article' && $pagePath): ?>
+<!-- Detalji članka -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header">
+        <a href="?period=<?= $period ?>&report=pages" class="btn btn-sm btn-outline">← Natrag</a>
+    </div>
+    <div class="card-body">
+        <h2 style="margin: 0 0 0.5rem 0;"><?= e($pageTitle ?: $pagePath) ?></h2>
+        <p style="color: #6b7280; margin: 0; font-size: 0.875rem;"><?= e($pagePath) ?></p>
+    </div>
+</div>
+
+<?php if ($sourcesData && isset($sourcesData['rows'])): ?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Izvori prometa za ovaj članak</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Izvor</th>
+                    <th>Medium</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Korisnici</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($sourcesData['rows'] as $row):
+                    $source = $row['dimensionValues'][0]['value'] ?? '(direct)';
+                    $medium = $row['dimensionValues'][1]['value'] ?? '(none)';
+                    $views = $row['metricValues'][0]['value'] ?? 0;
+                    $users = $row['metricValues'][1]['value'] ?? 0;
+                ?>
+                <tr>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <?php if (strpos($source, 'google') !== false): ?>
+                                <span style="color: #ea4335;">●</span>
+                            <?php elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false): ?>
+                                <span style="color: #1877f2;">●</span>
+                            <?php elseif ($source === '(direct)'): ?>
+                                <span style="color: #10b981;">●</span>
+                            <?php else: ?>
+                                <span style="color: #6b7280;">●</span>
+                            <?php endif; ?>
+                            <strong><?= e($source) ?></strong>
+                        </span>
+                    </td>
+                    <td style="color: #6b7280;"><?= e($medium) ?></td>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
+                    <td style="text-align: right;"><?= number_format($users) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php elseif ($reportType === 'pages' && !empty($articlesWithSources)): ?>
+<!-- Najčitaniji članci s izvorima -->
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Najčitaniji članci</h2>
@@ -252,29 +367,115 @@ include 'includes/header.php';
                 <tr>
                     <th style="width: 50px;">#</th>
                     <th>Naslov članka</th>
-                    <th style="width: 120px; text-align: right;">Pregledi</th>
-                    <th style="width: 120px; text-align: right;">Avg. vrijeme</th>
+                    <th style="width: 250px;">Top izvori</th>
+                    <th style="width: 100px; text-align: right;">Pregledi</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($reportData['rows'] as $i => $row):
-                    $title = $row['dimensionValues'][0]['value'] ?? '-';
-                    $path = $row['dimensionValues'][1]['value'] ?? '';
-                    $views = $row['metricValues'][0]['value'] ?? 0;
-                    $duration = round(($row['metricValues'][1]['value'] ?? 0));
-                    $durationFormatted = gmdate("i:s", $duration);
+                <?php $i = 0; foreach ($articlesWithSources as $path => $article): $i++; ?>
+                <tr>
+                    <td style="color: #9ca3af;"><?= $i ?></td>
+                    <td>
+                        <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($path) ?>" style="text-decoration: none; color: inherit;">
+                            <div style="font-weight: 500;"><?= e(truncate($article['title'], 70)) ?></div>
+                            <div style="font-size: 0.75rem; color: #9ca3af;"><?= e(truncate($path, 50)) ?></div>
+                        </a>
+                    </td>
+                    <td>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                            <?php foreach ($article['sources'] as $source => $views):
+                                $percent = round($views / $article['totalViews'] * 100);
+                                if ($percent < 5) continue;
 
-                    // Preskoči homepage i admin stranice
-                    if ($path === '/' || strpos($path, '/admin') === 0 || $title === '(not set)') continue;
+                                // Boja za izvor
+                                if (strpos($source, 'google') !== false) {
+                                    $color = '#ea4335';
+                                    $bg = '#fef2f2';
+                                } elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) {
+                                    $color = '#1877f2';
+                                    $bg = '#eff6ff';
+                                } elseif ($source === '(direct)') {
+                                    $color = '#10b981';
+                                    $bg = '#ecfdf5';
+                                } else {
+                                    $color = '#6b7280';
+                                    $bg = '#f3f4f6';
+                                }
+                            ?>
+                            <span style="background: <?= $bg ?>; color: <?= $color ?>; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 500;">
+                                <?= e($source) ?> <?= $percent ?>%
+                            </span>
+                            <?php endforeach; ?>
+                        </div>
+                    </td>
+                    <td style="text-align: right; font-weight: 600; color: #1e3a5f;"><?= number_format($article['totalViews']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<?php elseif ($reportType === 'sources' && $reportData && isset($reportData['rows'])): ?>
+<!-- Top izvori prometa -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Izvori prometa</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Izvor</th>
+                    <th>Medium</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Korisnici</th>
+                    <th style="width: 200px;">Udio</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $totalViews = 0;
+                foreach ($reportData['rows'] as $row) {
+                    $totalViews += (int)($row['metricValues'][0]['value'] ?? 0);
+                }
+
+                foreach ($reportData['rows'] as $row):
+                    $source = $row['dimensionValues'][0]['value'] ?? '(direct)';
+                    $medium = $row['dimensionValues'][1]['value'] ?? '(none)';
+                    $views = (int)($row['metricValues'][0]['value'] ?? 0);
+                    $users = $row['metricValues'][1]['value'] ?? 0;
+                    $percent = $totalViews > 0 ? round($views / $totalViews * 100, 1) : 0;
+
+                    // Boja za izvor
+                    if (strpos($source, 'google') !== false) {
+                        $color = '#ea4335';
+                    } elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) {
+                        $color = '#1877f2';
+                    } elseif ($source === '(direct)') {
+                        $color = '#10b981';
+                    } else {
+                        $color = '#6b7280';
+                    }
                 ?>
                 <tr>
-                    <td style="color: #9ca3af;"><?= $i + 1 ?></td>
                     <td>
-                        <div style="font-weight: 500;"><?= e(truncate($title, 80)) ?></div>
-                        <div style="font-size: 0.75rem; color: #9ca3af;"><?= e(truncate($path, 60)) ?></div>
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <span style="color: <?= $color ?>;">●</span>
+                            <strong><?= e($source) ?></strong>
+                        </span>
                     </td>
-                    <td style="text-align: right; font-weight: 600; color: #1e3a5f;"><?= number_format($views) ?></td>
-                    <td style="text-align: right; color: #6b7280;"><?= $durationFormatted ?></td>
+                    <td style="color: #6b7280;"><?= e($medium) ?></td>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
+                    <td style="text-align: right;"><?= number_format($users) ?></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div style="flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                                <div style="width: <?= $percent ?>%; height: 100%; background: <?= $color ?>;"></div>
+                            </div>
+                            <span style="font-size: 0.75rem; color: #6b7280; width: 40px;"><?= $percent ?>%</span>
+                        </div>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
