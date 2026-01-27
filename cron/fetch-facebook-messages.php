@@ -68,6 +68,16 @@ function fetchMessages($platform, $accountId, $token, $db, &$newMessages) {
             }
         }
 
+        // Provjeri je li konverzacija obrisana
+        $stmt = $db->prepare("SELECT deleted FROM facebook_conversations WHERE conversation_id = ?");
+        $stmt->execute([$conversationId]);
+        $existing = $stmt->fetch();
+
+        if ($existing && $existing['deleted'] == 1) {
+            // Preskoči obrisane konverzacije
+            continue;
+        }
+
         // Spremi/ažuriraj konverzaciju
         $stmt = $db->prepare("
             INSERT INTO facebook_conversations (conversation_id, participant_id, participant_name, last_message_at, platform)

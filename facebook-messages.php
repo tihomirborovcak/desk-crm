@@ -44,20 +44,18 @@ if (isset($_GET['refresh'])) {
     exit;
 }
 
-// Obriši konverzaciju
+// Obriši konverzaciju (soft delete)
 if (isset($_GET['delete']) && isset($_GET['token']) && verifyCSRFToken($_GET['token'])) {
     $convId = $_GET['delete'];
-    $db->prepare("DELETE FROM facebook_messages WHERE conversation_id = ?")->execute([$convId]);
-    $db->prepare("DELETE FROM facebook_conversations WHERE conversation_id = ?")->execute([$convId]);
+    $db->prepare("UPDATE facebook_conversations SET deleted = 1 WHERE conversation_id = ?")->execute([$convId]);
     setMessage('success', 'Konverzacija obrisana');
     header('Location: facebook-messages.php');
     exit;
 }
 
-// Obriši sve poruke
+// Obriši sve poruke (soft delete)
 if (isset($_GET['delete_all']) && isset($_GET['token']) && verifyCSRFToken($_GET['token'])) {
-    $db->exec("DELETE FROM facebook_messages");
-    $db->exec("DELETE FROM facebook_conversations");
+    $db->exec("UPDATE facebook_conversations SET deleted = 1");
     setMessage('success', 'Sve poruke obrisane');
     header('Location: facebook-messages.php');
     exit;
@@ -135,12 +133,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     exit;
 }
 
-// Dohvati konverzacije
+// Dohvati konverzacije (bez obrisanih)
 $conversations = $db->query("
     SELECT c.*,
            (SELECT message_text FROM facebook_messages m WHERE m.conversation_id = c.conversation_id ORDER BY sent_at DESC LIMIT 1) as last_message,
            (SELECT COUNT(*) FROM facebook_messages m WHERE m.conversation_id = c.conversation_id AND m.attachment_url IS NOT NULL AND m.attachment_url != '') as has_photos
     FROM facebook_conversations c
+    WHERE c.deleted = 0 OR c.deleted IS NULL
     ORDER BY c.last_message_at DESC
     LIMIT 50
 ")->fetchAll();
