@@ -432,7 +432,7 @@ include 'includes/header.php';
 
 <div class="page-header">
     <h1>GA4 Analitika</h1>
-    <p style="color: #6b7280; margin: 0.25rem 0 0 0;">Statistike posjećenosti za zagorje.com</p>
+    <p style="color: #6b7280; margin: 0.25rem 0 0 0;">Statistike posjećenosti portala zagorje.com</p>
 </div>
 
 <?php if ($error): ?>
