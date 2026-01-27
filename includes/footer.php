@@ -3,7 +3,7 @@
 
     <!-- Loading overlay -->
     <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
+        <div class="loading-spinner">🇭🇷</div>
         <div class="loading-text">Pričekaj malo...</div>
     </div>
 
