@@ -44,6 +44,32 @@ if (isset($_GET['refresh'])) {
     exit;
 }
 
+// Obriši konverzaciju
+if (isset($_GET['delete']) && isset($_GET['token']) && verifyCSRFToken($_GET['token'])) {
+    $convId = $_GET['delete'];
+    $db->prepare("DELETE FROM facebook_messages WHERE conversation_id = ?")->execute([$convId]);
+    $db->prepare("DELETE FROM facebook_conversations WHERE conversation_id = ?")->execute([$convId]);
+    setMessage('success', 'Konverzacija obrisana');
+    header('Location: facebook-messages.php');
+    exit;
+}
+
+// Obriši sve poruke
+if (isset($_GET['delete_all']) && isset($_GET['token']) && verifyCSRFToken($_GET['token'])) {
+    $db->exec("DELETE FROM facebook_messages");
+    $db->exec("DELETE FROM facebook_conversations");
+    setMessage('success', 'Sve poruke obrisane');
+    header('Location: facebook-messages.php');
+    exit;
+}
+
+// Dodaj attachment_url kolonu ako ne postoji
+try {
+    $db->query("SELECT attachment_url FROM facebook_messages LIMIT 1");
+} catch (PDOException $e) {
+    $db->exec("ALTER TABLE facebook_messages ADD COLUMN attachment_url TEXT NULL AFTER message_text");
+}
+
 // Dohvati konverzacije
 $conversations = $db->query("
     SELECT c.*,
@@ -84,7 +110,10 @@ include 'includes/header.php';
         <span class="badge badge-danger"><?= $totalUnread ?></span>
         <?php endif; ?>
     </h1>
-    <a href="?refresh=1" class="btn btn-outline">Osvježi</a>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="?refresh=1" class="btn btn-outline">Osvježi</a>
+        <a href="?delete_all=1&token=<?= getCSRFToken() ?>" class="btn btn-danger" onclick="return confirm('Obrisati SVE poruke?')">Obriši sve</a>
+    </div>
 </div>
 
 <?php $flashMsg = getMessage(); if ($flashMsg): ?>
@@ -135,14 +164,27 @@ include 'includes/header.php';
             }
         }
         ?>
-        <div class="card-header">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h2 class="card-title"><?= e($convInfo['participant_name'] ?? 'Konverzacija') ?></h2>
+            <a href="?delete=<?= urlencode($selectedConv) ?>&token=<?= getCSRFToken() ?>"
+               class="btn btn-sm btn-danger"
+               onclick="return confirm('Obrisati ovu konverzaciju?')"
+               title="Obriši konverzaciju">🗑️</a>
         </div>
         <div class="messages-container">
             <?php foreach ($messages as $msg): ?>
             <div class="message <?= $msg['is_from_page'] ? 'sent' : 'received' ?>">
                 <div class="message-bubble">
+                    <?php if (!empty($msg['attachment_url'])): ?>
+                    <a href="<?= e($msg['attachment_url']) ?>" target="_blank">
+                        <img src="<?= e($msg['attachment_url']) ?>" alt="Slika" class="message-image">
+                    </a>
+                    <?php endif; ?>
+                    <?php if (!empty($msg['message_text'])): ?>
                     <?= nl2br(e($msg['message_text'])) ?>
+                    <?php elseif (empty($msg['attachment_url'])): ?>
+                    <em style="opacity: 0.6;">(prazan sadržaj)</em>
+                    <?php endif; ?>
                 </div>
                 <div class="message-time">
                     <?= date('d.m. H:i', strtotime($msg['sent_at'])) ?>
@@ -263,6 +305,16 @@ include 'includes/header.php';
 }
 .message.sent .message-time {
     text-align: right;
+}
+.message-image {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.message-image:hover {
+    opacity: 0.9;
 }
 </style>
 

@@ -20,7 +20,7 @@ $db = getDB();
 $pageId = FB_PAGE_ID;
 $token = FB_PAGE_ACCESS_TOKEN;
 
-$conversationsUrl = "https://graph.facebook.com/v24.0/{$pageId}/conversations?fields=id,participants,updated_time,messages.limit(10){id,message,from,created_time}&access_token={$token}";
+$conversationsUrl = "https://graph.facebook.com/v24.0/{$pageId}/conversations?fields=id,participants,updated_time,messages.limit(10){id,message,from,created_time,attachments{image_data,file_url,mime_type}}&access_token={$token}";
 
 $ch = curl_init($conversationsUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -83,6 +83,17 @@ foreach ($data['data'] as $conversation) {
             $sentAt = date('Y-m-d H:i:s', strtotime($msg['created_time']));
             $isFromPage = ($senderId === $pageId) ? 1 : 0;
 
+            // Provjeri za attachment (slika)
+            $attachmentUrl = null;
+            if (isset($msg['attachments']['data'][0])) {
+                $att = $msg['attachments']['data'][0];
+                if (isset($att['image_data']['url'])) {
+                    $attachmentUrl = $att['image_data']['url'];
+                } elseif (isset($att['file_url'])) {
+                    $attachmentUrl = $att['file_url'];
+                }
+            }
+
             // Provjeri postoji li već
             $stmt = $db->prepare("SELECT id FROM facebook_messages WHERE message_id = ?");
             $stmt->execute([$messageId]);
@@ -91,8 +102,8 @@ foreach ($data['data'] as $conversation) {
                 // Nova poruka - spremi
                 $stmt = $db->prepare("
                     INSERT INTO facebook_messages
-                    (conversation_id, message_id, sender_id, sender_name, message_text, sent_at, is_from_page)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (conversation_id, message_id, sender_id, sender_name, message_text, sent_at, is_from_page, attachment_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $conversationId,
@@ -101,7 +112,8 @@ foreach ($data['data'] as $conversation) {
                     $senderName,
                     $messageText,
                     $sentAt,
-                    $isFromPage
+                    $isFromPage,
+                    $attachmentUrl
                 ]);
 
                 // Ako nije od stranice, dodaj u nove poruke za email
