@@ -1,6 +1,6 @@
 <?php
 /**
- * Objavi na Facebook
+ * Objavi na Facebook - s planiranjem
  */
 
 require_once 'includes/auth.php';
@@ -14,17 +14,61 @@ if (!isEditor()) {
     exit;
 }
 
-define('PAGE_TITLE', 'Objavi na Facebook');
+define('PAGE_TITLE', 'Facebook objave');
 
 $db = getDB();
 $message = '';
 $messageType = '';
-$postedUrl = '';
+
+// Provjeri postoji li tablica
+try {
+    $db->query("SELECT 1 FROM facebook_posts LIMIT 1");
+} catch (PDOException $e) {
+    header('Location: facebook-setup.php');
+    exit;
+}
+
+// Obriši/otkaži zakazanu objavu
+if (isset($_GET['cancel']) && verifyCSRFToken($_GET['token'] ?? '')) {
+    $cancelId = intval($_GET['cancel']);
+    $stmt = $db->prepare("UPDATE facebook_posts SET status = 'cancelled' WHERE id = ? AND status = 'scheduled'");
+    $stmt->execute([$cancelId]);
+    setMessage('success', 'Objava otkazana');
+    header('Location: facebook-post.php');
+    exit;
+}
+
+// Objavi odmah zakazanu objavu
+if (isset($_GET['post_now']) && verifyCSRFToken($_GET['token'] ?? '')) {
+    $postId = intval($_GET['post_now']);
+    $stmt = $db->prepare("SELECT * FROM facebook_posts WHERE id = ? AND status = 'scheduled'");
+    $stmt->execute([$postId]);
+    $post = $stmt->fetch();
+
+    if ($post) {
+        $result = postToFacebook($post['url'], $post['message']);
+        if ($result['success']) {
+            $stmt = $db->prepare("UPDATE facebook_posts SET status = 'posted', posted_at = NOW(), post_id = ? WHERE id = ?");
+            $stmt->execute([$result['post_id'], $postId]);
+            setMessage('success', 'Objavljeno na Facebook!');
+        } else {
+            $stmt = $db->prepare("UPDATE facebook_posts SET status = 'failed', error_message = ? WHERE id = ?");
+            $stmt->execute([$result['error'], $postId]);
+            setMessage('danger', 'Greška: ' . $result['error']);
+        }
+    }
+    header('Location: facebook-post.php');
+    exit;
+}
 
 // Obrada forme
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $url = trim($_POST['url'] ?? '');
     $text = trim($_POST['text'] ?? '');
+    $title = trim($_POST['title'] ?? '');
+    $action = $_POST['action'] ?? 'now';
+    $scheduledDate = $_POST['scheduled_date'] ?? '';
+    $scheduledTime = $_POST['scheduled_time'] ?? '';
 
     if (empty($url)) {
         $message = 'URL je obavezan';
@@ -32,115 +76,226 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     } elseif (!filter_var($url, FILTER_VALIDATE_URL)) {
         $message = 'Nevažeći URL';
         $messageType = 'danger';
+    } elseif ($action === 'schedule' && (empty($scheduledDate) || empty($scheduledTime))) {
+        $message = 'Datum i vrijeme su obavezni za zakazivanje';
+        $messageType = 'danger';
     } else {
-        $result = postToFacebook($url, $text);
+        if ($action === 'now') {
+            // Objavi odmah
+            $result = postToFacebook($url, $text);
 
-        if ($result['success']) {
-            $message = 'Objavljeno na Facebook!';
-            $messageType = 'success';
-            $postedUrl = $url;
+            if ($result['success']) {
+                // Spremi u bazu
+                $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, posted_at, post_id, status, created_by) VALUES (?, ?, ?, NOW(), NOW(), ?, 'posted', ?)");
+                $stmt->execute([$url, $title, $text, $result['post_id'], $_SESSION['user_id']]);
 
-            // Logiraj aktivnost
-            logActivity('facebook_post', 'social', null, ['url' => $url]);
+                $message = 'Objavljeno na Facebook!';
+                $messageType = 'success';
+                logActivity('facebook_post', 'social', null, ['url' => $url]);
+            } else {
+                $message = 'Greška: ' . $result['error'];
+                $messageType = 'danger';
+            }
         } else {
-            $message = 'Greška: ' . $result['error'];
-            $messageType = 'danger';
+            // Zakaži za kasnije
+            $scheduledAt = $scheduledDate . ' ' . $scheduledTime . ':00';
+            $stmt = $db->prepare("INSERT INTO facebook_posts (url, title, message, scheduled_at, status, created_by) VALUES (?, ?, ?, ?, 'scheduled', ?)");
+            $stmt->execute([$url, $title, $text, $scheduledAt, $_SESSION['user_id']]);
+
+            $message = 'Objava zakazana za ' . date('d.m.Y. H:i', strtotime($scheduledAt));
+            $messageType = 'success';
+            logActivity('facebook_schedule', 'social', null, ['url' => $url, 'scheduled' => $scheduledAt]);
         }
     }
 }
+
+// Dohvati zakazane objave
+$stmt = $db->query("SELECT fp.*, u.full_name FROM facebook_posts fp JOIN users u ON fp.created_by = u.id WHERE fp.status = 'scheduled' ORDER BY fp.scheduled_at ASC");
+$scheduledPosts = $stmt->fetchAll();
+
+// Dohvati zadnje objave
+$stmt = $db->query("SELECT fp.*, u.full_name FROM facebook_posts fp JOIN users u ON fp.created_by = u.id WHERE fp.status IN ('posted', 'failed') ORDER BY fp.created_at DESC LIMIT 20");
+$recentPosts = $stmt->fetchAll();
 
 include 'includes/header.php';
 ?>
 
 <div class="d-flex" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-    <h1>📘 Objavi na Facebook</h1>
+    <h1>📘 Facebook objave</h1>
+    <span style="color: #059669; font-size: 0.8rem;">✓ Zagorje.com</span>
 </div>
 
 <?php if ($message): ?>
-<div class="alert alert-<?= $messageType ?> mt-2">
-    <?= e($message) ?>
-    <?php if ($postedUrl): ?>
-    <br><small>Link s UTM: <?= e($postedUrl) ?>?utm_source=facebook&utm_medium=social&utm_campaign=post</small>
-    <?php endif; ?>
-</div>
+<div class="alert alert-<?= $messageType ?> mt-2"><?= e($message) ?></div>
 <?php endif; ?>
 
-<div class="card mt-2">
-    <div class="card-header">
-        <h2 class="card-title">Nova objava</h2>
-    </div>
-    <div class="card-body">
-        <form method="POST">
-            <?= csrfField() ?>
+<?php $flashMsg = getMessage(); if ($flashMsg): ?>
+<div class="alert alert-<?= $flashMsg['type'] ?> mt-2"><?= e($flashMsg['text']) ?></div>
+<?php endif; ?>
 
-            <div class="form-group">
-                <label class="form-label" for="url">Link članka *</label>
-                <input type="url"
-                       id="url"
-                       name="url"
-                       class="form-control"
-                       placeholder="https://www.zagorje.com/clanak/..."
-                       required
-                       style="font-size: 1rem;">
-                <small style="color: #6b7280;">UTM parametri se automatski dodaju</small>
-            </div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+    <!-- Nova objava -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Nova objava</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <?= csrfField() ?>
 
-            <div class="form-group">
-                <label class="form-label" for="text">Tekst objave (opcionalno)</label>
-                <div class="emoji-picker" style="margin-bottom: 0.5rem;">
-                    <?php
-                    $emojiGroups = [
-                        'Vijesti' => ['🔴', '🟠', '🟡', '🟢', '🔵', '⚫', '⚪', '🚨', '⚠️', '📢', '📣', '💥', '⚡', '🔥', '💯'],
-                        'Oznake' => ['📍', '📌', '🎯', '✅', '❌', '⭕', '❗', '❓', '💡', '📝', '🔗', '🏷️', '🆕', '🆓', '🔝'],
-                        'Mediji' => ['📰', '🗞️', '📸', '📷', '🎥', '🎬', '📺', '📻', '🎙️', '🎤', '📡', '💻', '📱', '🖥️', '⌨️'],
-                        'Događaji' => ['🎉', '🎊', '🎭', '🎪', '🎨', '🎵', '🎶', '🎸', '🎹', '🎺', '🥁', '🎤', '🎧', '🎫', '🎁'],
-                        'Sport' => ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🥊', '🚴', '🏃', '🏊', '🏆'],
-                        'Priroda' => ['☀️', '🌤️', '⛅', '🌧️', '⛈️', '❄️', '🌊', '🌳', '🌲', '🌸', '🌺', '🍀', '🌈', '⭐', '🌙'],
-                        'Ruke' => ['👉', '👆', '👇', '👈', '☝️', '👍', '👎', '👏', '🙌', '🤝', '✋', '🖐️', '✌️', '🤞', '💪'],
-                        'Lica' => ['😀', '😃', '😊', '🥳', '😍', '🤩', '😎', '🤔', '😮', '😢', '😡', '🥺', '😱', '🤯', '😴'],
-                        'Simboli' => ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '💕', '💖', '💗', '💝', '💘', '💞'],
-                        'Hrana' => ['☕', '🍺', '🍷', '🥂', '🍕', '🍔', '🌭', '🥗', '🍰', '🎂', '🍎', '🍇', '🥐', '🍞', '🧀']
-                    ];
-                    foreach ($emojiGroups as $group => $emojis):
-                    ?>
-                    <div style="margin-bottom: 0.25rem;">
-                        <small style="color: #6b7280; font-size: 0.65rem;"><?= $group ?>:</small>
-                        <?php foreach ($emojis as $emoji): ?>
+                <div class="form-group">
+                    <label class="form-label" for="url">Link članka *</label>
+                    <input type="url" id="url" name="url" class="form-control" placeholder="https://www.zagorje.com/clanak/..." required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="title">Naslov (za evidenciju)</label>
+                    <input type="text" id="title" name="title" class="form-control" placeholder="Kratki naslov...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="text">Tekst objave</label>
+                    <div class="emoji-picker">
+                        <?php
+                        $emojis = ['🔴', '🟢', '🔵', '🚨', '⚠️', '📢', '💥', '🔥', '📍', '✅', '❌', '💡', '🆕', '📰', '📸', '🎥', '🎉', '🎭', '⚽', '🏆', '☀️', '🌧️', '👉', '👆', '👍', '💪', '😊', '😮', '❤️', '💙'];
+                        foreach ($emojis as $emoji):
+                        ?>
                         <button type="button" class="emoji-btn" onclick="insertEmoji('<?= $emoji ?>')"><?= $emoji ?></button>
                         <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
+                    <textarea id="text" name="text" class="form-control" rows="2" placeholder="Tekst koji će se prikazati uz link..."></textarea>
                 </div>
-                <textarea id="text"
-                          name="text"
-                          class="form-control"
-                          rows="3"
-                          placeholder="Dodaj komentar uz link..."></textarea>
-            </div>
+
+                <div class="form-group">
+                    <label class="form-label">Kada objaviti?</label>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="action" value="now" checked onchange="toggleSchedule()"> Odmah
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="action" value="schedule" onchange="toggleSchedule()"> Zakaži
+                        </label>
+                    </div>
+                    <div id="scheduleFields" style="display: none; gap: 0.5rem;">
+                        <input type="date" name="scheduled_date" class="form-control" style="width: auto;" value="<?= date('Y-m-d') ?>">
+                        <input type="time" name="scheduled_time" class="form-control" style="width: auto;" value="<?= date('H:i', strtotime('+1 hour')) ?>">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="background: #1877f2; width: 100%;">
+                    📤 Objavi / Zakaži
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Zakazane objave -->
+    <div class="card">
+        <div class="card-header" style="background: #fef3c7;">
+            <h2 class="card-title" style="color: #92400e;">📅 Zakazano (<?= count($scheduledPosts) ?>)</h2>
+        </div>
+        <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
+            <?php if (empty($scheduledPosts)): ?>
+                <p style="padding: 1rem; color: #6b7280; text-align: center;">Nema zakazanih objava</p>
+            <?php else: ?>
+                <?php foreach ($scheduledPosts as $i => $post): ?>
+                <div style="padding: 0.75rem; border-bottom: 1px solid #e5e7eb; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; gap: 0.5rem;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 0.8rem; color: #92400e;">
+                                ⏰ <?= date('d.m. H:i', strtotime($post['scheduled_at'])) ?>
+                            </div>
+                            <div style="font-size: 0.75rem; margin-top: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <?= e($post['title'] ?: $post['url']) ?>
+                            </div>
+                            <?php if ($post['message']): ?>
+                            <div style="font-size: 0.7rem; color: #6b7280; margin-top: 0.25rem;"><?= e(mb_substr($post['message'], 0, 50)) ?>...</div>
+                            <?php endif; ?>
+                        </div>
+                        <div style="display: flex; gap: 0.25rem;">
+                            <a href="?post_now=<?= $post['id'] ?>&token=<?= getCSRFToken() ?>" class="btn btn-sm btn-success" title="Objavi odmah" onclick="return confirm('Objaviti odmah?')">▶</a>
+                            <a href="?cancel=<?= $post['id'] ?>&token=<?= getCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Zadnje objave -->
+<div class="card mt-2">
+    <div class="card-header">
+        <h2 class="card-title">📜 Zadnje objave</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table" style="font-size: 0.75rem;">
+            <thead>
+                <tr>
+                    <th style="width: 120px;">Datum</th>
+                    <th>Objava</th>
+                    <th style="width: 100px;">Status</th>
+                    <th style="width: 100px;">Objavio</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($recentPosts)): ?>
+                <tr><td colspan="4" style="text-align: center; color: #6b7280;">Nema objava</td></tr>
+                <?php else: ?>
+                <?php foreach ($recentPosts as $post): ?>
+                <tr>
+                    <td style="white-space: nowrap;"><?= date('d.m.Y. H:i', strtotime($post['posted_at'] ?? $post['created_at'])) ?></td>
+                    <td>
+                        <a href="<?= e($post['url']) ?>" target="_blank" style="text-decoration: none; color: inherit;">
+                            <?= e($post['title'] ?: mb_substr($post['url'], 0, 60)) ?>
+                        </a>
+                        <?php if ($post['message']): ?>
+                        <br><small style="color: #6b7280;"><?= e(mb_substr($post['message'], 0, 40)) ?>...</small>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if ($post['status'] === 'posted'): ?>
+                        <span class="badge badge-success">✓ Objavljeno</span>
+                        <?php else: ?>
+                        <span class="badge badge-danger" title="<?= e($post['error_message']) ?>">✗ Greška</span>
+                        <?php endif; ?>
+                    </td>
+                    <td><?= e($post['full_name']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
 
 <style>
 .emoji-picker {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-bottom: 0.5rem;
     padding: 0.5rem;
-    max-height: 200px;
-    overflow-y: auto;
+    background: #f9fafb;
+    border-radius: 6px;
 }
 .emoji-btn {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border: none;
     border-radius: 4px;
     background: transparent;
     cursor: pointer;
-    font-size: 1rem;
+    font-size: 0.9rem;
     padding: 0;
-    transition: all 0.15s;
 }
 .emoji-btn:hover {
     background: #e5e7eb;
-    transform: scale(1.2);
+    transform: scale(1.15);
+}
+#scheduleFields {
+    display: flex;
 }
 </style>
 
@@ -154,46 +309,11 @@ function insertEmoji(emoji) {
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
     textarea.focus();
 }
+
+function toggleSchedule() {
+    const isSchedule = document.querySelector('input[name="action"]:checked').value === 'schedule';
+    document.getElementById('scheduleFields').style.display = isSchedule ? 'flex' : 'none';
+}
 </script>
-
-            <button type="submit" class="btn btn-primary" style="background: #1877f2;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 0.5rem;">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-                Objavi na Facebook
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- Status info -->
-<div class="card mt-2">
-    <div class="card-header">
-        <h3 class="card-title">Status povezivanja</h3>
-    </div>
-    <div class="card-body" style="font-size: 0.8rem;">
-        <span style="color: #059669;">✓ Povezano sa stranicom: <strong>Zagorje.com</strong></span>
-        <br><small style="color: #6b7280;">Page ID: <?= FB_PAGE_ID ?></small>
-    </div>
-</div>
-
-<!-- Upute -->
-<div class="card mt-2">
-    <div class="card-header">
-        <h3 class="card-title">Kako koristiti</h3>
-    </div>
-    <div class="card-body" style="font-size: 0.875rem; color: #4b5563;">
-        <ol style="margin: 0; padding-left: 1.25rem;">
-            <li>Objavi članak na portalu</li>
-            <li>Kopiraj URL članka</li>
-            <li>Zalijepi ovdje i klikni "Objavi na Facebook"</li>
-            <li>Link će automatski imati UTM parametre za praćenje u GA4</li>
-        </ol>
-        <div style="margin-top: 1rem; padding: 0.75rem; background: #f3f4f6; border-radius: 0.5rem;">
-            <strong>UTM parametri koji se dodaju:</strong><br>
-            <code style="font-size: 0.75rem;">?utm_source=facebook&utm_medium=social&utm_campaign=post</code>
-        </div>
-    </div>
-</div>
 
 <?php include 'includes/footer.php'; ?>
