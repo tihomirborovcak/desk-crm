@@ -72,10 +72,9 @@ try {
     $shiftId = $db->lastInsertId();
     logActivity('shift_add', 'shift', $shiftId);
 
-    // Redirect na mjesec tog datuma
-    $year = date('Y', strtotime($shiftDate));
-    $month = date('n', strtotime($shiftDate));
-    redirectWith("shifts.php?year=$year&month=$month", 'success', 'Dežurstvo dodano');
+    // Redirect natrag na events.php kalendar
+    $monthParam = date('Y-m', strtotime($shiftDate));
+    redirectWith("events.php?month=$monthParam", 'success', 'Dežurstvo dodano');
 } catch (PDOException $e) {
-    redirectWith('shifts.php', 'danger', 'Greška pri dodavanju: ' . $e->getMessage());
+    redirectWith('events.php', 'danger', 'Greška pri dodavanju: ' . $e->getMessage());
 }
