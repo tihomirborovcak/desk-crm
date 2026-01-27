@@ -802,56 +802,100 @@ $daysHr = ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'];
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header" style="padding: 0.75rem 1rem;">
-        <h2 class="card-title" style="font-size: 1rem;">Objavljeni članci - zagorje.com</h2>
-    </div>
-    <?php if (empty($articles)): ?>
-        <div class="card-body">
-            <p style="color: #6b7280; text-align: center;">Nema članaka.</p>
+<?php
+// Pripremi top i bottom članke po pregledima
+$articlesWithViews = [];
+foreach ($articles as $art) {
+    $slug = getSlugFromUrl($art['link']);
+    $views = $viewsBySlug[$slug] ?? 0;
+    if ($views > 0) {
+        $articlesWithViews[] = ['title' => $art['title'], 'link' => $art['link'], 'views' => $views, 'date' => $art['pubDate']];
+    }
+}
+usort($articlesWithViews, fn($a, $b) => $b['views'] <=> $a['views']);
+$topArticles = array_slice($articlesWithViews, 0, 10);
+$bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 10);
+?>
+
+<div style="display: flex; gap: 1rem; align-items: flex-start;">
+    <!-- Glavni popis članaka -->
+    <div class="card" style="flex: 1; min-width: 0;">
+        <div class="card-header" style="padding: 0.5rem 0.75rem;">
+            <h2 class="card-title" style="font-size: 0.9rem;">Objavljeni članci</h2>
         </div>
-    <?php else: ?>
-    <div class="table-responsive">
-        <table class="table" style="font-size: 0.8rem;">
-            <tbody>
-                <?php
-                $prevDay = null;
-                foreach ($articles as $article):
-                    $articleDay = $article['pubDate'] ? date('Y-m-d', $article['pubDate']) : null;
-
-                    // Separator za novi dan
-                    if ($articleDay && $articleDay !== $prevDay):
-                        $dayCount = $articlesByDay[$articleDay] ?? 0;
-                        $dayName = $daysHr[date('w', strtotime($articleDay))];
-                        $dayFormatted = date('d.m.Y', strtotime($articleDay));
-                        $isDayToday = $articleDay === date('Y-m-d');
-                ?>
-                <tr style="background: <?= $isDayToday ? '#eff6ff' : '#f9fafb' ?>;">
-                    <td colspan="3" style="padding: 0.4rem 0.5rem; font-size: 0.75rem; font-weight: 600; color: <?= $isDayToday ? '#2563eb' : '#374151' ?>;">
-                        <?= $dayName ?>, <?= $dayFormatted ?> <span style="font-weight: 400; color: #6b7280;">(<?= $dayCount ?> čl.)</span>
-                    </td>
-                </tr>
-                <?php
-                        $prevDay = $articleDay;
-                    endif;
-
-                    $pubTimeFormatted = $article['pubDate'] ? date('H:i', $article['pubDate']) : '-';
-                    $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
-                    $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
-                    $articleSlug = getSlugFromUrl($article['link']);
-                    $articleViews = $viewsBySlug[$articleSlug] ?? 0;
-                ?>
-                <?php static $rowNum = 0; $rowNum++; ?>
-                <tr style="background: <?= $rowNum % 2 === 0 ? '#f9fafb' : 'white' ?>;">
-                    <td style="padding: 0.25rem 0.5rem; width: 50px; white-space: nowrap; <?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669;' : 'color: #9ca3af;') ?>"><?= $pubTimeFormatted ?><?php if ($isRecent): ?> <span style="background: #fee2e2; color: #dc2626; font-size: 0.55rem; padding: 1px 2px; border-radius: 2px;">N</span><?php endif; ?></td>
-                    <td style="padding: 0.25rem 0.5rem;"><a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: #1f2937;"><?= e($article['title']) ?></a></td>
-                    <td style="padding: 0.25rem 0.5rem; width: 60px; text-align: right; font-weight: 500; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#9ca3af') ?>;"><?= $articleViews > 0 ? number_format($articleViews, 0, ',', '.') : '-' ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+        <?php if (empty($articles)): ?>
+            <div class="card-body"><p style="color: #6b7280; text-align: center;">Nema članaka.</p></div>
+        <?php else: ?>
+        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+            <table class="table" style="font-size: 0.75rem;">
+                <tbody>
+                    <?php
+                    $prevDay = null;
+                    $rowNum = 0;
+                    foreach ($articles as $article):
+                        $articleDay = $article['pubDate'] ? date('Y-m-d', $article['pubDate']) : null;
+                        if ($articleDay && $articleDay !== $prevDay):
+                            $dayCount = $articlesByDay[$articleDay] ?? 0;
+                            $dayName = $daysHr[date('w', strtotime($articleDay))];
+                            $isDayToday = $articleDay === date('Y-m-d');
+                    ?>
+                    <tr style="background: <?= $isDayToday ? '#eff6ff' : '#e5e7eb' ?>;">
+                        <td colspan="3" style="padding: 0.3rem 0.5rem; font-size: 0.7rem; font-weight: 600; color: <?= $isDayToday ? '#2563eb' : '#374151' ?>;">
+                            <?= $dayName ?> <?= date('d.m', strtotime($articleDay)) ?> <span style="font-weight: 400; color: #6b7280;">(<?= $dayCount ?>)</span>
+                        </td>
+                    </tr>
+                    <?php $prevDay = $articleDay; endif;
+                        $pubTimeFormatted = $article['pubDate'] ? date('H:i', $article['pubDate']) : '-';
+                        $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
+                        $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
+                        $articleSlug = getSlugFromUrl($article['link']);
+                        $articleViews = $viewsBySlug[$articleSlug] ?? 0;
+                        $rowNum++;
+                    ?>
+                    <tr style="background: <?= $rowNum % 2 === 0 ? '#f9fafb' : 'white' ?>;">
+                        <td style="padding: 0.2rem 0.4rem; width: 40px; white-space: nowrap; <?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669;' : 'color: #9ca3af;') ?>"><?= $pubTimeFormatted ?><?php if ($isRecent): ?><span style="color:#dc2626;font-size:0.5rem;"> N</span><?php endif; ?></td>
+                        <td style="padding: 0.2rem 0.4rem;"><a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: #1f2937;"><?= e($article['title']) ?></a></td>
+                        <td style="padding: 0.2rem 0.4rem; width: 50px; text-align: right; font-weight: 500; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#9ca3af') ?>;"><?= $articleViews > 0 ? number_format($articleViews, 0, ',', '.') : '-' ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
+
+    <!-- Sidebar: Top i Bottom članci -->
+    <div style="width: 280px; flex-shrink: 0;">
+        <!-- Top članci -->
+        <div class="card" style="margin-bottom: 0.75rem;">
+            <div style="padding: 0.5rem 0.75rem; background: #dcfce7; border-radius: 8px 8px 0 0;">
+                <div style="font-size: 0.75rem; font-weight: 600; color: #166534;">🔥 Najviše pregleda</div>
+            </div>
+            <div style="font-size: 0.7rem;">
+                <?php foreach ($topArticles as $i => $art): ?>
+                <div style="padding: 0.3rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.5rem;">
+                    <span style="color: #059669; font-weight: 600; min-width: 45px;"><?= number_format($art['views'], 0, ',', '.') ?></span>
+                    <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= e($art['title']) ?></a>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <!-- Bottom članci -->
+        <div class="card">
+            <div style="padding: 0.5rem 0.75rem; background: #fee2e2; border-radius: 8px 8px 0 0;">
+                <div style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">📉 Najmanje pregleda</div>
+            </div>
+            <div style="font-size: 0.7rem;">
+                <?php foreach ($bottomArticles as $i => $art): ?>
+                <div style="padding: 0.3rem 0.5rem; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>; display: flex; gap: 0.5rem;">
+                    <span style="color: #dc2626; font-weight: 600; min-width: 45px;"><?= number_format($art['views'], 0, ',', '.') ?></span>
+                    <a href="<?= e($art['link']) ?>" target="_blank" style="text-decoration: none; color: #374151; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= e($art['title']) ?></a>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
 </div>
 
 <?php elseif ($reportType === 'pages' && $reportData && isset($reportData['rows'])): ?>
