@@ -229,8 +229,8 @@ include 'includes/header.php';
                             <?php endif; ?>
                         </div>
                         <div style="display: flex; gap: 0.25rem;">
-                            <a href="?post_now=<?= $post['id'] ?>&token=<?= getCSRFToken() ?>" class="btn btn-sm btn-success" title="Objavi odmah" onclick="return confirm('Objaviti odmah?')">▶</a>
-                            <a href="?cancel=<?= $post['id'] ?>&token=<?= getCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
+                            <a href="?post_now=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-success" title="Objavi odmah" onclick="return confirm('Objaviti odmah?')">▶</a>
+                            <a href="?cancel=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
                         </div>
                     </div>
                 </div>
