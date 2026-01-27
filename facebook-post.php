@@ -28,12 +28,42 @@ try {
     exit;
 }
 
-// Obriši/otkaži zakazanu objavu
+// Obriši/otkaži CMS zakazanu objavu
 if (isset($_GET['cancel']) && verifyCSRFToken($_GET['token'] ?? '')) {
     $cancelId = intval($_GET['cancel']);
     $stmt = $db->prepare("UPDATE facebook_posts SET status = 'cancelled' WHERE id = ? AND status = 'scheduled'");
     $stmt->execute([$cancelId]);
-    setMessage('success', 'Objava otkazana');
+    setMessage('success', 'CMS objava otkazana');
+    header('Location: facebook-post.php');
+    exit;
+}
+
+// Obriši Facebook zakazanu objavu
+if (isset($_GET['delete_fb']) && verifyCSRFToken($_GET['token'] ?? '')) {
+    $fbPostId = $_GET['delete_fb'];
+    // Sigurnosna provjera - samo brojevi i underscore (format FB post ID-a)
+    if (preg_match('/^[0-9_]+$/', $fbPostId)) {
+        $token = FB_PAGE_ACCESS_TOKEN;
+        $deleteUrl = "https://graph.facebook.com/v24.0/{$fbPostId}?access_token={$token}";
+
+        $ch = curl_init($deleteUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'DELETE'
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $result = json_decode($response, true);
+
+        if ($httpCode === 200 && isset($result['success']) && $result['success']) {
+            setMessage('success', 'Facebook objava obrisana');
+        } else {
+            $error = $result['error']['message'] ?? 'Nepoznata greška';
+            setMessage('danger', 'Greška pri brisanju: ' . $error);
+        }
+    }
     header('Location: facebook-post.php');
     exit;
 }
@@ -303,8 +333,11 @@ include 'includes/header.php';
                     <img src="<?= e($post['full_picture']) ?>" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
                     <?php endif; ?>
                     <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; font-size: 0.8rem; color: #1877f2;">
-                            ⏰ <?= date('d.m. H:i', $post['scheduled_publish_time']) ?> <span style="font-size: 0.6rem; background: #dbeafe; padding: 0.1rem 0.3rem; border-radius: 3px;">FB</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="font-weight: 600; font-size: 0.8rem; color: #1877f2;">
+                                ⏰ <?= date('d.m. H:i', $post['scheduled_publish_time']) ?> <span style="font-size: 0.6rem; background: #dbeafe; padding: 0.1rem 0.3rem; border-radius: 3px;">FB</span>
+                            </div>
+                            <a href="?delete_fb=<?= e($post['id']) ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-danger" title="Obriši s Facebooka" onclick="return confirm('Obrisati zakazanu objavu s Facebooka?')">×</a>
                         </div>
                         <?php if ($fbTitle): ?>
                         <div style="font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
