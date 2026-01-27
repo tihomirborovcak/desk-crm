@@ -79,7 +79,7 @@ function getGoogleAccessToken() {
 /**
  * Dohvati GA4 podatke
  */
-function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50, $dimensionFilter = null) {
+function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50, $dimensionFilter = null, $orderBy = null) {
     if (empty(GA4_PROPERTY_ID)) {
         return ['error' => 'GA4 Property ID nije postavljen'];
     }
@@ -97,11 +97,16 @@ function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50, 
         ],
         'dimensions' => array_map(function($d) { return ['name' => $d]; }, $dimensions),
         'metrics' => array_map(function($m) { return ['name' => $m]; }, $metrics),
-        'limit' => $limit,
-        'orderBys' => [
-            ['metric' => ['metricName' => $metrics[0]], 'desc' => true]
-        ]
+        'limit' => $limit
     ];
+
+    if ($orderBy) {
+        $requestBody['orderBys'] = $orderBy;
+    } else {
+        $requestBody['orderBys'] = [
+            ['metric' => ['metricName' => $metrics[0]], 'desc' => true]
+        ];
+    }
 
     if ($dimensionFilter) {
         $requestBody['dimensionFilter'] = $dimensionFilter;
@@ -131,71 +136,216 @@ function getGA4Report($startDate, $endDate, $dimensions, $metrics, $limit = 50, 
     return $data;
 }
 
+/**
+ * Dohvati real-time podatke
+ */
+function getGA4Realtime() {
+    if (empty(GA4_PROPERTY_ID)) {
+        return ['error' => 'GA4 Property ID nije postavljen'];
+    }
+
+    $auth = getGoogleAccessToken();
+    if (isset($auth['error'])) {
+        return $auth;
+    }
+
+    $url = 'https://analyticsdata.googleapis.com/v1beta/properties/' . GA4_PROPERTY_ID . ':runRealtimeReport';
+
+    $requestBody = [
+        'dimensions' => [
+            ['name' => 'unifiedScreenName']
+        ],
+        'metrics' => [
+            ['name' => 'activeUsers']
+        ],
+        'limit' => 10
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $auth['token'],
+            'Content-Type: application/json'
+        ],
+        CURLOPT_POSTFIELDS => json_encode($requestBody)
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    if ($httpCode !== 200) {
+        return ['error' => $data['error']['message'] ?? 'API error: ' . $httpCode];
+    }
+
+    return $data;
+}
+
 // Parametri
 $period = $_GET['period'] ?? '7days';
-$reportType = $_GET['report'] ?? 'pages';
+$reportType = $_GET['report'] ?? 'overview';
 $pagePath = $_GET['page'] ?? '';
 
 switch ($period) {
     case 'today':
         $startDate = 'today';
         $endDate = 'today';
+        $compareStart = 'yesterday';
+        $compareEnd = 'yesterday';
         $periodLabel = 'Danas';
         break;
     case 'yesterday':
         $startDate = 'yesterday';
         $endDate = 'yesterday';
+        $compareStart = '2daysAgo';
+        $compareEnd = '2daysAgo';
         $periodLabel = 'Jučer';
         break;
     case '7days':
         $startDate = '7daysAgo';
         $endDate = 'today';
+        $compareStart = '14daysAgo';
+        $compareEnd = '8daysAgo';
         $periodLabel = 'Zadnjih 7 dana';
         break;
     case '30days':
         $startDate = '30daysAgo';
         $endDate = 'today';
+        $compareStart = '60daysAgo';
+        $compareEnd = '31daysAgo';
         $periodLabel = 'Zadnjih 30 dana';
         break;
     default:
         $startDate = '7daysAgo';
         $endDate = 'today';
+        $compareStart = '14daysAgo';
+        $compareEnd = '8daysAgo';
         $periodLabel = 'Zadnjih 7 dana';
 }
 
-// Dohvati podatke
-$reportData = null;
-$sourcesData = null;
-$pageTitle = '';
 $error = null;
 
-if (!empty(GA4_PROPERTY_ID)) {
-    if ($reportType === 'pages') {
-        // Članci s izvorima prometa
-        $reportData = getGA4Report($startDate, $endDate, ['pageTitle', 'pagePath', 'sessionSource'], ['screenPageViews'], 200);
-    } elseif ($reportType === 'daily') {
-        $reportData = getGA4Report($startDate, $endDate, ['date'], ['screenPageViews', 'totalUsers', 'sessions'], 31);
-    } elseif ($reportType === 'sources') {
-        // Top izvori prometa
-        $reportData = getGA4Report($startDate, $endDate, ['sessionSource', 'sessionMedium'], ['screenPageViews', 'totalUsers'], 30);
-    } elseif ($reportType === 'article' && $pagePath) {
-        // Detalji članka - izvori prometa
-        $filter = [
-            'filter' => [
-                'fieldName' => 'pagePath',
-                'stringFilter' => [
-                    'matchType' => 'EXACT',
-                    'value' => $pagePath
-                ]
-            ]
-        ];
-        $sourcesData = getGA4Report($startDate, $endDate, ['sessionSource', 'sessionMedium'], ['screenPageViews', 'totalUsers'], 20, $filter);
+// Dohvati podatke ovisno o tipu reporta
+$reportData = null;
+$compareData = null;
+$realtimeData = null;
 
-        // Dohvati naslov članka
-        $titleData = getGA4Report($startDate, $endDate, ['pageTitle'], ['screenPageViews'], 1, $filter);
-        if (isset($titleData['rows'][0])) {
-            $pageTitle = $titleData['rows'][0]['dimensionValues'][0]['value'] ?? '';
-        }
+if (!empty(GA4_PROPERTY_ID)) {
+    switch ($reportType) {
+        case 'overview':
+            // Osnovne metrike
+            $reportData = getGA4Report($startDate, $endDate, [],
+                ['screenPageViews', 'totalUsers', 'sessions', 'averageSessionDuration', 'bounceRate', 'newUsers'], 1);
+            // Prethodni period za usporedbu
+            $compareData = getGA4Report($compareStart, $compareEnd, [],
+                ['screenPageViews', 'totalUsers', 'sessions', 'averageSessionDuration', 'bounceRate', 'newUsers'], 1);
+            // Real-time
+            $realtimeData = getGA4Realtime();
+            break;
+
+        case 'pages':
+            // Članci s engagement metrikom
+            $reportData = getGA4Report($startDate, $endDate,
+                ['pageTitle', 'pagePath'],
+                ['screenPageViews', 'averageSessionDuration', 'bounceRate'], 100);
+            break;
+
+        case 'trending':
+            // Članci iz ovog perioda
+            $currentData = getGA4Report($startDate, $endDate, ['pageTitle', 'pagePath'], ['screenPageViews'], 100);
+            // Članci iz prethodnog perioda
+            $previousData = getGA4Report($compareStart, $compareEnd, ['pageTitle', 'pagePath'], ['screenPageViews'], 100);
+            $reportData = ['current' => $currentData, 'previous' => $previousData];
+            break;
+
+        case 'sources':
+            $reportData = getGA4Report($startDate, $endDate,
+                ['sessionSource', 'sessionMedium'],
+                ['screenPageViews', 'totalUsers', 'sessions'], 30);
+            break;
+
+        case 'daily':
+            $reportData = getGA4Report($startDate, $endDate,
+                ['date'],
+                ['screenPageViews', 'totalUsers', 'sessions', 'averageSessionDuration'], 31,
+                null,
+                [['dimension' => ['dimensionName' => 'date'], 'desc' => true]]);
+            break;
+
+        case 'hourly':
+            $reportData = getGA4Report($startDate, $endDate,
+                ['hour'],
+                ['screenPageViews', 'totalUsers'], 24,
+                null,
+                [['dimension' => ['dimensionName' => 'hour'], 'desc' => false]]);
+            break;
+
+        case 'geography':
+            $reportData = getGA4Report($startDate, $endDate,
+                ['country', 'city'],
+                ['screenPageViews', 'totalUsers'], 50);
+            break;
+
+        case 'devices':
+            $reportData = getGA4Report($startDate, $endDate,
+                ['deviceCategory'],
+                ['screenPageViews', 'totalUsers', 'sessions'], 10);
+            break;
+
+        case 'landing':
+            $reportData = getGA4Report($startDate, $endDate,
+                ['landingPagePlusQueryString'],
+                ['sessions', 'totalUsers', 'bounceRate'], 50);
+            break;
+
+        case 'search':
+            // Google search keywords
+            $reportData = getGA4Report($startDate, $endDate,
+                ['sessionGoogleAdsQuery'],
+                ['sessions', 'totalUsers'], 50);
+            // Fallback to source/medium
+            if (empty($reportData['rows'])) {
+                $reportData = getGA4Report($startDate, $endDate,
+                    ['sessionDefaultChannelGroup'],
+                    ['sessions', 'totalUsers'], 20);
+            }
+            break;
+
+        case 'article':
+            if ($pagePath) {
+                $filter = [
+                    'filter' => [
+                        'fieldName' => 'pagePath',
+                        'stringFilter' => [
+                            'matchType' => 'EXACT',
+                            'value' => $pagePath
+                        ]
+                    ]
+                ];
+                // Izvori prometa za članak
+                $sourcesData = getGA4Report($startDate, $endDate,
+                    ['sessionSource', 'sessionMedium'],
+                    ['screenPageViews', 'totalUsers'], 20, $filter);
+                // Dnevna statistika članka
+                $dailyData = getGA4Report($startDate, $endDate,
+                    ['date'],
+                    ['screenPageViews'], 31, $filter,
+                    [['dimension' => ['dimensionName' => 'date'], 'desc' => false]]);
+                // Naslov
+                $titleData = getGA4Report($startDate, $endDate,
+                    ['pageTitle'],
+                    ['screenPageViews', 'averageSessionDuration', 'bounceRate'], 1, $filter);
+                $reportData = [
+                    'sources' => $sourcesData,
+                    'daily' => $dailyData,
+                    'title' => $titleData
+                ];
+            }
+            break;
     }
 
     if (isset($reportData['error'])) {
@@ -203,46 +353,22 @@ if (!empty(GA4_PROPERTY_ID)) {
         $reportData = null;
     }
 } else {
-    $error = 'GA4 Property ID nije postavljen. Kontaktirajte administratora.';
+    $error = 'GA4 Property ID nije postavljen.';
 }
 
-// Grupiraj članke s izvorima
-$articlesWithSources = [];
-if ($reportType === 'pages' && $reportData && isset($reportData['rows'])) {
-    foreach ($reportData['rows'] as $row) {
-        $title = $row['dimensionValues'][0]['value'] ?? '-';
-        $path = $row['dimensionValues'][1]['value'] ?? '';
-        $source = $row['dimensionValues'][2]['value'] ?? '(direct)';
-        $views = (int)($row['metricValues'][0]['value'] ?? 0);
+// Helper za formatiranje trajanja
+function formatDuration($seconds) {
+    $seconds = round($seconds);
+    if ($seconds < 60) return $seconds . 's';
+    $minutes = floor($seconds / 60);
+    $secs = $seconds % 60;
+    return $minutes . 'm ' . $secs . 's';
+}
 
-        // Preskoči homepage i admin stranice
-        if ($path === '/' || strpos($path, '/admin') === 0 || $title === '(not set)') continue;
-
-        if (!isset($articlesWithSources[$path])) {
-            $articlesWithSources[$path] = [
-                'title' => $title,
-                'path' => $path,
-                'totalViews' => 0,
-                'sources' => []
-            ];
-        }
-        $articlesWithSources[$path]['totalViews'] += $views;
-        $articlesWithSources[$path]['sources'][$source] = ($articlesWithSources[$path]['sources'][$source] ?? 0) + $views;
-    }
-
-    // Sortiraj po ukupnim pregledima
-    uasort($articlesWithSources, function($a, $b) {
-        return $b['totalViews'] - $a['totalViews'];
-    });
-
-    // Uzmi top 50
-    $articlesWithSources = array_slice($articlesWithSources, 0, 50, true);
-
-    // Sortiraj izvore za svaki članak
-    foreach ($articlesWithSources as &$article) {
-        arsort($article['sources']);
-        $article['sources'] = array_slice($article['sources'], 0, 5, true);
-    }
+// Helper za izračun promjene
+function calcChange($current, $previous) {
+    if ($previous == 0) return $current > 0 ? 100 : 0;
+    return round(($current - $previous) / $previous * 100, 1);
 }
 
 include 'includes/header.php';
@@ -259,104 +385,174 @@ include 'includes/header.php';
 </div>
 <?php else: ?>
 
-<!-- Filteri -->
+<!-- Period filter -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-body">
-        <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+    <div class="card-body" style="padding: 0.75rem;">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
             <div style="display: flex; gap: 0; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;">
-                <a href="?period=today&report=<?= $reportType ?>"
-                   class="btn btn-sm <?= $period === 'today' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none;">Danas</a>
-                <a href="?period=yesterday&report=<?= $reportType ?>"
-                   class="btn btn-sm <?= $period === 'yesterday' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">Jučer</a>
-                <a href="?period=7days&report=<?= $reportType ?>"
-                   class="btn btn-sm <?= $period === '7days' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">7 dana</a>
-                <a href="?period=30days&report=<?= $reportType ?>"
-                   class="btn btn-sm <?= $period === '30days' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">30 dana</a>
+                <?php foreach (['today' => 'Danas', 'yesterday' => 'Jučer', '7days' => '7 dana', '30days' => '30 dana'] as $p => $label): ?>
+                <a href="?period=<?= $p ?>&report=<?= $reportType ?>"
+                   class="btn btn-sm <?= $period === $p ? 'btn-primary' : 'btn-outline' ?>"
+                   style="border-radius: 0; border: none; <?= $p !== 'today' ? 'border-left: 1px solid #d1d5db;' : '' ?>"><?= $label ?></a>
+                <?php endforeach; ?>
             </div>
-
-            <div style="display: flex; gap: 0; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;">
-                <a href="?period=<?= $period ?>&report=pages"
-                   class="btn btn-sm <?= $reportType === 'pages' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none;">Članci</a>
-                <a href="?period=<?= $period ?>&report=sources"
-                   class="btn btn-sm <?= $reportType === 'sources' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">Izvori</a>
-                <a href="?period=<?= $period ?>&report=daily"
-                   class="btn btn-sm <?= $reportType === 'daily' ? 'btn-primary' : 'btn-outline' ?>"
-                   style="border-radius: 0; border: none; border-left: 1px solid #d1d5db;">Po danima</a>
-            </div>
-
-            <span style="color: #6b7280; margin-left: auto;"><?= $periodLabel ?></span>
+            <span style="color: #6b7280; margin-left: auto; font-size: 0.875rem;"><?= $periodLabel ?></span>
         </div>
     </div>
 </div>
 
-<?php if ($reportType === 'article' && $pagePath): ?>
-<!-- Detalji članka -->
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header">
-        <a href="?period=<?= $period ?>&report=pages" class="btn btn-sm btn-outline">← Natrag</a>
-    </div>
+<!-- Report tabs -->
+<div style="display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem;">
+    <?php
+    $tabs = [
+        'overview' => 'Pregled',
+        'pages' => 'Članci',
+        'trending' => 'Trending',
+        'sources' => 'Izvori',
+        'daily' => 'Po danima',
+        'hourly' => 'Po satima',
+        'geography' => 'Geografija',
+        'devices' => 'Uređaji',
+        'landing' => 'Landing',
+    ];
+    foreach ($tabs as $t => $label):
+    ?>
+    <a href="?period=<?= $period ?>&report=<?= $t ?>"
+       style="padding: 0.5rem 1rem; text-decoration: none; border-radius: 6px 6px 0 0; font-size: 0.875rem;
+              <?= $reportType === $t ? 'background: #2563eb; color: white; font-weight: 500;' : 'color: #6b7280;' ?>">
+        <?= $label ?>
+    </a>
+    <?php endforeach; ?>
+</div>
+
+<?php if ($reportType === 'overview'): ?>
+<!-- PREGLED - Overview cards -->
+<?php
+$metrics = [
+    'views' => ['label' => 'Pregledi', 'icon' => '👁️', 'current' => 0, 'previous' => 0],
+    'users' => ['label' => 'Korisnici', 'icon' => '👥', 'current' => 0, 'previous' => 0],
+    'sessions' => ['label' => 'Sesije', 'icon' => '📊', 'current' => 0, 'previous' => 0],
+    'duration' => ['label' => 'Pros. vrijeme', 'icon' => '⏱️', 'current' => 0, 'previous' => 0],
+    'bounce' => ['label' => 'Bounce rate', 'icon' => '↩️', 'current' => 0, 'previous' => 0],
+    'newUsers' => ['label' => 'Novi korisnici', 'icon' => '🆕', 'current' => 0, 'previous' => 0],
+];
+
+if ($reportData && isset($reportData['rows'][0])) {
+    $row = $reportData['rows'][0]['metricValues'];
+    $metrics['views']['current'] = (int)($row[0]['value'] ?? 0);
+    $metrics['users']['current'] = (int)($row[1]['value'] ?? 0);
+    $metrics['sessions']['current'] = (int)($row[2]['value'] ?? 0);
+    $metrics['duration']['current'] = (float)($row[3]['value'] ?? 0);
+    $metrics['bounce']['current'] = (float)($row[4]['value'] ?? 0) * 100;
+    $metrics['newUsers']['current'] = (int)($row[5]['value'] ?? 0);
+}
+
+if ($compareData && isset($compareData['rows'][0])) {
+    $row = $compareData['rows'][0]['metricValues'];
+    $metrics['views']['previous'] = (int)($row[0]['value'] ?? 0);
+    $metrics['users']['previous'] = (int)($row[1]['value'] ?? 0);
+    $metrics['sessions']['previous'] = (int)($row[2]['value'] ?? 0);
+    $metrics['duration']['previous'] = (float)($row[3]['value'] ?? 0);
+    $metrics['bounce']['previous'] = (float)($row[4]['value'] ?? 0) * 100;
+    $metrics['newUsers']['previous'] = (int)($row[5]['value'] ?? 0);
+}
+
+$realtimeUsers = 0;
+$realtimePages = [];
+if ($realtimeData && isset($realtimeData['rows'])) {
+    foreach ($realtimeData['rows'] as $row) {
+        $realtimeUsers += (int)($row['metricValues'][0]['value'] ?? 0);
+        $realtimePages[] = [
+            'page' => $row['dimensionValues'][0]['value'] ?? '',
+            'users' => (int)($row['metricValues'][0]['value'] ?? 0)
+        ];
+    }
+}
+?>
+
+<!-- Real-time card -->
+<div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
     <div class="card-body">
-        <h2 style="margin: 0 0 0.5rem 0;"><?= e($pageTitle ?: $pagePath) ?></h2>
-        <p style="color: #6b7280; margin: 0; font-size: 0.875rem;"><?= e($pagePath) ?></p>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="font-size: 2.5rem;">🟢</div>
+            <div>
+                <div style="font-size: 2rem; font-weight: 700;"><?= $realtimeUsers ?></div>
+                <div style="opacity: 0.9;">Aktivnih korisnika upravo sada</div>
+            </div>
+        </div>
+        <?php if (!empty($realtimePages)): ?>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.2);">
+            <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Trenutno čitaju:</div>
+            <?php foreach (array_slice($realtimePages, 0, 3) as $rp): ?>
+            <div style="font-size: 0.8rem; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                • <?= e(truncate($rp['page'], 60)) ?> (<?= $rp['users'] ?>)
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<?php if ($sourcesData && isset($sourcesData['rows'])): ?>
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title">Izvori prometa za ovaj članak</h2>
+<!-- Metric cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+    <?php foreach ($metrics as $key => $m):
+        $change = calcChange($m['current'], $m['previous']);
+        $isPositive = $key === 'bounce' ? $change < 0 : $change > 0;
+        $displayValue = $key === 'duration' ? formatDuration($m['current']) :
+                       ($key === 'bounce' ? round($m['current'], 1) . '%' : number_format($m['current']));
+    ?>
+    <div class="card">
+        <div class="card-body" style="padding: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="font-size: 1.5rem;"><?= $m['icon'] ?></div>
+                <?php if ($change != 0): ?>
+                <div style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;
+                            background: <?= $isPositive ? '#dcfce7' : '#fee2e2' ?>;
+                            color: <?= $isPositive ? '#16a34a' : '#dc2626' ?>;">
+                    <?= $change > 0 ? '+' : '' ?><?= $change ?>%
+                </div>
+                <?php endif; ?>
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0;"><?= $displayValue ?></div>
+            <div style="font-size: 0.875rem; color: #6b7280;"><?= $m['label'] ?></div>
+        </div>
     </div>
-    <div class="table-responsive">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Izvor</th>
-                    <th>Medium</th>
-                    <th style="text-align: right;">Pregledi</th>
-                    <th style="text-align: right;">Korisnici</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($sourcesData['rows'] as $row):
-                    $source = $row['dimensionValues'][0]['value'] ?? '(direct)';
-                    $medium = $row['dimensionValues'][1]['value'] ?? '(none)';
-                    $views = $row['metricValues'][0]['value'] ?? 0;
-                    $users = $row['metricValues'][1]['value'] ?? 0;
-                ?>
-                <tr>
-                    <td>
-                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
-                            <?php if (strpos($source, 'google') !== false): ?>
-                                <span style="color: #ea4335;">●</span>
-                            <?php elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false): ?>
-                                <span style="color: #1877f2;">●</span>
-                            <?php elseif ($source === '(direct)'): ?>
-                                <span style="color: #10b981;">●</span>
-                            <?php else: ?>
-                                <span style="color: #6b7280;">●</span>
-                            <?php endif; ?>
-                            <strong><?= e($source) ?></strong>
-                        </span>
-                    </td>
-                    <td style="color: #6b7280;"><?= e($medium) ?></td>
-                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
-                    <td style="text-align: right;"><?= number_format($users) ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+    <?php endforeach; ?>
+</div>
+
+<!-- Novi vs povratni korisnici -->
+<?php
+$newUsersPercent = $metrics['users']['current'] > 0 ? round($metrics['newUsers']['current'] / $metrics['users']['current'] * 100) : 0;
+$returningPercent = 100 - $newUsersPercent;
+?>
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3 class="card-title">Novi vs povratni korisnici</h3></div>
+    <div class="card-body">
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>🆕 Novi korisnici</span>
+                    <strong><?= $newUsersPercent ?>%</strong>
+                </div>
+                <div style="height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                    <div style="width: <?= $newUsersPercent ?>%; height: 100%; background: #3b82f6;"></div>
+                </div>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>🔄 Povratni korisnici</span>
+                    <strong><?= $returningPercent ?>%</strong>
+                </div>
+                <div style="height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                    <div style="width: <?= $returningPercent ?>%; height: 100%; background: #10b981;"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
-<?php endif; ?>
 
-<?php elseif ($reportType === 'pages' && !empty($articlesWithSources)): ?>
-<!-- Najčitaniji članci s izvorima -->
+<?php elseif ($reportType === 'pages' && $reportData && isset($reportData['rows'])): ?>
+<!-- ČLANCI -->
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Najčitaniji članci</h2>
@@ -366,49 +562,134 @@ include 'includes/header.php';
             <thead>
                 <tr>
                     <th style="width: 50px;">#</th>
-                    <th>Naslov članka</th>
-                    <th style="width: 250px;">Top izvori</th>
-                    <th style="width: 100px; text-align: right;">Pregledi</th>
+                    <th>Naslov</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Vrijeme</th>
+                    <th style="text-align: right;">Bounce</th>
                 </tr>
             </thead>
             <tbody>
-                <?php $i = 0; foreach ($articlesWithSources as $path => $article): $i++; ?>
+                <?php
+                $i = 0;
+                foreach ($reportData['rows'] as $row):
+                    $title = $row['dimensionValues'][0]['value'] ?? '-';
+                    $path = $row['dimensionValues'][1]['value'] ?? '';
+                    $views = (int)($row['metricValues'][0]['value'] ?? 0);
+                    $duration = (float)($row['metricValues'][1]['value'] ?? 0);
+                    $bounce = (float)($row['metricValues'][2]['value'] ?? 0) * 100;
+
+                    if ($path === '/' || strpos($path, '/admin') === 0 || $title === '(not set)') continue;
+                    $i++;
+                    if ($i > 50) break;
+                ?>
                 <tr>
                     <td style="color: #9ca3af;"><?= $i ?></td>
                     <td>
                         <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($path) ?>" style="text-decoration: none; color: inherit;">
-                            <div style="font-weight: 500;"><?= e(truncate($article['title'], 70)) ?></div>
+                            <div style="font-weight: 500;"><?= e(truncate($title, 60)) ?></div>
                             <div style="font-size: 0.75rem; color: #9ca3af;"><?= e(truncate($path, 50)) ?></div>
                         </a>
                     </td>
-                    <td>
-                        <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
-                            <?php foreach ($article['sources'] as $source => $views):
-                                $percent = round($views / $article['totalViews'] * 100);
-                                if ($percent < 5) continue;
-
-                                // Boja za izvor
-                                if (strpos($source, 'google') !== false) {
-                                    $color = '#ea4335';
-                                    $bg = '#fef2f2';
-                                } elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) {
-                                    $color = '#1877f2';
-                                    $bg = '#eff6ff';
-                                } elseif ($source === '(direct)') {
-                                    $color = '#10b981';
-                                    $bg = '#ecfdf5';
-                                } else {
-                                    $color = '#6b7280';
-                                    $bg = '#f3f4f6';
-                                }
-                            ?>
-                            <span style="background: <?= $bg ?>; color: <?= $color ?>; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 500;">
-                                <?= e($source) ?> <?= $percent ?>%
-                            </span>
-                            <?php endforeach; ?>
-                        </div>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
+                    <td style="text-align: right; color: #6b7280;"><?= formatDuration($duration) ?></td>
+                    <td style="text-align: right;">
+                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;
+                                     background: <?= $bounce > 70 ? '#fee2e2' : ($bounce > 50 ? '#fef3c7' : '#dcfce7') ?>;
+                                     color: <?= $bounce > 70 ? '#dc2626' : ($bounce > 50 ? '#d97706' : '#16a34a') ?>;">
+                            <?= round($bounce) ?>%
+                        </span>
                     </td>
-                    <td style="text-align: right; font-weight: 600; color: #1e3a5f;"><?= number_format($article['totalViews']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<?php elseif ($reportType === 'trending'): ?>
+<!-- TRENDING -->
+<?php
+$trending = [];
+$currentArticles = [];
+$previousArticles = [];
+
+if (isset($reportData['current']['rows'])) {
+    foreach ($reportData['current']['rows'] as $row) {
+        $path = $row['dimensionValues'][1]['value'] ?? '';
+        $title = $row['dimensionValues'][0]['value'] ?? '';
+        $views = (int)($row['metricValues'][0]['value'] ?? 0);
+        if ($path === '/' || strpos($path, '/admin') === 0 || $title === '(not set)') continue;
+        $currentArticles[$path] = ['title' => $title, 'views' => $views];
+    }
+}
+
+if (isset($reportData['previous']['rows'])) {
+    foreach ($reportData['previous']['rows'] as $row) {
+        $path = $row['dimensionValues'][1]['value'] ?? '';
+        $views = (int)($row['metricValues'][0]['value'] ?? 0);
+        $previousArticles[$path] = $views;
+    }
+}
+
+foreach ($currentArticles as $path => $data) {
+    $prevViews = $previousArticles[$path] ?? 0;
+    $change = calcChange($data['views'], $prevViews);
+    $trending[$path] = [
+        'title' => $data['title'],
+        'path' => $path,
+        'current' => $data['views'],
+        'previous' => $prevViews,
+        'change' => $change
+    ];
+}
+
+// Sortiraj po promjeni (najviši rast)
+uasort($trending, function($a, $b) {
+    return $b['change'] - $a['change'];
+});
+
+$trending = array_slice($trending, 0, 30, true);
+?>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">🔥 Trending članci (najveći rast)</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Naslov</th>
+                    <th style="text-align: right;">Sada</th>
+                    <th style="text-align: right;">Prije</th>
+                    <th style="text-align: right;">Promjena</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $i = 0; foreach ($trending as $article): $i++; ?>
+                <tr>
+                    <td style="color: #9ca3af;"><?= $i ?></td>
+                    <td>
+                        <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($article['path']) ?>" style="text-decoration: none; color: inherit;">
+                            <?= e(truncate($article['title'], 60)) ?>
+                        </a>
+                    </td>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($article['current']) ?></td>
+                    <td style="text-align: right; color: #9ca3af;"><?= number_format($article['previous']) ?></td>
+                    <td style="text-align: right;">
+                        <?php if ($article['change'] > 0): ?>
+                        <span style="background: #dcfce7; color: #16a34a; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                            ↑ +<?= $article['change'] ?>%
+                        </span>
+                        <?php elseif ($article['change'] < 0): ?>
+                        <span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 4px;">
+                            ↓ <?= $article['change'] ?>%
+                        </span>
+                        <?php else: ?>
+                        <span style="color: #9ca3af;">-</span>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -417,7 +698,7 @@ include 'includes/header.php';
 </div>
 
 <?php elseif ($reportType === 'sources' && $reportData && isset($reportData['rows'])): ?>
-<!-- Top izvori prometa -->
+<!-- IZVORI -->
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Izvori prometa</h2>
@@ -447,16 +728,10 @@ include 'includes/header.php';
                     $users = $row['metricValues'][1]['value'] ?? 0;
                     $percent = $totalViews > 0 ? round($views / $totalViews * 100, 1) : 0;
 
-                    // Boja za izvor
-                    if (strpos($source, 'google') !== false) {
-                        $color = '#ea4335';
-                    } elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) {
-                        $color = '#1877f2';
-                    } elseif ($source === '(direct)') {
-                        $color = '#10b981';
-                    } else {
-                        $color = '#6b7280';
-                    }
+                    if (strpos($source, 'google') !== false) $color = '#ea4335';
+                    elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) $color = '#1877f2';
+                    elseif ($source === '(direct)') $color = '#10b981';
+                    else $color = '#6b7280';
                 ?>
                 <tr>
                     <td>
@@ -484,10 +759,31 @@ include 'includes/header.php';
 </div>
 
 <?php elseif ($reportType === 'daily' && $reportData && isset($reportData['rows'])): ?>
-<!-- Po danima -->
+<!-- PO DANIMA -->
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Statistika po danima</h2>
+    </div>
+    <div class="card-body" style="padding: 1rem;">
+        <!-- Mini chart -->
+        <?php
+        $chartData = [];
+        $maxViews = 0;
+        foreach ($reportData['rows'] as $row) {
+            $views = (int)($row['metricValues'][0]['value'] ?? 0);
+            $chartData[] = $views;
+            if ($views > $maxViews) $maxViews = $views;
+        }
+        $chartData = array_reverse($chartData);
+        ?>
+        <div style="display: flex; align-items: flex-end; gap: 4px; height: 100px; margin-bottom: 1rem;">
+            <?php foreach ($chartData as $views):
+                $height = $maxViews > 0 ? ($views / $maxViews * 100) : 0;
+            ?>
+            <div style="flex: 1; background: #3b82f6; border-radius: 2px 2px 0 0; height: <?= $height ?>%; min-height: 2px;"
+                 title="<?= number_format($views) ?> pregleda"></div>
+            <?php endforeach; ?>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table">
@@ -497,17 +793,11 @@ include 'includes/header.php';
                     <th style="text-align: right;">Pregledi</th>
                     <th style="text-align: right;">Korisnici</th>
                     <th style="text-align: right;">Sesije</th>
+                    <th style="text-align: right;">Pros. vrijeme</th>
                 </tr>
             </thead>
             <tbody>
-                <?php
-                // Sortiraj po datumu silazno
-                $rows = $reportData['rows'];
-                usort($rows, function($a, $b) {
-                    return strcmp($b['dimensionValues'][0]['value'], $a['dimensionValues'][0]['value']);
-                });
-
-                foreach ($rows as $row):
+                <?php foreach ($reportData['rows'] as $row):
                     $dateStr = $row['dimensionValues'][0]['value'] ?? '';
                     $date = DateTime::createFromFormat('Ymd', $dateStr);
                     $formattedDate = $date ? $date->format('d.m.Y.') : $dateStr;
@@ -516,6 +806,7 @@ include 'includes/header.php';
                     $views = $row['metricValues'][0]['value'] ?? 0;
                     $users = $row['metricValues'][1]['value'] ?? 0;
                     $sessions = $row['metricValues'][2]['value'] ?? 0;
+                    $duration = (float)($row['metricValues'][3]['value'] ?? 0);
                 ?>
                 <tr>
                     <td>
@@ -525,12 +816,329 @@ include 'includes/header.php';
                     <td style="text-align: right; font-weight: 600; color: #1e3a5f;"><?= number_format($views) ?></td>
                     <td style="text-align: right;"><?= number_format($users) ?></td>
                     <td style="text-align: right;"><?= number_format($sessions) ?></td>
+                    <td style="text-align: right; color: #6b7280;"><?= formatDuration($duration) ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
 </div>
+
+<?php elseif ($reportType === 'hourly' && $reportData && isset($reportData['rows'])): ?>
+<!-- PO SATIMA - Heatmapa -->
+<?php
+$hourlyData = array_fill(0, 24, ['views' => 0, 'users' => 0]);
+$maxHourViews = 0;
+foreach ($reportData['rows'] as $row) {
+    $hour = (int)($row['dimensionValues'][0]['value'] ?? 0);
+    $views = (int)($row['metricValues'][0]['value'] ?? 0);
+    $users = (int)($row['metricValues'][1]['value'] ?? 0);
+    $hourlyData[$hour] = ['views' => $views, 'users' => $users];
+    if ($views > $maxHourViews) $maxHourViews = $views;
+}
+?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">🕐 Aktivnost po satima</h2>
+    </div>
+    <div class="card-body">
+        <p style="color: #6b7280; margin-bottom: 1rem;">Kada su korisnici najaktivniji? Tamnije = više prometa.</p>
+
+        <div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; margin-bottom: 1.5rem;">
+            <?php for ($h = 0; $h < 24; $h++):
+                $intensity = $maxHourViews > 0 ? ($hourlyData[$h]['views'] / $maxHourViews) : 0;
+                $bgColor = "rgba(37, 99, 235, " . (0.1 + $intensity * 0.9) . ")";
+                $textColor = $intensity > 0.5 ? 'white' : '#1e3a5f';
+            ?>
+            <div style="background: <?= $bgColor ?>; padding: 0.75rem 0.5rem; border-radius: 4px; text-align: center;"
+                 title="<?= $h ?>:00 - <?= number_format($hourlyData[$h]['views']) ?> pregleda">
+                <div style="font-size: 0.7rem; color: <?= $textColor ?>; opacity: 0.8;"><?= $h ?>h</div>
+                <div style="font-size: 0.9rem; font-weight: 600; color: <?= $textColor ?>;"><?= number_format($hourlyData[$h]['views']) ?></div>
+            </div>
+            <?php endfor; ?>
+        </div>
+
+        <!-- Legenda -->
+        <div style="display: flex; align-items: center; gap: 1rem; justify-content: center;">
+            <span style="font-size: 0.75rem; color: #6b7280;">Manje</span>
+            <div style="display: flex; gap: 2px;">
+                <?php for ($i = 1; $i <= 5; $i++): ?>
+                <div style="width: 20px; height: 12px; background: rgba(37, 99, 235, <?= $i * 0.2 ?>); border-radius: 2px;"></div>
+                <?php endfor; ?>
+            </div>
+            <span style="font-size: 0.75rem; color: #6b7280;">Više</span>
+        </div>
+    </div>
+</div>
+
+<?php elseif ($reportType === 'geography' && $reportData && isset($reportData['rows'])): ?>
+<!-- GEOGRAFIJA -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">🌍 Geografija posjetitelja</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Lokacija</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Korisnici</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $i = 0; foreach ($reportData['rows'] as $row): $i++;
+                    $country = $row['dimensionValues'][0]['value'] ?? '-';
+                    $city = $row['dimensionValues'][1]['value'] ?? '-';
+                    $views = $row['metricValues'][0]['value'] ?? 0;
+                    $users = $row['metricValues'][1]['value'] ?? 0;
+
+                    // Emoji zastave za poznate zemlje
+                    $flags = ['Croatia' => '🇭🇷', 'Germany' => '🇩🇪', 'Austria' => '🇦🇹', 'Slovenia' => '🇸🇮',
+                              'United States' => '🇺🇸', 'United Kingdom' => '🇬🇧', 'Serbia' => '🇷🇸',
+                              'Bosnia & Herzegovina' => '🇧🇦', 'Switzerland' => '🇨🇭', 'Italy' => '🇮🇹'];
+                    $flag = $flags[$country] ?? '🌐';
+                ?>
+                <tr>
+                    <td style="color: #9ca3af;"><?= $i ?></td>
+                    <td>
+                        <span style="margin-right: 0.5rem;"><?= $flag ?></span>
+                        <strong><?= e($city !== '(not set)' ? $city : $country) ?></strong>
+                        <?php if ($city !== '(not set)'): ?>
+                        <span style="color: #9ca3af; margin-left: 0.5rem;"><?= e($country) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
+                    <td style="text-align: right;"><?= number_format($users) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<?php elseif ($reportType === 'devices' && $reportData && isset($reportData['rows'])): ?>
+<!-- UREĐAJI -->
+<?php
+$devices = ['desktop' => ['label' => 'Desktop', 'icon' => '🖥️', 'color' => '#3b82f6'],
+            'mobile' => ['label' => 'Mobitel', 'icon' => '📱', 'color' => '#10b981'],
+            'tablet' => ['label' => 'Tablet', 'icon' => '📲', 'color' => '#f59e0b']];
+$deviceData = [];
+$totalSessions = 0;
+
+foreach ($reportData['rows'] as $row) {
+    $device = strtolower($row['dimensionValues'][0]['value'] ?? 'other');
+    $sessions = (int)($row['metricValues'][2]['value'] ?? 0);
+    $deviceData[$device] = $sessions;
+    $totalSessions += $sessions;
+}
+?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📱 Uređaji</h2>
+    </div>
+    <div class="card-body">
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; margin-bottom: 2rem;">
+            <?php foreach ($devices as $key => $d):
+                $sessions = $deviceData[$key] ?? 0;
+                $percent = $totalSessions > 0 ? round($sessions / $totalSessions * 100) : 0;
+            ?>
+            <div style="text-align: center; min-width: 120px;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;"><?= $d['icon'] ?></div>
+                <div style="font-size: 2rem; font-weight: 700; color: <?= $d['color'] ?>;"><?= $percent ?>%</div>
+                <div style="color: #6b7280;"><?= $d['label'] ?></div>
+                <div style="font-size: 0.875rem; color: #9ca3af;"><?= number_format($sessions) ?> sesija</div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Progress bars -->
+        <div style="max-width: 400px; margin: 0 auto;">
+            <?php foreach ($devices as $key => $d):
+                $sessions = $deviceData[$key] ?? 0;
+                $percent = $totalSessions > 0 ? round($sessions / $totalSessions * 100) : 0;
+            ?>
+            <div style="margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                    <span><?= $d['icon'] ?> <?= $d['label'] ?></span>
+                    <span style="font-weight: 600;"><?= $percent ?>%</span>
+                </div>
+                <div style="height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                    <div style="width: <?= $percent ?>%; height: 100%; background: <?= $d['color'] ?>;"></div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+
+<?php elseif ($reportType === 'landing' && $reportData && isset($reportData['rows'])): ?>
+<!-- LANDING PAGES -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">🚪 Landing stranice</h2>
+        <p style="color: #6b7280; margin: 0.25rem 0 0 0; font-size: 0.875rem;">Na koje stranice korisnici prvo dolaze</p>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Stranica</th>
+                    <th style="text-align: right;">Sesije</th>
+                    <th style="text-align: right;">Korisnici</th>
+                    <th style="text-align: right;">Bounce</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $i = 0; foreach ($reportData['rows'] as $row): $i++;
+                    $path = $row['dimensionValues'][0]['value'] ?? '-';
+                    $sessions = $row['metricValues'][0]['value'] ?? 0;
+                    $users = $row['metricValues'][1]['value'] ?? 0;
+                    $bounce = (float)($row['metricValues'][2]['value'] ?? 0) * 100;
+                    if ($i > 30) break;
+                ?>
+                <tr>
+                    <td style="color: #9ca3af;"><?= $i ?></td>
+                    <td>
+                        <a href="?period=<?= $period ?>&report=article&page=<?= urlencode(parse_url($path, PHP_URL_PATH) ?: $path) ?>"
+                           style="text-decoration: none; color: inherit;">
+                            <?= e(truncate($path, 70)) ?>
+                        </a>
+                    </td>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($sessions) ?></td>
+                    <td style="text-align: right;"><?= number_format($users) ?></td>
+                    <td style="text-align: right;">
+                        <span style="padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;
+                                     background: <?= $bounce > 70 ? '#fee2e2' : ($bounce > 50 ? '#fef3c7' : '#dcfce7') ?>;
+                                     color: <?= $bounce > 70 ? '#dc2626' : ($bounce > 50 ? '#d97706' : '#16a34a') ?>;">
+                            <?= round($bounce) ?>%
+                        </span>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<?php elseif ($reportType === 'article' && $pagePath && $reportData): ?>
+<!-- DETALJI ČLANKA -->
+<?php
+$pageTitle = '';
+$totalViews = 0;
+$avgDuration = 0;
+$bounceRate = 0;
+
+if (isset($reportData['title']['rows'][0])) {
+    $pageTitle = $reportData['title']['rows'][0]['dimensionValues'][0]['value'] ?? '';
+    $totalViews = (int)($reportData['title']['rows'][0]['metricValues'][0]['value'] ?? 0);
+    $avgDuration = (float)($reportData['title']['rows'][0]['metricValues'][1]['value'] ?? 0);
+    $bounceRate = (float)($reportData['title']['rows'][0]['metricValues'][2]['value'] ?? 0) * 100;
+}
+?>
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header">
+        <a href="?period=<?= $period ?>&report=pages" class="btn btn-sm btn-outline">← Natrag</a>
+    </div>
+    <div class="card-body">
+        <h2 style="margin: 0 0 0.5rem 0;"><?= e($pageTitle ?: $pagePath) ?></h2>
+        <p style="color: #6b7280; margin: 0; font-size: 0.875rem;"><?= e($pagePath) ?></p>
+
+        <div style="display: flex; gap: 2rem; margin-top: 1rem; flex-wrap: wrap;">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700;"><?= number_format($totalViews) ?></div>
+                <div style="color: #6b7280; font-size: 0.875rem;">Pregledi</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700;"><?= formatDuration($avgDuration) ?></div>
+                <div style="color: #6b7280; font-size: 0.875rem;">Pros. vrijeme</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: 700;"><?= round($bounceRate) ?>%</div>
+                <div style="color: #6b7280; font-size: 0.875rem;">Bounce rate</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php if (isset($reportData['daily']['rows'])): ?>
+<!-- Mini graf po danima -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3 class="card-title">📈 Pregledi po danima</h3></div>
+    <div class="card-body">
+        <?php
+        $dailyViews = [];
+        $maxDaily = 0;
+        foreach ($reportData['daily']['rows'] as $row) {
+            $dateStr = $row['dimensionValues'][0]['value'] ?? '';
+            $views = (int)($row['metricValues'][0]['value'] ?? 0);
+            $dailyViews[$dateStr] = $views;
+            if ($views > $maxDaily) $maxDaily = $views;
+        }
+        ?>
+        <div style="display: flex; align-items: flex-end; gap: 4px; height: 80px;">
+            <?php foreach ($dailyViews as $date => $views):
+                $height = $maxDaily > 0 ? ($views / $maxDaily * 100) : 0;
+                $d = DateTime::createFromFormat('Ymd', $date);
+                $label = $d ? $d->format('d.m.') : $date;
+            ?>
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 100%; background: #3b82f6; border-radius: 2px 2px 0 0; height: <?= max($height, 2) ?>px;"
+                     title="<?= $label ?>: <?= number_format($views) ?>"></div>
+                <div style="font-size: 0.6rem; color: #9ca3af; transform: rotate(-45deg); white-space: nowrap;"><?= $label ?></div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (isset($reportData['sources']['rows'])): ?>
+<!-- Izvori prometa -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">🔗 Izvori prometa za ovaj članak</h3>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Izvor</th>
+                    <th>Medium</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Korisnici</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($reportData['sources']['rows'] as $row):
+                    $source = $row['dimensionValues'][0]['value'] ?? '(direct)';
+                    $medium = $row['dimensionValues'][1]['value'] ?? '(none)';
+                    $views = $row['metricValues'][0]['value'] ?? 0;
+                    $users = $row['metricValues'][1]['value'] ?? 0;
+
+                    if (strpos($source, 'google') !== false) $color = '#ea4335';
+                    elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) $color = '#1877f2';
+                    elseif ($source === '(direct)') $color = '#10b981';
+                    else $color = '#6b7280';
+                ?>
+                <tr>
+                    <td>
+                        <span style="color: <?= $color ?>;">●</span>
+                        <strong style="margin-left: 0.5rem;"><?= e($source) ?></strong>
+                    </td>
+                    <td style="color: #6b7280;"><?= e($medium) ?></td>
+                    <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
+                    <td style="text-align: right;"><?= number_format($users) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php else: ?>
 <div class="card">
