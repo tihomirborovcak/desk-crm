@@ -227,17 +227,23 @@ include 'includes/header.php';
             <?php else: ?>
                 <!-- CMS zakazane -->
                 <?php foreach ($scheduledPosts as $post): ?>
-                <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; background: #fffbeb;">
-                    <div style="display: flex; justify-content: space-between; align-items: start; gap: 0.5rem;">
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 0.75rem; color: #92400e;">
+                <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; background: #fffbeb; display: flex; gap: 0.5rem;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="font-weight: 600; font-size: 0.8rem; color: #92400e;">
                                 ⏰ <?= date('d.m. H:i', strtotime($post['scheduled_at'])) ?> <span style="font-size: 0.6rem; background: #fef3c7; padding: 0.1rem 0.3rem; border-radius: 3px;">CMS</span>
                             </div>
-                            <div style="font-size: 0.75rem; margin-top: 0.2rem;"><?= e($post['title'] ?: mb_substr($post['url'], 0, 50)) ?></div>
+                            <div style="display: flex; gap: 0.25rem;">
+                                <a href="?post_now=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-success" title="Objavi odmah" onclick="return confirm('Objaviti odmah?')">▶</a>
+                                <a href="?cancel=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
+                            </div>
                         </div>
-                        <div style="display: flex; gap: 0.25rem;">
-                            <a href="?post_now=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-success" title="Objavi odmah" onclick="return confirm('Objaviti odmah?')">▶</a>
-                            <a href="?cancel=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
+                        <div style="font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem;"><?= e($post['title'] ?: 'Bez naslova') ?></div>
+                        <?php if ($post['message']): ?>
+                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.15rem;"><?= e(mb_substr($post['message'], 0, 80)) ?><?= mb_strlen($post['message']) > 80 ? '...' : '' ?></div>
+                        <?php endif; ?>
+                        <div style="font-size: 0.65rem; color: #9ca3af; margin-top: 0.15rem;">
+                            <a href="<?= e($post['url']) ?>" target="_blank" style="color: #1877f2;">↗ <?= e(mb_substr($post['url'], 0, 50)) ?>...</a>
                         </div>
                     </div>
                 </div>
@@ -247,17 +253,24 @@ include 'includes/header.php';
                 <?php foreach ($fbScheduledPosts as $post):
                     $fbTitle = $post['attachments']['data'][0]['title'] ?? null;
                 ?>
-                <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.5rem;">
+                <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.5rem; background: #f0f9ff;">
                     <?php if (!empty($post['full_picture'])): ?>
-                    <img src="<?= e($post['full_picture']) ?>" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;">
+                    <img src="<?= e($post['full_picture']) ?>" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
                     <?php endif; ?>
                     <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; font-size: 0.75rem; color: #1877f2;">
+                        <div style="font-weight: 600; font-size: 0.8rem; color: #1877f2;">
                             ⏰ <?= date('d.m. H:i', $post['scheduled_publish_time']) ?> <span style="font-size: 0.6rem; background: #dbeafe; padding: 0.1rem 0.3rem; border-radius: 3px;">FB</span>
                         </div>
-                        <div style="font-size: 0.75rem; margin-top: 0.2rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                            <?= e($fbTitle ?? mb_substr($post['message'] ?? '-', 0, 60)) ?>
+                        <?php if ($fbTitle): ?>
+                        <div style="font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            <?= e($fbTitle) ?>
                         </div>
+                        <?php endif; ?>
+                        <?php if (!empty($post['message'])): ?>
+                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.15rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            <?= e($post['message']) ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
