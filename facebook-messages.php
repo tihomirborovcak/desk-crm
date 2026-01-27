@@ -177,7 +177,7 @@ include 'includes/header.php';
     </h1>
     <div style="display: flex; gap: 0.5rem;">
         <a href="?refresh=1" class="btn btn-outline">Osvježi</a>
-        <a href="?delete_all=1&token=<?= getCSRFToken() ?>" class="btn btn-danger" onclick="return confirm('Obrisati SVE poruke?')">Obriši sve</a>
+        <a href="?delete_all=1&token=<?= generateCSRFToken() ?>" class="btn btn-danger" onclick="return confirm('Obrisati SVE poruke?')">Obriši sve</a>
     </div>
 </div>
 
@@ -231,7 +231,7 @@ include 'includes/header.php';
         ?>
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h2 class="card-title"><?= e($convInfo['participant_name'] ?? 'Konverzacija') ?></h2>
-            <a href="?delete=<?= urlencode($selectedConv) ?>&token=<?= getCSRFToken() ?>"
+            <a href="?delete=<?= urlencode($selectedConv) ?>&token=<?= generateCSRFToken() ?>"
                class="btn btn-sm btn-danger"
                onclick="return confirm('Obrisati ovu konverzaciju?')"
                title="Obriši konverzaciju">🗑️</a>
@@ -259,7 +259,7 @@ include 'includes/header.php';
         </div>
         <div class="card-footer" style="background: #f9fafb; padding: 1rem;">
             <form method="POST" class="reply-form">
-                <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
+                <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                 <input type="hidden" name="recipient_id" value="<?= e($convInfo['participant_id'] ?? '') ?>">
                 <input type="hidden" name="conversation_id" value="<?= e($selectedConv) ?>">
                 <div style="display: flex; gap: 0.5rem;">
