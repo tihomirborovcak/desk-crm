@@ -351,71 +351,121 @@ $fbPosts = $fbResult['posts'] ?? [];
 $fbError = $fbResult['error'] ?? null;
 
 // Grupiraj po danima
-$postsByDay = [];
+$today = date('Y-m-d');
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+$todayPosts = [];
+$yesterdayPosts = [];
+$olderByDay = [];
+
 foreach ($fbPosts as $post) {
     $postDate = date('Y-m-d', strtotime($post['created_time']));
-    if (!isset($postsByDay[$postDate])) {
-        $postsByDay[$postDate] = [];
+    if ($postDate === $today) {
+        $todayPosts[] = $post;
+    } elseif ($postDate === $yesterday) {
+        $yesterdayPosts[] = $post;
+    } else {
+        if (!isset($olderByDay[$postDate])) {
+            $olderByDay[$postDate] = [];
+        }
+        $olderByDay[$postDate][] = $post;
     }
-    $postsByDay[$postDate][] = $post;
 }
+$dayNames = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota'];
 ?>
 
-<div class="card mt-2">
-    <div class="card-header" style="background: #1877f2; color: white;">
-        <h2 class="card-title" style="color: white;">📘 Objavljeno na Facebook stranici (<?= count($fbPosts) ?>)</h2>
-    </div>
-    <div class="card-body" style="padding: 0; max-height: 600px; overflow-y: auto;">
-        <?php if ($fbError): ?>
-        <div style="background: #fee2e2; padding: 0.5rem; color: #dc2626; font-size: 0.75rem;">
-            Greška: <?= e($fbError['message'] ?? 'Nepoznata greška') ?>
-        </div>
-        <?php endif; ?>
+<?php if ($fbError): ?>
+<div class="alert alert-danger mt-2"><?= e($fbError['message'] ?? 'Greška') ?></div>
+<?php endif; ?>
 
-        <?php
-        $today = date('Y-m-d');
-        $dayNames = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota'];
-        foreach ($postsByDay as $date => $posts):
-            $isToday = ($date === $today);
+<!-- Danas i Jučer - dva stupca -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+    <!-- Danas -->
+    <div class="card">
+        <div class="card-header" style="background: #dcfce7;">
+            <h2 class="card-title" style="color: #166534;">🟢 Danas (<?= count($todayPosts) ?>)</h2>
+        </div>
+        <div class="card-body" style="padding: 0; max-height: 350px; overflow-y: auto;">
+            <?php foreach ($todayPosts as $post):
+                $title = $post['attachments']['data'][0]['title'] ?? null;
+                $likes = $post['likes']['summary']['total_count'] ?? 0;
+                $comments = $post['comments']['summary']['total_count'] ?? 0;
+                $shares = $post['shares']['count'] ?? 0;
+            ?>
+            <div style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.7rem;">
+                <div style="display: flex; gap: 0.4rem; align-items: baseline;">
+                    <span style="color: #6b7280; font-size: 0.6rem;"><?= date('H:i', strtotime($post['created_time'])) ?></span>
+                    <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+                        <?= e($title ?? mb_substr($post['message'] ?? '-', 0, 45)) ?>
+                    </span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; color: #6b7280; font-size: 0.6rem; margin-top: 0.1rem;">
+                    <span>👍<?= $likes ?></span><span>💬<?= $comments ?></span><span>🔄<?= $shares ?></span>
+                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php if (empty($todayPosts)): ?><p style="padding: 0.5rem; color: #9ca3af; text-align: center;">Nema objava</p><?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Jučer -->
+    <div class="card">
+        <div class="card-header" style="background: #fef3c7;">
+            <h2 class="card-title" style="color: #92400e;">📅 Jučer (<?= count($yesterdayPosts) ?>)</h2>
+        </div>
+        <div class="card-body" style="padding: 0; max-height: 350px; overflow-y: auto;">
+            <?php foreach ($yesterdayPosts as $post):
+                $title = $post['attachments']['data'][0]['title'] ?? null;
+                $likes = $post['likes']['summary']['total_count'] ?? 0;
+                $comments = $post['comments']['summary']['total_count'] ?? 0;
+                $shares = $post['shares']['count'] ?? 0;
+            ?>
+            <div style="padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.7rem;">
+                <div style="display: flex; gap: 0.4rem; align-items: baseline;">
+                    <span style="color: #6b7280; font-size: 0.6rem;"><?= date('H:i', strtotime($post['created_time'])) ?></span>
+                    <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+                        <?= e($title ?? mb_substr($post['message'] ?? '-', 0, 45)) ?>
+                    </span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; color: #6b7280; font-size: 0.6rem; margin-top: 0.1rem;">
+                    <span>👍<?= $likes ?></span><span>💬<?= $comments ?></span><span>🔄<?= $shares ?></span>
+                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php if (empty($yesterdayPosts)): ?><p style="padding: 0.5rem; color: #9ca3af; text-align: center;">Nema objava</p><?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Starije objave -->
+<?php if (!empty($olderByDay)): ?>
+<div class="card mt-2">
+    <div class="card-header">
+        <h2 class="card-title">📜 Ranije (<?= count($fbPosts) - count($todayPosts) - count($yesterdayPosts) ?>)</h2>
+    </div>
+    <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
+        <?php foreach ($olderByDay as $date => $posts):
             $dayNum = date('w', strtotime($date));
-            $dayLabel = $isToday ? '🟢 Danas' : $dayNames[$dayNum] . ' ' . date('d.m.', strtotime($date));
+            $dayLabel = $dayNames[$dayNum] . ' ' . date('d.m.', strtotime($date));
         ?>
-        <div style="background: <?= $isToday ? '#dcfce7' : '#f3f4f6' ?>; padding: 0.4rem 0.75rem; font-weight: 600; color: <?= $isToday ? '#166534' : '#4b5563' ?>; font-size: 0.75rem; position: sticky; top: 0; border-bottom: 1px solid #e5e7eb;">
+        <div style="background: #f3f4f6; padding: 0.3rem 0.5rem; font-weight: 600; font-size: 0.7rem; color: #4b5563; position: sticky; top: 0;">
             <?= $dayLabel ?> (<?= count($posts) ?>)
         </div>
-
         <?php foreach ($posts as $post):
             $title = $post['attachments']['data'][0]['title'] ?? null;
             $likes = $post['likes']['summary']['total_count'] ?? 0;
             $comments = $post['comments']['summary']['total_count'] ?? 0;
             $shares = $post['shares']['count'] ?? 0;
         ?>
-        <div style="padding: 0.4rem 0.75rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.5rem; font-size: 0.7rem;">
-            <?php if (!empty($post['full_picture'])): ?>
-            <img src="<?= e($post['full_picture']) ?>" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
-            <?php endif; ?>
-            <div style="flex: 1; min-width: 0;">
-                <div style="display: flex; gap: 0.5rem; align-items: baseline;">
-                    <span style="color: #6b7280; font-size: 0.65rem;"><?= date('H:i', strtotime($post['created_time'])) ?></span>
-                    <span style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        <?= e($title ?? mb_substr($post['message'] ?? '(bez teksta)', 0, 60)) ?>
-                    </span>
-                </div>
-                <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 0.15rem; color: #6b7280; font-size: 0.65rem;">
-                    <span>👍<?= $likes ?></span>
-                    <span>💬<?= $comments ?></span>
-                    <span>🔄<?= $shares ?></span>
-                    <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
-                </div>
-            </div>
+        <div style="padding: 0.25rem 0.5rem; border-bottom: 1px solid #e5e7eb; font-size: 0.65rem; display: flex; gap: 0.5rem; align-items: center;">
+            <span style="color: #9ca3af; width: 32px;"><?= date('H:i', strtotime($post['created_time'])) ?></span>
+            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= e($title ?? mb_substr($post['message'] ?? '-', 0, 50)) ?></span>
+            <span style="color: #9ca3af; white-space: nowrap;">👍<?= $likes ?> 💬<?= $comments ?></span>
+            <a href="<?= e($post['permalink_url']) ?>" target="_blank" style="color: #1877f2;">↗</a>
         </div>
         <?php endforeach; ?>
         <?php endforeach; ?>
-
-        <?php if (empty($fbPosts)): ?>
-        <p style="padding: 1rem; text-align: center; color: #6b7280;">Nema objava</p>
-        <?php endif; ?>
     </div>
 </div>
-
 <?php include 'includes/footer.php'; ?>
