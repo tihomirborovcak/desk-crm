@@ -209,6 +209,7 @@ include 'includes/header.php';
     <?php
     $fbScheduled = getFacebookScheduledPosts();
     $fbScheduledPosts = $fbScheduled['posts'] ?? [];
+    $fbScheduledError = $fbScheduled['error'] ?? null;
     $totalScheduled = count($scheduledPosts) + count($fbScheduledPosts);
     ?>
     <div class="card">
@@ -216,6 +217,11 @@ include 'includes/header.php';
             <h2 class="card-title" style="color: #92400e;">📅 Zakazano (<?= $totalScheduled ?>)</h2>
         </div>
         <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
+            <?php if ($fbScheduledError): ?>
+            <div style="background: #fee2e2; padding: 0.4rem; font-size: 0.65rem; color: #dc2626;">
+                FB greška: <?= e($fbScheduledError['message'] ?? 'Nepoznato') ?>
+            </div>
+            <?php endif; ?>
             <?php if (empty($scheduledPosts) && empty($fbScheduledPosts)): ?>
                 <p style="padding: 1rem; color: #6b7280; text-align: center;">Nema zakazanih objava</p>
             <?php else: ?>
