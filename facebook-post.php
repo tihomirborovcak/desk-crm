@@ -346,7 +346,9 @@ function toggleSchedule() {
 
 <!-- Objave s Facebook stranice -->
 <?php
-$fbPosts = getFacebookPosts(15);
+$fbResult = getFacebookPosts(15, true);
+$fbPosts = $fbResult['posts'];
+$fbError = $fbResult['error'];
 $todayPosts = [];
 $olderPosts = [];
 $today = date('Y-m-d');
@@ -422,7 +424,12 @@ foreach ($fbPosts as $post) {
         <?php endforeach; ?>
 
         <?php if (empty($fbPosts)): ?>
-        <p style="padding: 1rem; text-align: center; color: #6b7280;">Nema objava</p>
+        <p style="padding: 1rem; text-align: center; color: #6b7280;">
+            Nema objava
+            <?php if ($fbError): ?>
+            <br><small style="color: #dc2626;">Greška: <?= e($fbError['message'] ?? 'Nepoznata greška') ?></small>
+            <?php endif; ?>
+        </p>
         <?php endif; ?>
     </div>
 </div>

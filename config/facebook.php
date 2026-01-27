@@ -55,7 +55,7 @@ function postToFacebook($url, $message = '') {
 /**
  * Dohvati objave s Facebook stranice
  */
-function getFacebookPosts($limit = 20) {
+function getFacebookPosts($limit = 20, $debug = false) {
     $pageId = FB_PAGE_ID;
     $token = FB_PAGE_ACCESS_TOKEN;
 
@@ -67,6 +67,10 @@ function getFacebookPosts($limit = 20) {
     curl_close($ch);
 
     $data = json_decode($response, true);
+
+    if ($debug) {
+        return ['posts' => $data['data'] ?? [], 'raw' => $data, 'error' => $data['error'] ?? null];
+    }
 
     return $data['data'] ?? [];
 }
