@@ -757,14 +757,23 @@ foreach ($articles as $article) {
     </div>
 </div>
 
-<!-- Debug: Primjer GA4 naslova -->
-<?php if (isAdmin() && !empty($viewsByTitle)): ?>
-<details style="margin-bottom: 1rem;">
-    <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Primjeri GA4 naslova (klikni)</summary>
-    <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
-        <?php $i = 0; foreach ($viewsByTitle as $t => $v): if ($i++ >= 20) break; ?>
-        <div style="margin-bottom: 0.25rem;"><?= e($t) ?> <span style="color: #9ca3af;">(<?= number_format($v) ?>)</span></div>
-        <?php endforeach; ?>
+<!-- Debug: Usporedba naslova -->
+<?php if (isAdmin()): ?>
+<details style="margin-bottom: 1rem;" open>
+    <summary style="cursor: pointer; color: #6b7280; font-size: 0.875rem;">Debug: Usporedba Feedly vs GA4 naslova</summary>
+    <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.7rem; max-height: 400px; overflow-y: auto;">
+        <div style="margin-bottom: 1rem;">
+            <strong>Prvih 5 Feedly naslova:</strong>
+            <?php $i = 0; foreach ($articles as $art): if ($i++ >= 5) break; ?>
+            <div style="margin: 0.25rem 0; padding: 0.25rem; background: #dbeafe; border-radius: 4px;"><?= e($art['title']) ?></div>
+            <?php endforeach; ?>
+        </div>
+        <div>
+            <strong>Prvih 10 GA4 naslova (nakon čišćenja):</strong>
+            <?php $i = 0; foreach ($viewsByTitle as $t => $v): if ($i++ >= 10) break; ?>
+            <div style="margin: 0.25rem 0; padding: 0.25rem; background: #dcfce7; border-radius: 4px;"><?= e($t) ?> <span style="color: #9ca3af;">(<?= number_format($v) ?>)</span></div>
+            <?php endforeach; ?>
+        </div>
     </div>
 </details>
 <?php endif; ?>
