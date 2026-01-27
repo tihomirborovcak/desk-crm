@@ -6,17 +6,17 @@
 define('FB_APP_ID', '1400449617617009');
 define('FB_APP_SECRET', '865941be7c689b85f4de5f6f8bc61b5b');
 
-// Konfiguracija stranica
+// Konfiguracija stranica (tokeni s messaging permisijom)
 $FB_PAGES = [
     'zagorje' => [
         'id' => '170346612635',
         'name' => 'Zagorje.com',
-        'token' => 'EAAT5s5X74HEBQjOLntoiXFSIRzZClSwlfZAG4snJyh7SkevLWMMlQffFn1LuJpamUkHhOZCt2fZBr88j3uP7ZCSQ0jZBfQgCn51iMvpC2oZA9qIXtdXzD2A4ZAYn7jAcv11ZAK3BLOiGdrjF2eoQsMTXdOvtnyUejSIylDJcZBlP3ALPA6Oc552KcrvamZAOFquI1jCzwZDZD'
+        'token' => 'EAAT5s5X74HEBQuYbW8qYVr9dfLIoe8Vt4ht607X1xFHC36UmzRNVQhqbejlIt9qvkDTZBgkrn9eTOkITQZAJWZCnOdjZBuBwOd2zR9EHuyDinxBgCVQKIgSsHOq7nCZBsVqfpFP8nvEtW2iZBQ6SqSqDQNss5LAlDeqGj7CqbWQigdx0E2YErLeOCRL59McoySDgZDZD'
     ],
     'zagorski_list' => [
         'id' => '291667890858805',
         'name' => 'Zagorski list',
-        'token' => 'EAAT5s5X74HEBQtQfZBG6goMO7lj1OQV8ylDrYHoFwlDWXt8ZCc54h28ErnnU5HSS6VxRBXyezC5Mb0qZCmUDzMu6DwwZCtZB47Wa3xcZAtayviIZAFcVSYbRIIeZC3vZALFEWsMZACkoZAiNw8O9rP4znI5qKjTNZA5UdFGtBHA2uYwV99Q8Wj6hvS6o4rJZBKCyHPKkeBTqT'
+        'token' => 'EAAT5s5X74HEBQmVLDRTTjZBtUBma2kwMAbTjuURvL47M43WhX9izRe6d1X07evY9bFOukSuuYrZB0dfx1xXCALeQ1PAAVcpt1G3tgvhskdbTAafsdxrTKoyf4Nszbgxrtwx6mojJwQ574MXHW3a9qqrDywTGakrwD1srv7RJQD0BJAIntahbTMOT7LZA6poox4J'
     ]
 ];
 
