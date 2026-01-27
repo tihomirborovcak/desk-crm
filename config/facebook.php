@@ -120,6 +120,28 @@ function getFacebookPageId() {
 }
 
 /**
+ * Dohvati zakazane objave s Facebook stranice
+ */
+function getFacebookScheduledPosts() {
+    $pageId = FB_PAGE_ID;
+    $token = FB_PAGE_ACCESS_TOKEN;
+
+    $url = "https://graph.facebook.com/v24.0/{$pageId}/scheduled_posts?fields=id,message,scheduled_publish_time,attachments{title,url},full_picture&access_token={$token}";
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    return [
+        'posts' => $data['data'] ?? [],
+        'error' => $data['error'] ?? null
+    ];
+}
+
+/**
  * Debug - prikaži info o tokenu
  */
 function debugFacebookToken() {

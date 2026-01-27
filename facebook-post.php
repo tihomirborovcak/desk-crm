@@ -205,32 +205,52 @@ include 'includes/header.php';
         </div>
     </div>
 
-    <!-- Zakazane objave -->
+    <!-- Zakazane objave - CMS + Facebook -->
+    <?php
+    $fbScheduled = getFacebookScheduledPosts();
+    $fbScheduledPosts = $fbScheduled['posts'] ?? [];
+    $totalScheduled = count($scheduledPosts) + count($fbScheduledPosts);
+    ?>
     <div class="card">
         <div class="card-header" style="background: #fef3c7;">
-            <h2 class="card-title" style="color: #92400e;">📅 Zakazano (<?= count($scheduledPosts) ?>)</h2>
+            <h2 class="card-title" style="color: #92400e;">📅 Zakazano (<?= $totalScheduled ?>)</h2>
         </div>
         <div class="card-body" style="padding: 0; max-height: 400px; overflow-y: auto;">
-            <?php if (empty($scheduledPosts)): ?>
+            <?php if (empty($scheduledPosts) && empty($fbScheduledPosts)): ?>
                 <p style="padding: 1rem; color: #6b7280; text-align: center;">Nema zakazanih objava</p>
             <?php else: ?>
-                <?php foreach ($scheduledPosts as $i => $post): ?>
-                <div style="padding: 0.75rem; border-bottom: 1px solid #e5e7eb; background: <?= $i % 2 ? '#f9fafb' : 'white' ?>;">
+                <!-- CMS zakazane -->
+                <?php foreach ($scheduledPosts as $post): ?>
+                <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; background: #fffbeb;">
                     <div style="display: flex; justify-content: space-between; align-items: start; gap: 0.5rem;">
                         <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 600; font-size: 0.8rem; color: #92400e;">
-                                ⏰ <?= date('d.m. H:i', strtotime($post['scheduled_at'])) ?>
+                            <div style="font-weight: 600; font-size: 0.75rem; color: #92400e;">
+                                ⏰ <?= date('d.m. H:i', strtotime($post['scheduled_at'])) ?> <span style="font-size: 0.6rem; background: #fef3c7; padding: 0.1rem 0.3rem; border-radius: 3px;">CMS</span>
                             </div>
-                            <div style="font-size: 0.75rem; margin-top: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                <?= e($post['title'] ?: $post['url']) ?>
-                            </div>
-                            <?php if ($post['message']): ?>
-                            <div style="font-size: 0.7rem; color: #6b7280; margin-top: 0.25rem;"><?= e(mb_substr($post['message'], 0, 50)) ?>...</div>
-                            <?php endif; ?>
+                            <div style="font-size: 0.75rem; margin-top: 0.2rem;"><?= e($post['title'] ?: mb_substr($post['url'], 0, 50)) ?></div>
                         </div>
                         <div style="display: flex; gap: 0.25rem;">
                             <a href="?post_now=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-success" title="Objavi odmah" onclick="return confirm('Objaviti odmah?')">▶</a>
                             <a href="?cancel=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+
+                <!-- Facebook zakazane -->
+                <?php foreach ($fbScheduledPosts as $post):
+                    $fbTitle = $post['attachments']['data'][0]['title'] ?? null;
+                ?>
+                <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; display: flex; gap: 0.5rem;">
+                    <?php if (!empty($post['full_picture'])): ?>
+                    <img src="<?= e($post['full_picture']) ?>" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;">
+                    <?php endif; ?>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; font-size: 0.75rem; color: #1877f2;">
+                            ⏰ <?= date('d.m. H:i', $post['scheduled_publish_time']) ?> <span style="font-size: 0.6rem; background: #dbeafe; padding: 0.1rem 0.3rem; border-radius: 3px;">FB</span>
+                        </div>
+                        <div style="font-size: 0.75rem; margin-top: 0.2rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            <?= e($fbTitle ?? mb_substr($post['message'] ?? '-', 0, 60)) ?>
                         </div>
                     </div>
                 </div>
