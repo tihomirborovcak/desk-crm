@@ -362,24 +362,32 @@ if (!empty(GA4_PROPERTY_ID)) {
         case 'revenue':
             // Samo za admine
             if (isAdmin()) {
+                // Ovaj mjesec do danas
+                $revenueStartDate = date('Y-m-01');
+                $revenueEndDate = 'today';
+
+                // Isti period prošle godine (1. do danas-og dana u mjesecu)
+                $revenueCompareStart = date('Y-m-01', strtotime('-1 year'));
+                $revenueCompareEnd = date('Y-m-d', strtotime('-1 year'));
+
                 // Ukupna zarada - probaj sve moguće revenue metrike
-                $reportData = getGA4Report($startDate, $endDate, [],
+                $reportData = getGA4Report($revenueStartDate, $revenueEndDate, [],
                     ['totalAdRevenue', 'publisherAdRevenue', 'totalRevenue'], 1);
-                // Prethodni period
-                $compareData = getGA4Report($compareStart, $compareEnd, [],
+                // Prethodni period (prošla godina)
+                $compareData = getGA4Report($revenueCompareStart, $revenueCompareEnd, [],
                     ['totalAdRevenue', 'publisherAdRevenue', 'totalRevenue'], 1);
-                // Zarada po danima
-                $dailyRevenue = getGA4Report($startDate, $endDate,
+                // Zarada po danima (ovaj mjesec)
+                $dailyRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
                     ['date'],
                     ['totalAdRevenue'], 31,
                     null,
                     [['dimension' => ['dimensionName' => 'date'], 'desc' => true]]);
                 // Top članci po zaradi
-                $topRevenue = getGA4Report($startDate, $endDate,
+                $topRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
                     ['pageTitle', 'pagePath'],
                     ['totalAdRevenue', 'screenPageViews'], 50);
                 // Zarada po izvorima
-                $sourceRevenue = getGA4Report($startDate, $endDate,
+                $sourceRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
                     ['sessionSource'],
                     ['totalAdRevenue', 'screenPageViews'], 20);
 
@@ -1197,9 +1205,22 @@ if (isset($reportData['title']['rows'][0])) {
 $currentRevenue = 0;
 $previousRevenue = 0;
 
+// Ovaj mjesec do danas
+$monthStart = date('Y-m-01');
+$today = date('Y-m-d');
+$currentMonthName = date('F Y');
+$dayOfMonth = date('j');
+
+// Isti period prošle godine
+$lastYearStart = date('Y-m-01', strtotime('-1 year'));
+$lastYearEnd = date('Y-m-d', strtotime('-1 year'));
+$lastYearMonthName = date('F Y', strtotime('-1 year'));
+
 // Debug - prikaži raw response
 if (isset($_GET['debug'])) {
     echo '<pre style="background: #f3f4f6; padding: 1rem; margin-bottom: 1rem; overflow: auto; max-height: 400px;">';
+    echo "Period: $monthStart do $today\n";
+    echo "Usporedba: $lastYearStart do $lastYearEnd\n\n";
     echo "Total data:\n";
     print_r($reportData['total']);
     echo '</pre>';
@@ -1239,18 +1260,20 @@ $revenueChange = calcChange($currentRevenue, $previousRevenue);
     <div class="card-body">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
             <div>
-                <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.25rem;">Ukupna zarada (<?= $periodLabel ?>)</div>
+                <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.25rem;">
+                    <?= strftime('%B %Y', strtotime($monthStart)) ?> (1. - <?= $dayOfMonth ?>.)
+                </div>
                 <div style="font-size: 2.5rem; font-weight: 700;"><?= number_format($currentRevenue, 2) ?> €</div>
             </div>
-            <?php if ($revenueChange != 0): ?>
             <div style="text-align: right;">
+                <?php if ($revenueChange != 0): ?>
                 <div style="font-size: 1.5rem; font-weight: 600;">
                     <?= $revenueChange > 0 ? '↑' : '↓' ?> <?= $revenueChange > 0 ? '+' : '' ?><?= $revenueChange ?>%
                 </div>
-                <div style="font-size: 0.875rem; opacity: 0.8;">vs prethodni period</div>
+                <?php endif; ?>
+                <div style="font-size: 0.875rem; opacity: 0.8;">vs <?= strftime('%B %Y', strtotime($lastYearStart)) ?></div>
                 <div style="font-size: 0.875rem; opacity: 0.7;">(<?= number_format($previousRevenue, 2) ?> €)</div>
             </div>
-            <?php endif; ?>
         </div>
     </div>
 </div>
