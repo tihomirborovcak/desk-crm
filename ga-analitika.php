@@ -841,7 +841,8 @@ $daysHr = ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'];
                     $articleSlug = getSlugFromUrl($article['link']);
                     $articleViews = $viewsBySlug[$articleSlug] ?? 0;
                 ?>
-                <tr style="border-bottom: 1px solid #f3f4f6;">
+                <?php static $rowNum = 0; $rowNum++; ?>
+                <tr style="background: <?= $rowNum % 2 === 0 ? '#f9fafb' : 'white' ?>;">
                     <td style="padding: 0.25rem 0.5rem; width: 50px; white-space: nowrap; <?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669;' : 'color: #9ca3af;') ?>"><?= $pubTimeFormatted ?><?php if ($isRecent): ?> <span style="background: #fee2e2; color: #dc2626; font-size: 0.55rem; padding: 1px 2px; border-radius: 2px;">N</span><?php endif; ?></td>
                     <td style="padding: 0.25rem 0.5rem;"><a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: #1f2937;"><?= e($article['title']) ?></a></td>
                     <td style="padding: 0.25rem 0.5rem; width: 60px; text-align: right; font-weight: 500; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#9ca3af') ?>;"><?= $articleViews > 0 ? number_format($articleViews, 0, ',', '.') : '-' ?></td>
