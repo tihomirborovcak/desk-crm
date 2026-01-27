@@ -226,7 +226,17 @@ include 'includes/header.php';
                 <p style="padding: 1rem; color: #6b7280; text-align: center;">Nema zakazanih objava</p>
             <?php else: ?>
                 <!-- CMS zakazane -->
-                <?php foreach ($scheduledPosts as $post): ?>
+                <?php foreach ($scheduledPosts as $post):
+                    // Izvuci naslov iz URL-a ako nema title
+                    $displayTitle = $post['title'];
+                    if (empty($displayTitle)) {
+                        // Probaj izvući iz URL-a (zadnji dio patha)
+                        $urlPath = parse_url($post['url'], PHP_URL_PATH);
+                        $slug = basename($urlPath);
+                        $displayTitle = str_replace(['-', '_'], ' ', $slug);
+                        $displayTitle = ucfirst($displayTitle);
+                    }
+                ?>
                 <div style="padding: 0.5rem; border-bottom: 1px solid #e5e7eb; background: #fffbeb; display: flex; gap: 0.5rem;">
                     <div style="flex: 1; min-width: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -238,13 +248,14 @@ include 'includes/header.php';
                                 <a href="?cancel=<?= $post['id'] ?>&token=<?= generateCSRFToken() ?>" class="btn btn-sm btn-danger" title="Otkaži" onclick="return confirm('Otkazati objavu?')">×</a>
                             </div>
                         </div>
-                        <div style="font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem;"><?= e($post['title'] ?: 'Bez naslova') ?></div>
-                        <?php if ($post['message']): ?>
-                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.15rem;"><?= e(mb_substr($post['message'], 0, 80)) ?><?= mb_strlen($post['message']) > 80 ? '...' : '' ?></div>
-                        <?php endif; ?>
-                        <div style="font-size: 0.65rem; color: #9ca3af; margin-top: 0.15rem;">
-                            <a href="<?= e($post['url']) ?>" target="_blank" style="color: #1877f2;">↗ <?= e(mb_substr($post['url'], 0, 50)) ?>...</a>
+                        <div style="font-size: 0.85rem; font-weight: 600; margin-top: 0.25rem; line-height: 1.3;">
+                            <a href="<?= e($post['url']) ?>" target="_blank" style="color: #1f2937; text-decoration: none;">
+                                <?= e($displayTitle ?: 'Članak') ?>
+                            </a>
                         </div>
+                        <?php if ($post['message']): ?>
+                        <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.2rem;"><?= e(mb_substr($post['message'], 0, 100)) ?><?= mb_strlen($post['message']) > 100 ? '...' : '' ?></div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
