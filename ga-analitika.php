@@ -731,13 +731,58 @@ $articles = $reportData['articles'];
 $viewsByTitle = $reportData['viewsByTitle'] ?? [];
 $todayStart = strtotime('today');
 
+// Funkcija za normalizaciju naslova
+function normalizeTitle($title) {
+    $t = mb_strtolower(trim($title), 'UTF-8');
+    $t = preg_replace('/[^\p{L}\p{N}\s]/u', '', $t); // ukloni interpunkciju
+    $t = preg_replace('/\s+/', ' ', $t); // normaliziraj razmake
+    return $t;
+}
+
+// Napravi normaliziranu mapu GA4 naslova
+$normalizedGA4 = [];
+foreach ($viewsByTitle as $gaTitle => $views) {
+    $normalized = normalizeTitle($gaTitle);
+    if (!isset($normalizedGA4[$normalized]) || $normalizedGA4[$normalized]['views'] < $views) {
+        $normalizedGA4[$normalized] = ['original' => $gaTitle, 'views' => $views];
+    }
+}
+
+// Funkcija za pronalazak pregleda s fuzzy matchingom
+function findViews($feedlyTitle, $viewsByTitle, $normalizedGA4) {
+    // 1. Točno poklapanje
+    if (isset($viewsByTitle[$feedlyTitle])) {
+        return $viewsByTitle[$feedlyTitle];
+    }
+
+    // 2. Normalizirano poklapanje
+    $normalizedFeedly = normalizeTitle($feedlyTitle);
+    if (isset($normalizedGA4[$normalizedFeedly])) {
+        return $normalizedGA4[$normalizedFeedly]['views'];
+    }
+
+    // 3. Fuzzy matching - traži 85%+ sličnost
+    $bestMatch = 0;
+    $bestViews = 0;
+    foreach ($normalizedGA4 as $normalized => $data) {
+        similar_text($normalizedFeedly, $normalized, $percent);
+        if ($percent > 85 && $percent > $bestMatch) {
+            $bestMatch = $percent;
+            $bestViews = $data['views'];
+        }
+    }
+
+    return $bestViews;
+}
+
 // Zbroji preglede
 $totalViews = 0;
 $matchedCount = 0;
 foreach ($articles as $article) {
     $title = trim($article['title']);
-    if (isset($viewsByTitle[$title])) {
-        $totalViews += $viewsByTitle[$title];
+    $views = findViews($title, $viewsByTitle, $normalizedGA4);
+    if ($views > 0) {
+        $totalViews += $views;
         $matchedCount++;
     }
 }
@@ -834,7 +879,7 @@ foreach ($articles as $article) {
                     $isToday = $article['pubDate'] && $article['pubDate'] >= $todayStart;
                     $isRecent = $article['pubDate'] && $article['pubDate'] >= strtotime('-2 hours');
                     $articleTitle = trim($article['title']);
-                    $articleViews = $viewsByTitle[$articleTitle] ?? 0;
+                    $articleViews = findViews($articleTitle, $viewsByTitle, $normalizedGA4);
                 ?>
                 <tr>
                     <td>
