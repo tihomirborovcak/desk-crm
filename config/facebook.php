@@ -5,22 +5,16 @@
 
 define('FB_APP_ID', '1400449617617009');
 define('FB_APP_SECRET', '865941be7c689b85f4de5f6f8bc61b5b');
-define('FB_PAGE_ACCESS_TOKEN', 'EAAT5s5X74HEBQqFq3kI2flKRoTIpfFvPooF6vlW86C32LrZAbuGqigSNhiXfOtAPCMZAXZB4lVi1fCaKDzBcAOyqxgQZAswzreElDbVvFxIRW8KHzZAZB1d8fggbO4rjMH1y2aHwrCT6W8r6UGGXfWInJgTgLOePWBa9lGBX7ZAPfYdi9FkIfCbNULIOAcWgl3ezQ3v7vUStKAob7a13034NpKuOD9zs3kFPVCxzsUdPIn1QwIyYqmXkVdqFvqCSH0RX5qnveOIaIOXVZBKvUfpFLPztHV0OhMQZD');
-define('FB_PAGE_ID', ''); // Popunit ćemo automatski
+define('FB_PAGE_ACCESS_TOKEN', 'EAAT5s5X74HEBQje7Q5BiGdZCMMIMfGOB9vQUKnJuHbmcVICwbG0XUYz374RmOMnvCIdWJXY3L8Vdfh4331WiXw9uYKZCi29dZAAAARBabAsqM6oLBBz8z0Tm82OsRgcs30m9QutuuQ5FZAh2Wg0dcejmookCKEnKuAUm1QTqyGCJVQDBMWtqHqgkKMwIJfROExpwSwIa1PZAdTsTJ3JE2KKu46OZCnc49EOUFSyFM7P7ceDut6xRwZD');
+define('FB_PAGE_ID', '170346612635');
 
 /**
  * Objavi link na Facebook stranicu
  */
 function postToFacebook($url, $message = '') {
-    // Dohvati page info
-    $pageInfo = getFacebookPageId();
-
-    if (!$pageInfo) {
-        return ['success' => false, 'error' => 'Nije moguće dohvatiti Page info. Provjeri token.'];
-    }
-
-    $pageId = $pageInfo['id'];
-    $pageToken = $pageInfo['token'];
+    // Koristi hardkodirani Page ID i token
+    $pageId = FB_PAGE_ID;
+    $pageToken = FB_PAGE_ACCESS_TOKEN;
 
     // Dodaj UTM parametre
     $separator = strpos($url, '?') !== false ? '&' : '?';
