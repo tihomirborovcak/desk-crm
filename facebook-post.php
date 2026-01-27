@@ -89,10 +89,26 @@ include 'includes/header.php';
                 <label class="form-label" for="text">Tekst objave (opcionalno)</label>
                 <div class="emoji-picker" style="margin-bottom: 0.5rem;">
                     <?php
-                    $emojis = ['🔴', '🟢', '🔵', '⚠️', '📍', '📰', '🗞️', '👉', '👆', '✅', '❌', '🔥', '⭐', '💡', '📸', '🎬', '🎭', '🏆', '⚽', '🚨', '💬', '📢', '🎉', '❤️', '👍'];
-                    foreach ($emojis as $emoji):
+                    $emojiGroups = [
+                        'Vijesti' => ['🔴', '🟠', '🟡', '🟢', '🔵', '⚫', '⚪', '🚨', '⚠️', '📢', '📣', '💥', '⚡', '🔥', '💯'],
+                        'Oznake' => ['📍', '📌', '🎯', '✅', '❌', '⭕', '❗', '❓', '💡', '📝', '🔗', '🏷️', '🆕', '🆓', '🔝'],
+                        'Mediji' => ['📰', '🗞️', '📸', '📷', '🎥', '🎬', '📺', '📻', '🎙️', '🎤', '📡', '💻', '📱', '🖥️', '⌨️'],
+                        'Događaji' => ['🎉', '🎊', '🎭', '🎪', '🎨', '🎵', '🎶', '🎸', '🎹', '🎺', '🥁', '🎤', '🎧', '🎫', '🎁'],
+                        'Sport' => ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🥊', '🚴', '🏃', '🏊', '🏆'],
+                        'Priroda' => ['☀️', '🌤️', '⛅', '🌧️', '⛈️', '❄️', '🌊', '🌳', '🌲', '🌸', '🌺', '🍀', '🌈', '⭐', '🌙'],
+                        'Ruke' => ['👉', '👆', '👇', '👈', '☝️', '👍', '👎', '👏', '🙌', '🤝', '✋', '🖐️', '✌️', '🤞', '💪'],
+                        'Lica' => ['😀', '😃', '😊', '🥳', '😍', '🤩', '😎', '🤔', '😮', '😢', '😡', '🥺', '😱', '🤯', '😴'],
+                        'Simboli' => ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '💕', '💖', '💗', '💝', '💘', '💞'],
+                        'Hrana' => ['☕', '🍺', '🍷', '🥂', '🍕', '🍔', '🌭', '🥗', '🍰', '🎂', '🍎', '🍇', '🥐', '🍞', '🧀']
+                    ];
+                    foreach ($emojiGroups as $group => $emojis):
                     ?>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('<?= $emoji ?>')"><?= $emoji ?></button>
+                    <div style="margin-bottom: 0.25rem;">
+                        <small style="color: #6b7280; font-size: 0.65rem;"><?= $group ?>:</small>
+                        <?php foreach ($emojis as $emoji): ?>
+                        <button type="button" class="emoji-btn" onclick="insertEmoji('<?= $emoji ?>')"><?= $emoji ?></button>
+                        <?php endforeach; ?>
+                    </div>
                     <?php endforeach; ?>
                 </div>
                 <textarea id="text"
@@ -104,25 +120,27 @@ include 'includes/header.php';
 
 <style>
 .emoji-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
 }
 .emoji-btn {
-    width: 32px;
-    height: 32px;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: white;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
     cursor: pointer;
-    font-size: 1.1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    font-size: 1rem;
+    padding: 0;
+    transition: all 0.15s;
 }
 .emoji-btn:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
+    background: #e5e7eb;
+    transform: scale(1.2);
 }
 </style>
 
