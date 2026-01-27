@@ -370,31 +370,33 @@ if (!empty(GA4_PROPERTY_ID)) {
                 $revenueCompareStart = date('Y-m-01', strtotime('-1 year'));
                 $revenueCompareEnd = date('Y-m-d', strtotime('-1 year'));
 
-                // Ukupna zarada - probaj sve moguće revenue metrike
-                $reportData = getGA4Report($revenueStartDate, $revenueEndDate, [],
-                    ['totalAdRevenue', 'publisherAdRevenue', 'totalRevenue'], 1);
-                // Prethodni period (prošla godina)
-                $compareData = getGA4Report($revenueCompareStart, $revenueCompareEnd, [],
-                    ['totalAdRevenue', 'publisherAdRevenue', 'totalRevenue'], 1);
-                // Zarada po danima (ovaj mjesec)
+                // Zarada po danima (ovaj mjesec) - koristimo za ukupan zbroj
                 $dailyRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
                     ['date'],
                     ['totalAdRevenue'], 31,
                     null,
                     [['dimension' => ['dimensionName' => 'date'], 'desc' => true]]);
+
+                // Zarada po danima prošle godine (za usporedbu)
+                $compareDailyRevenue = getGA4Report($revenueCompareStart, $revenueCompareEnd,
+                    ['date'],
+                    ['totalAdRevenue'], 31,
+                    null,
+                    [['dimension' => ['dimensionName' => 'date'], 'desc' => true]]);
+
                 // Top članci po zaradi
                 $topRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
                     ['pageTitle', 'pagePath'],
                     ['totalAdRevenue', 'screenPageViews'], 50);
+
                 // Zarada po izvorima
                 $sourceRevenue = getGA4Report($revenueStartDate, $revenueEndDate,
                     ['sessionSource'],
                     ['totalAdRevenue', 'screenPageViews'], 20);
 
                 $reportData = [
-                    'total' => $reportData,
-                    'compare' => $compareData,
                     'daily' => $dailyRevenue,
+                    'compareDaily' => $compareDailyRevenue,
                     'top' => $topRevenue,
                     'sources' => $sourceRevenue
                 ];
@@ -1226,30 +1228,17 @@ if (isset($_GET['debug'])) {
     echo '</pre>';
 }
 
-// Probaj sve revenue metrike (totalAdRevenue, publisherAdRevenue, totalRevenue)
-if (isset($reportData['total']['rows'][0]['metricValues'])) {
-    $metrics = $reportData['total']['rows'][0]['metricValues'];
-    // Uzmi prvu koja nije 0
-    foreach ($metrics as $m) {
-        $val = (float)($m['value'] ?? 0);
-        if ($val > 0) {
-            $currentRevenue = $val;
-            break;
-        }
-    }
-    // Ako su sve 0, uzmi prvu
-    if ($currentRevenue == 0 && isset($metrics[0])) {
-        $currentRevenue = (float)($metrics[0]['value'] ?? 0);
+// Izračunaj ukupno iz dnevnih podataka (jer total query vraća 0)
+if (isset($reportData['daily']['rows'])) {
+    foreach ($reportData['daily']['rows'] as $row) {
+        $currentRevenue += (float)($row['metricValues'][0]['value'] ?? 0);
     }
 }
-if (isset($reportData['compare']['rows'][0]['metricValues'])) {
-    $metrics = $reportData['compare']['rows'][0]['metricValues'];
-    foreach ($metrics as $m) {
-        $val = (float)($m['value'] ?? 0);
-        if ($val > 0) {
-            $previousRevenue = $val;
-            break;
-        }
+
+// Za usporedbu s prošlom godinom - zbroji dnevne podatke
+if (isset($reportData['compareDaily']['rows'])) {
+    foreach ($reportData['compareDaily']['rows'] as $row) {
+        $previousRevenue += (float)($row['metricValues'][0]['value'] ?? 0);
     }
 }
 $revenueChange = calcChange($currentRevenue, $previousRevenue);
