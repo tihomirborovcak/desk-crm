@@ -9,6 +9,7 @@ if (php_sapi_name() !== 'cli' && !defined('CRON_RUN')) {
     die('Ova skripta je samo za cron.');
 }
 
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../config/facebook.php';
 require_once __DIR__ . '/../config/email.php';
