@@ -346,6 +346,40 @@ if (!empty(GA4_PROPERTY_ID)) {
                 ];
             }
             break;
+
+        case 'revenue':
+            // Samo za admine
+            if (isAdmin()) {
+                // Ukupna zarada
+                $reportData = getGA4Report($startDate, $endDate, [],
+                    ['publisherAdRevenue', 'totalRevenue'], 1);
+                // Prethodni period
+                $compareData = getGA4Report($compareStart, $compareEnd, [],
+                    ['publisherAdRevenue', 'totalRevenue'], 1);
+                // Zarada po danima
+                $dailyRevenue = getGA4Report($startDate, $endDate,
+                    ['date'],
+                    ['publisherAdRevenue'], 31,
+                    null,
+                    [['dimension' => ['dimensionName' => 'date'], 'desc' => true]]);
+                // Top članci po zaradi
+                $topRevenue = getGA4Report($startDate, $endDate,
+                    ['pageTitle', 'pagePath'],
+                    ['publisherAdRevenue', 'screenPageViews'], 50);
+                // Zarada po izvorima
+                $sourceRevenue = getGA4Report($startDate, $endDate,
+                    ['sessionSource'],
+                    ['publisherAdRevenue', 'screenPageViews'], 20);
+
+                $reportData = [
+                    'total' => $reportData,
+                    'compare' => $compareData,
+                    'daily' => $dailyRevenue,
+                    'top' => $topRevenue,
+                    'sources' => $sourceRevenue
+                ];
+            }
+            break;
     }
 
     if (isset($reportData['error'])) {
@@ -415,11 +449,16 @@ include 'includes/header.php';
         'devices' => 'Uređaji',
         'landing' => 'Landing',
     ];
+    // Zarada samo za admine
+    if (isAdmin()) {
+        $tabs['revenue'] = '💰 Zarada';
+    }
     foreach ($tabs as $t => $label):
     ?>
     <a href="?period=<?= $period ?>&report=<?= $t ?>"
        style="padding: 0.5rem 1rem; text-decoration: none; border-radius: 6px 6px 0 0; font-size: 0.875rem;
-              <?= $reportType === $t ? 'background: #2563eb; color: white; font-weight: 500;' : 'color: #6b7280;' ?>">
+              <?= $reportType === $t ? 'background: #2563eb; color: white; font-weight: 500;' : 'color: #6b7280;' ?>
+              <?= $t === 'revenue' ? 'background: ' . ($reportType === 'revenue' ? '#16a34a' : 'transparent') . '; color: ' . ($reportType === 'revenue' ? 'white' : '#16a34a') . ';' : '' ?>">
         <?= $label ?>
     </a>
     <?php endforeach; ?>
@@ -1132,6 +1171,196 @@ if (isset($reportData['title']['rows'][0])) {
                     <td style="color: #6b7280;"><?= e($medium) ?></td>
                     <td style="text-align: right; font-weight: 600;"><?= number_format($views) ?></td>
                     <td style="text-align: right;"><?= number_format($users) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php elseif ($reportType === 'revenue' && isAdmin() && $reportData): ?>
+<!-- ZARADA - Samo za admine -->
+<?php
+$currentRevenue = 0;
+$previousRevenue = 0;
+
+if (isset($reportData['total']['rows'][0])) {
+    $currentRevenue = (float)($reportData['total']['rows'][0]['metricValues'][0]['value'] ?? 0);
+}
+if (isset($reportData['compare']['rows'][0])) {
+    $previousRevenue = (float)($reportData['compare']['rows'][0]['metricValues'][0]['value'] ?? 0);
+}
+$revenueChange = calcChange($currentRevenue, $previousRevenue);
+?>
+
+<!-- Ukupna zarada kartica -->
+<div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white;">
+    <div class="card-body">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.25rem;">Ukupna zarada (<?= $periodLabel ?>)</div>
+                <div style="font-size: 2.5rem; font-weight: 700;"><?= number_format($currentRevenue, 2) ?> €</div>
+            </div>
+            <?php if ($revenueChange != 0): ?>
+            <div style="text-align: right;">
+                <div style="font-size: 1.5rem; font-weight: 600;">
+                    <?= $revenueChange > 0 ? '↑' : '↓' ?> <?= $revenueChange > 0 ? '+' : '' ?><?= $revenueChange ?>%
+                </div>
+                <div style="font-size: 0.875rem; opacity: 0.8;">vs prethodni period</div>
+                <div style="font-size: 0.875rem; opacity: 0.7;">(<?= number_format($previousRevenue, 2) ?> €)</div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Zarada po danima -->
+<?php if (isset($reportData['daily']['rows']) && !empty($reportData['daily']['rows'])): ?>
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header">
+        <h2 class="card-title">📅 Zarada po danima</h2>
+    </div>
+    <div class="card-body" style="padding: 1rem;">
+        <?php
+        $dailyData = [];
+        $maxRev = 0;
+        foreach ($reportData['daily']['rows'] as $row) {
+            $rev = (float)($row['metricValues'][0]['value'] ?? 0);
+            $dailyData[] = $rev;
+            if ($rev > $maxRev) $maxRev = $rev;
+        }
+        $dailyData = array_reverse($dailyData);
+        ?>
+        <div style="display: flex; align-items: flex-end; gap: 4px; height: 100px; margin-bottom: 1rem;">
+            <?php foreach ($dailyData as $rev):
+                $height = $maxRev > 0 ? ($rev / $maxRev * 100) : 0;
+            ?>
+            <div style="flex: 1; background: #16a34a; border-radius: 2px 2px 0 0; height: <?= max($height, 2) ?>%; min-height: 2px;"
+                 title="<?= number_format($rev, 2) ?> €"></div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th style="text-align: right;">Zarada</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($reportData['daily']['rows'] as $row):
+                    $dateStr = $row['dimensionValues'][0]['value'] ?? '';
+                    $date = DateTime::createFromFormat('Ymd', $dateStr);
+                    $formattedDate = $date ? $date->format('d.m.Y.') : $dateStr;
+                    $dayName = $date ? ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'][$date->format('w')] : '';
+                    $rev = (float)($row['metricValues'][0]['value'] ?? 0);
+                ?>
+                <tr>
+                    <td>
+                        <span style="font-weight: 500;"><?= $formattedDate ?></span>
+                        <span style="color: #9ca3af; margin-left: 0.5rem;"><?= $dayName ?></span>
+                    </td>
+                    <td style="text-align: right; font-weight: 600; color: #16a34a;"><?= number_format($rev, 2) ?> €</td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Top članci po zaradi -->
+<?php if (isset($reportData['top']['rows']) && !empty($reportData['top']['rows'])): ?>
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header">
+        <h2 class="card-title">🏆 Top članci po zaradi</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Članak</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Zarada</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $i = 0;
+                foreach ($reportData['top']['rows'] as $row):
+                    $title = $row['dimensionValues'][0]['value'] ?? '-';
+                    $path = $row['dimensionValues'][1]['value'] ?? '';
+                    $rev = (float)($row['metricValues'][0]['value'] ?? 0);
+                    $views = (int)($row['metricValues'][1]['value'] ?? 0);
+
+                    if ($rev <= 0 || $path === '/' || strpos($path, '/admin') === 0 || $title === '(not set)') continue;
+                    $i++;
+                    if ($i > 30) break;
+                ?>
+                <tr>
+                    <td style="color: #9ca3af;"><?= $i ?></td>
+                    <td>
+                        <a href="?period=<?= $period ?>&report=article&page=<?= urlencode($path) ?>" style="text-decoration: none; color: inherit;">
+                            <div style="font-weight: 500;"><?= e(truncate($title, 50)) ?></div>
+                        </a>
+                    </td>
+                    <td style="text-align: right; color: #6b7280;"><?= number_format($views) ?></td>
+                    <td style="text-align: right; font-weight: 600; color: #16a34a;"><?= number_format($rev, 2) ?> €</td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Zarada po izvorima -->
+<?php if (isset($reportData['sources']['rows']) && !empty($reportData['sources']['rows'])): ?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">🔗 Zarada po izvorima prometa</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Izvor</th>
+                    <th style="text-align: right;">Pregledi</th>
+                    <th style="text-align: right;">Zarada</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $totalSourceRev = 0;
+                foreach ($reportData['sources']['rows'] as $row) {
+                    $totalSourceRev += (float)($row['metricValues'][0]['value'] ?? 0);
+                }
+
+                foreach ($reportData['sources']['rows'] as $row):
+                    $source = $row['dimensionValues'][0]['value'] ?? '(direct)';
+                    $rev = (float)($row['metricValues'][0]['value'] ?? 0);
+                    $views = (int)($row['metricValues'][1]['value'] ?? 0);
+
+                    if ($rev <= 0) continue;
+
+                    if (strpos($source, 'google') !== false) $color = '#ea4335';
+                    elseif (strpos($source, 'facebook') !== false || strpos($source, 'fb') !== false) $color = '#1877f2';
+                    elseif ($source === '(direct)') $color = '#10b981';
+                    else $color = '#6b7280';
+
+                    $percent = $totalSourceRev > 0 ? round($rev / $totalSourceRev * 100) : 0;
+                ?>
+                <tr>
+                    <td>
+                        <span style="color: <?= $color ?>;">●</span>
+                        <strong style="margin-left: 0.5rem;"><?= e($source) ?></strong>
+                        <span style="color: #9ca3af; font-size: 0.75rem; margin-left: 0.5rem;">(<?= $percent ?>%)</span>
+                    </td>
+                    <td style="text-align: right; color: #6b7280;"><?= number_format($views) ?></td>
+                    <td style="text-align: right; font-weight: 600; color: #16a34a;"><?= number_format($rev, 2) ?> €</td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
