@@ -880,6 +880,10 @@ $bottomArticles = array_slice(array_reverse($articlesWithViews), 0, 50);
                         <td style="padding: 0.2rem 0.4rem; width: 40px; white-space: nowrap; <?= $isRecent ? 'color: #dc2626; font-weight: 600;' : ($isToday ? 'color: #059669;' : 'color: #9ca3af;') ?>"><?= $pubTimeFormatted ?><?php if ($isRecent): ?><span style="color:#dc2626;font-size:0.5rem;"> N</span><?php endif; ?></td>
                         <td style="padding: 0.2rem 0.4rem;"><a href="<?= e($article['link']) ?>" target="_blank" style="text-decoration: none; color: #1f2937;"><?= e($article['title']) ?></a></td>
                         <td style="padding: 0.2rem 0.4rem; width: 50px; text-align: right; font-weight: 500; color: <?= $articleViews > 1000 ? '#059669' : ($articleViews > 100 ? '#2563eb' : '#9ca3af') ?>;"><?= $articleViews > 0 ? number_format($articleViews, 0, ',', '.') : '-' ?></td>
+                        <td style="padding: 0.2rem 0.4rem; width: 60px; white-space: nowrap;">
+                            <button onclick="copyUtm('<?= e($article['link']) ?>', 'facebook')" class="utm-btn" title="Kopiraj za Facebook" style="background:#1877f2;">f</button>
+                            <button onclick="copyUtm('<?= e($article['link']) ?>', 'whatsapp')" class="utm-btn" title="Kopiraj za WhatsApp" style="background:#25d366;">w</button>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
