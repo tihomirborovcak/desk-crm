@@ -59,7 +59,8 @@ function getFacebookPosts($limit = 20, $debug = false) {
     $pageId = FB_PAGE_ID;
     $token = FB_PAGE_ACCESS_TOKEN;
 
-    $url = "https://graph.facebook.com/v24.0/{$pageId}/posts?fields=id,message,created_time,permalink_url,full_picture,shares,reactions.summary(true),comments.summary(true)&limit={$limit}&access_token={$token}";
+    // Jednostavniji poziv - samo osnovni podaci (ne treba pages_read_engagement)
+    $url = "https://graph.facebook.com/v24.0/{$pageId}/feed?fields=id,message,created_time,permalink_url,full_picture&limit={$limit}&access_token={$token}";
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
