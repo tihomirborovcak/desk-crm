@@ -554,6 +554,19 @@ if ($realtimeData && isset($realtimeData['rows'])) {
     </div>
 </div>
 
+<!-- Period info -->
+<div style="background: #f3f4f6; padding: 0.5rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.875rem; color: #6b7280;">
+    <?php if ($period === 'month'): ?>
+        📅 <strong>1. - <?= date('j') ?>. <?= date('F Y') ?></strong> vs 1. - <?= date('j') ?>. <?= date('F Y', strtotime('first day of last month')) ?>
+    <?php elseif ($period === '7days'): ?>
+        📅 <strong>Zadnjih 7 dana</strong> vs prethodnih 7 dana
+    <?php elseif ($period === '30days'): ?>
+        📅 <strong>Zadnjih 30 dana</strong> vs prethodnih 30 dana
+    <?php else: ?>
+        📅 <strong><?= $periodLabel ?></strong> — usporedba s prethodnim periodom
+    <?php endif; ?>
+</div>
+
 <!-- Metric cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
     <?php foreach ($metrics as $key => $m):
