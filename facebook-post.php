@@ -87,12 +87,56 @@ include 'includes/header.php';
 
             <div class="form-group">
                 <label class="form-label" for="text">Tekst objave (opcionalno)</label>
+                <div class="emoji-picker" style="margin-bottom: 0.5rem;">
+                    <?php
+                    $emojis = ['🔴', '🟢', '🔵', '⚠️', '📍', '📰', '🗞️', '👉', '👆', '✅', '❌', '🔥', '⭐', '💡', '📸', '🎬', '🎭', '🏆', '⚽', '🚨', '💬', '📢', '🎉', '❤️', '👍'];
+                    foreach ($emojis as $emoji):
+                    ?>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('<?= $emoji ?>')"><?= $emoji ?></button>
+                    <?php endforeach; ?>
+                </div>
                 <textarea id="text"
                           name="text"
                           class="form-control"
                           rows="3"
                           placeholder="Dodaj komentar uz link..."></textarea>
             </div>
+
+<style>
+.emoji-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.emoji-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.emoji-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+</style>
+
+<script>
+function insertEmoji(emoji) {
+    const textarea = document.getElementById('text');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    textarea.value = text.substring(0, start) + emoji + text.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    textarea.focus();
+}
+</script>
 
             <button type="submit" class="btn btn-primary" style="background: #1877f2;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 0.5rem;">
