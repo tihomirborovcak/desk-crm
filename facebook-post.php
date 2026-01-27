@@ -468,4 +468,6 @@ $dayNames = ['Nedjelja', 'Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak
         <?php endforeach; ?>
     </div>
 </div>
+<?php endif; ?>
+
 <?php include 'includes/footer.php'; ?>
