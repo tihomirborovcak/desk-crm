@@ -1,7 +1,7 @@
 <?php
 /**
  * Cron skripta za dohvat Facebook poruka
- * Pokrenuti svakih 5 minuta: */5 * * * * php /path/to/fetch-facebook-messages.php
+ * Pokrenuti svakih 5 minuta: 0,5,10,15,20,25,30,35,40,45,50,55 * * * * php /path/to/fetch-facebook-messages.php
  */
 
 // Ako se pokreće iz CLI
