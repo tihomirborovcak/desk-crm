@@ -158,7 +158,7 @@ function getGA4Realtime() {
         'metrics' => [
             ['name' => 'activeUsers']
         ],
-        'limit' => 10
+        'limit' => 15
     ];
 
     $ch = curl_init($url);
@@ -544,9 +544,9 @@ if ($realtimeData && isset($realtimeData['rows'])) {
         <?php if (!empty($realtimePages)): ?>
         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.2);">
             <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem;">Trenutno čitaju:</div>
-            <?php foreach (array_slice($realtimePages, 0, 3) as $rp): ?>
-            <div style="font-size: 0.8rem; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                • <?= e(truncate($rp['page'], 60)) ?> (<?= $rp['users'] ?>)
+            <?php foreach (array_slice($realtimePages, 0, 10) as $rp): ?>
+            <div style="font-size: 0.8rem; opacity: 0.85; margin-bottom: 0.35rem; line-height: 1.3;">
+                • <?= e($rp['page']) ?> <strong>(<?= $rp['users'] ?>)</strong>
             </div>
             <?php endforeach; ?>
         </div>
