@@ -196,6 +196,39 @@ def format_srt(segments):
 
     return "\n".join(srt_lines)
 
+# Rječnik ispravaka - dodaj svoje ispravke ovdje
+CORRECTIONS = {
+    # Format: "krivo": "ispravno"
+    "bratari": "vratari",
+    "bratar": "vratar",
+    "bratara": "vratara",
+    "brataru": "vrataru",
+    "bratarima": "vratarima",
+    # Dodaj još ispravaka po potrebi...
+}
+
+def fix_transcription(text):
+    """Ispravi česte greške u transkripciji"""
+    import re
+
+    for wrong, correct in CORRECTIONS.items():
+        # Case-insensitive zamjena koja čuva originalni case
+        pattern = re.compile(re.escape(wrong), re.IGNORECASE)
+
+        def replace_match(match):
+            orig = match.group(0)
+            # Ako je original sve veliko, vrati sve veliko
+            if orig.isupper():
+                return correct.upper()
+            # Ako počinje velikim slovom, vrati s velikim
+            if orig[0].isupper():
+                return correct.capitalize()
+            return correct
+
+        text = pattern.sub(replace_match, text)
+
+    return text
+
 def upload_result(job_id, srt_content, processing_time, video_path=None, error=None):
     """Upload rezultata na server"""
     try:
@@ -274,6 +307,9 @@ def process_job(job):
         try:
             segments = transcribe(audio_path, language)
             srt_content = format_srt(segments)
+            # Ispravi česte greške u transkripciji
+            srt_content = fix_transcription(srt_content)
+            log("Primijenjene ispravke transkripcije")
         except Exception as e:
             log(f"Greška pri transkripciji: {e}")
             upload_result(job_id, "", 0, error=str(e))
