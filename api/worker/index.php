@@ -89,36 +89,10 @@ switch ($action) {
         echo json_encode(['job' => $job]);
         break;
 
-    // Download audio file
+    // Download video file za worker
     case 'download':
         $jobId = intval($_GET['id'] ?? 0);
-        $stmt = $db->prepare("SELECT audio_path FROM transcription_jobs WHERE id = ? AND status = 'processing'");
-        $stmt->execute([$jobId]);
-        $job = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$job || !$job['audio_path']) {
-            http_response_code(404);
-            echo json_encode(['error' => 'File not found']);
-            break;
-        }
-
-        $filePath = __DIR__ . '/../../' . $job['audio_path'];
-        if (!file_exists($filePath)) {
-            http_response_code(404);
-            echo json_encode(['error' => 'File not found on disk']);
-            break;
-        }
-
-        header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="audio.mp3"');
-        header('Content-Length: ' . filesize($filePath));
-        readfile($filePath);
-        exit;
-
-    // Download video file
-    case 'download_video':
-        $jobId = intval($_GET['id'] ?? 0);
-        $stmt = $db->prepare("SELECT video_path FROM transcription_jobs WHERE id = ? AND status = 'processing'");
+        $stmt = $db->prepare("SELECT video_path, original_filename FROM transcription_jobs WHERE id = ? AND status = 'processing'");
         $stmt->execute([$jobId]);
         $job = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -136,7 +110,7 @@ switch ($action) {
         }
 
         header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="video.mp4"');
+        header('Content-Disposition: attachment; filename="' . basename($job['original_filename']) . '"');
         header('Content-Length: ' . filesize($filePath));
         readfile($filePath);
         exit;

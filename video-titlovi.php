@@ -466,21 +466,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
 
                         // 2. Generiraj titlove
                         if ($method === 'worker') {
-                            // Spremi audio trajno za worker
-                            $audioDir = UPLOAD_PATH . 'worker_queue/';
-                            if (!is_dir($audioDir)) mkdir($audioDir, 0755, true);
-                            $workerAudioPath = 'uploads/worker_queue/' . $uniqueId . '.mp3';
-                            copy($tempAudioPath, UPLOAD_PATH . '../' . $workerAudioPath);
+                            // Spremi samo video za worker (worker će sam izvući audio)
+                            $queueDir = UPLOAD_PATH . 'worker_queue/';
+                            if (!is_dir($queueDir)) mkdir($queueDir, 0755, true);
+                            $workerVideoPath = 'uploads/worker_queue/' . $uniqueId . '.' . $ext;
+                            copy($tempVideoPath, UPLOAD_PATH . '../' . $workerVideoPath);
 
-                            // Spremi video ako treba burn subtitles
-                            $workerVideoPath = null;
-                            if ($burnSubs && !in_array($ext, ['mp3', 'wav', 'm4a'])) {
-                                $workerVideoPath = 'uploads/worker_queue/' . $uniqueId . '.' . $ext;
-                                copy($tempVideoPath, UPLOAD_PATH . '../' . $workerVideoPath);
-                            }
-
-                            // Dodaj u queue
-                            $jobId = addJobToQueue($workerVideoPath, $workerAudioPath, $videoName, $language, $burnSubs, $duration);
+                            // Dodaj u queue (audio_path više ne koristimo)
+                            $jobId = addJobToQueue($workerVideoPath, null, $videoName, $language, $burnSubs, $duration);
                             $processingLog[] = "Job dodan u queue (ID: $jobId)";
                             $processingLog[] = "Čeka se obrada na lokalnom PC-u...";
                             $success = "Job #$jobId dodan u queue! Prati status dolje.";

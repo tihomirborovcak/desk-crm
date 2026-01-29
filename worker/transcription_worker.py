@@ -5,9 +5,27 @@ Koristi faster-whisper za transkripciju s GPU ubrzanjem
 """
 
 import os
+import sys
+import ctypes
 
 # Fix za OpenMP duplicate library error na Windowsu
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Windows: Pokaži/sakrij konzolu
+def show_console():
+    """Pokaži konzolu prozor"""
+    if sys.platform == 'win32':
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 1)
+
+def hide_console():
+    """Sakrij konzolu prozor"""
+    if sys.platform == 'win32':
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+
+def set_console_title(title):
+    """Postavi naslov konzole"""
+    if sys.platform == 'win32':
+        ctypes.windll.kernel32.SetConsoleTitleW(title)
 import sys
 import time
 import json
@@ -30,10 +48,19 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+LOG_FILE = os.path.join(os.path.dirname(__file__), "worker.log")
+
 def log(message):
     """Ispiši log s timestamp-om"""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] {message}")
+    line = f"[{timestamp}] {message}"
+    print(line)
+    # Spremi u log file
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except:
+        pass
 
 def get_pending_jobs():
     """Dohvati pending jobove sa servera"""
@@ -62,23 +89,44 @@ def claim_job(job_id):
         log(f"Greška pri preuzimanju joba: {e}")
         return None
 
-def download_file(job_id, output_path, file_type="audio"):
-    """Skini datoteku (audio ili video)"""
+def download_file(job_id, output_path):
+    """Skini video datoteku sa servera"""
     try:
-        action = "download" if file_type == "audio" else "download_video"
-        response = requests.get(f"{SERVER_URL}?action={action}&id={job_id}", headers=HEADERS, timeout=300, stream=True)
+        response = requests.get(f"{SERVER_URL}?action=download&id={job_id}", headers=HEADERS, timeout=600, stream=True)
         if response.status_code == 200:
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
             with open(output_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
+                for chunk in response.iter_content(chunk_size=65536):
                     f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        pct = downloaded * 100 // total_size
+                        print(f"\rSkidam: {pct}% ({downloaded // 1024 // 1024}MB)", end="", flush=True)
+            print()  # Nova linija
             return True
-        elif response.status_code == 404:
-            return False  # File doesn't exist (e.g., no video for audio-only jobs)
         else:
-            log(f"Greška pri skidanju {file_type}: {response.status_code}")
+            log(f"Greška pri skidanju: {response.status_code}")
             return False
     except Exception as e:
         log(f"Greška: {e}")
+        return False
+
+def extract_audio(video_path, audio_path):
+    """Izvuci audio iz videa koristeći ffmpeg"""
+    import subprocess
+
+    cmd = [
+        FFMPEG_PATH, '-i', video_path,
+        '-vn', '-acodec', 'libmp3lame', '-ar', '16000', '-ac', '1', '-b:a', '64k',
+        '-y', audio_path
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        return result.returncode == 0 and os.path.exists(audio_path)
+    except Exception as e:
+        log(f"Greška pri ekstrakciji audia: {e}")
         return False
 
 def burn_subtitles(video_path, srt_path, output_path):
@@ -194,24 +242,35 @@ def process_job(job):
     language = job.get("language", "hr")
     burn_subs = job.get("burn_subtitles", 0)
 
+    # Pokaži prozor dok obrađuje
+    show_console()
+    set_console_title(f"Transcription Worker - Job #{job_id}")
+
     log(f"=== Obrađujem job #{job_id}: {filename} ===")
 
     start_time = time.time()
 
     # Kreiraj temp direktorij
     with tempfile.TemporaryDirectory() as temp_dir:
-        audio_path = os.path.join(temp_dir, "audio.mp3")
         video_path = os.path.join(temp_dir, "video.mp4")
+        audio_path = os.path.join(temp_dir, "audio.mp3")
         srt_path = os.path.join(temp_dir, "subtitles.srt")
         output_video_path = os.path.join(temp_dir, "output.mp4")
 
-        # Skini audio
-        log("Skidam audio...")
-        if not download_file(job_id, audio_path, "audio"):
-            upload_result(job_id, "", 0, error="Greška pri skidanju audia")
+        # 1. Skini video
+        log("Skidam video...")
+        if not download_file(job_id, video_path):
+            upload_result(job_id, "", 0, error="Greška pri skidanju videa")
+            return False
+        log(f"Video skinut ({os.path.getsize(video_path) / 1024 / 1024:.1f} MB)")
+
+        # 2. Izvuci audio lokalno
+        log("Ekstrahiram audio...")
+        if not extract_audio(video_path, audio_path):
+            upload_result(job_id, "", 0, error="Greška pri ekstrakciji audia")
             return False
 
-        # Transkribiraj
+        # 3. Transkribiraj
         try:
             segments = transcribe(audio_path, language)
             srt_content = format_srt(segments)
@@ -220,23 +279,19 @@ def process_job(job):
             upload_result(job_id, "", 0, error=str(e))
             return False
 
-        # Burn subtitles ako je traženo
+        # 4. Ugradi titlove u video
         final_video_path = None
         if burn_subs:
-            log("Skidam video za ugrađivanje titlova...")
-            if download_file(job_id, video_path, "video"):
-                # Spremi SRT privremeno
-                with open(srt_path, 'w', encoding='utf-8') as f:
-                    f.write(srt_content)
+            # Spremi SRT privremeno
+            with open(srt_path, 'w', encoding='utf-8') as f:
+                f.write(srt_content)
 
-                log("Ugrađujem titlove u video...")
-                if burn_subtitles(video_path, srt_path, output_video_path):
-                    final_video_path = output_video_path
-                    log(f"Video s titlovima spreman ({os.path.getsize(output_video_path) / 1024 / 1024:.1f} MB)")
-                else:
-                    log("Upozorenje: Nije uspjelo ugrađivanje titlova, šaljem samo SRT")
+            log("Ugrađujem titlove u video...")
+            if burn_subtitles(video_path, srt_path, output_video_path):
+                final_video_path = output_video_path
+                log(f"Video s titlovima spreman ({os.path.getsize(output_video_path) / 1024 / 1024:.1f} MB)")
             else:
-                log("Video nije dostupan, šaljem samo SRT")
+                log("Upozorenje: Nije uspjelo ugrađivanje titlova, šaljem samo SRT")
 
         processing_time = time.time() - start_time
 
@@ -248,9 +303,14 @@ def process_job(job):
 
         if upload_result(job_id, srt_content, processing_time, final_video_path):
             log(f"✓ Job #{job_id} završen za {processing_time:.1f}s")
+            time.sleep(2)  # Pauza da korisnik vidi poruku
+            hide_console()
+            set_console_title("Transcription Worker - Čekam...")
             return True
         else:
             log(f"✗ Greška pri uploadu joba #{job_id}")
+            time.sleep(3)
+            hide_console()
             return False
 
 def main():
@@ -275,6 +335,11 @@ def main():
         log(f"PyTorch nije instaliran ili greška: {e}")
 
     log("Čekam jobove...\n")
+
+    # Sakrij prozor dok čeka
+    time.sleep(2)
+    hide_console()
+    set_console_title("Transcription Worker - Čekam...")
 
     while True:
         try:
