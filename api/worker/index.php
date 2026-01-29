@@ -179,7 +179,7 @@ switch ($action) {
 
         // Debug log
         $debugLog = __DIR__ . '/../../uploads/worker_debug.log';
-        file_put_contents($debugLog, date('Y-m-d H:i:s') . " Job $jobId - FILES: " . print_r($_FILES, true) . "\n", FILE_APPEND);
+        file_put_contents($debugLog, date('Y-m-d H:i:s') . " Job $jobId - duration=$duration, processing_time=$processingTime, POST: " . print_r($_POST, true) . "\n", FILE_APPEND);
 
         // Provjeri je li worker uploadao video s titlovima
         if (isset($_FILES['video']) && $_FILES['video']['error'] === UPLOAD_ERR_OK) {
