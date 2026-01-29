@@ -280,13 +280,14 @@ VAŽNO:
     return ['error' => 'Gemini API greška nakon ' . $maxRetries . ' pokušaja'];
 }
 
-// Burn titlove u video
+// Burn titlove u video (s kompresijom)
 function burnSubtitles($videoPath, $srtPath, $outputPath) {
     // Escape za ffmpeg subtitle filter
     $srtPathEscaped = str_replace(['\\', ':', "'"], ['\\\\', '\\:', "\\'"], $srtPath);
 
+    // Kompresija: H.264, CRF 28 (manji file), preset medium
     $cmd = sprintf(
-        'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,MarginV=30\'" -c:a copy -y %s 2>&1',
+        'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,MarginV=30\'" -c:v libx264 -crf 28 -preset medium -c:a aac -b:a 128k -movflags +faststart -y %s 2>&1',
         escapeshellarg($videoPath),
         $srtPathEscaped,
         escapeshellarg($outputPath)
