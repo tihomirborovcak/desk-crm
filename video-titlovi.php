@@ -303,37 +303,34 @@ function burnSubtitles($videoPath, $srtPath, $outputPath) {
     ];
 }
 
-// Generiraj titlove s Whisperom (precizni timestamps)
+// Generiraj titlove s Faster-Whisper (4x brži od običnog Whispera)
 function generateSubtitlesWithWhisper($audioPath, $outputDir, $language = 'hr') {
-    $model = 'small'; // base, small, medium, large - small je dobar balans
+    $srtPath = $outputDir . '/' . pathinfo($audioPath, PATHINFO_FILENAME) . '.srt';
+    $scriptPath = __DIR__ . '/faster-whisper-srt.py';
 
     $cmd = sprintf(
-        'whisper %s --model %s --language %s --output_format srt --output_dir %s 2>&1',
+        'python3 %s %s %s %s 2>&1',
+        escapeshellarg($scriptPath),
         escapeshellarg($audioPath),
-        $model,
-        escapeshellarg($language),
-        escapeshellarg($outputDir)
+        escapeshellarg($srtPath),
+        escapeshellarg($language)
     );
 
     $output = [];
     $returnCode = 0;
     exec($cmd, $output, $returnCode);
 
-    // Pronađi generirani SRT
-    $audioBasename = pathinfo($audioPath, PATHINFO_FILENAME);
-    $srtPath = $outputDir . '/' . $audioBasename . '.srt';
-
     if (file_exists($srtPath)) {
         return ['srt' => file_get_contents($srtPath), 'srt_path' => $srtPath];
     }
 
-    return ['error' => 'Whisper greška: ' . implode("\n", array_slice($output, -5))];
+    return ['error' => 'Faster-Whisper greška: ' . implode("\n", $output)];
 }
 
-// Provjeri je li Whisper instaliran
+// Provjeri je li Faster-Whisper instaliran
 function isWhisperInstalled() {
     $output = [];
-    exec('which whisper 2>&1', $output, $returnCode);
+    exec('python3 -c "from faster_whisper import WhisperModel" 2>&1', $output, $returnCode);
     return $returnCode === 0;
 }
 
