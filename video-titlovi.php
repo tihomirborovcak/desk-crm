@@ -304,7 +304,7 @@ function burnSubtitles($videoPath, $srtPath, $outputPath) {
 
     // Kompresija: H.264, CRF 28 (manji file), preset medium
     $cmd = sprintf(
-        'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=16,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=1,MarginV=20\'" -c:v libx264 -crf 28 -preset medium -c:a aac -b:a 128k -movflags +faststart -y %s 2>&1',
+        'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,MarginV=50,MarginL=60,MarginR=60\'" -c:v libx264 -crf 28 -preset medium -c:a aac -b:a 128k -movflags +faststart -y %s 2>&1',
         escapeshellarg($videoPath),
         $srtPathEscaped,
         escapeshellarg($outputPath)
