@@ -435,12 +435,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             } else {
                 $processingLog[] = "Datoteka učitana: " . $videoName;
 
-                // Dohvati trajanje
-                $duration = getMediaDuration($tempVideoPath);
-                $processingLog[] = "Trajanje: " . gmdate("H:i:s", (int)$duration);
-
-                // Za WORKER - samo spremi video i dodaj u queue (bez ekstrakcije audia)
+                // Za WORKER - samo spremi video i dodaj u queue (bez ffprobe)
                 if ($method === 'worker') {
+                    $duration = 0; // Worker će dobiti trajanje
                     $queueDir = UPLOAD_PATH . 'worker_queue/';
                     if (!is_dir($queueDir)) mkdir($queueDir, 0755, true);
                     $workerVideoPath = 'uploads/worker_queue/' . $uniqueId . '.' . $ext;
@@ -454,7 +451,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                     logActivity('video_subtitles_queue', 'ai', null);
 
                 } else {
-                    // Za WHISPER i GEMINI - ekstrahiraj audio na serveru
+                    // Za WHISPER i GEMINI - dohvati trajanje i ekstrahiraj audio
+                    $duration = getMediaDuration($tempVideoPath);
+                    $processingLog[] = "Trajanje: " . gmdate("H:i:s", (int)$duration);
+
                     $audioExts = ['mp3', 'wav', 'm4a'];
                     if (in_array($ext, $audioExts)) {
                         $tempAudioPath = $tempVideoPath;

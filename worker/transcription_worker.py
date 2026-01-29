@@ -36,7 +36,7 @@ from pathlib import Path
 # Konfiguracija
 SERVER_URL = "https://www.zagorje-promocija.com/desk-crm/api/worker/"
 API_KEY = "REDACTED_WORKER_KEY"  # Mora biti isto kao na serveru!
-POLL_INTERVAL = 5  # sekundi između provjera
+POLL_INTERVAL = 2  # sekundi između provjera
 WHISPER_MODEL = "large-v3"  # best quality - options: tiny, base, small, medium, large-v2, large-v3
 DEVICE = "cuda"  # ili "cpu" ako nema GPU
 COMPUTE_TYPE = "float32"  # float32 za starije GPU (Quadro P4000), float16 za novije (RTX serija)
@@ -147,7 +147,7 @@ def burn_subtitles(video_path, srt_path, output_path):
     cmd = [
         FFMPEG_PATH, '-i', video_path,
         '-vf', f"subtitles='{srt_escaped}':force_style='FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,MarginV=50,MarginL=60,MarginR=60'",
-        '-c:v', 'libx264', '-crf', '28', '-preset', 'fast',  # CPU enkodiranje, brži preset
+        '-c:v', 'libx264', '-crf', '28', '-preset', 'fast',
         '-c:a', 'aac', '-b:a', '96k',
         '-movflags', '+faststart',
         '-y', output_path
