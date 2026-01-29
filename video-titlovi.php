@@ -477,7 +477,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                         } else {
                             $processingLog[] = "Audio veličina: " . round($audioSize / 1024 / 1024, 2) . " MB";
 
-                            $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
+                            if ($method === 'whisper') {
+                                $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
                                 $subtitleResult = generateSubtitlesWithWhisper($tempAudioPath, $tempDir, $language);
                             } else {
                                 $processingLog[] = "Generiram titlove s Geminijem (jezik: $language)...";
