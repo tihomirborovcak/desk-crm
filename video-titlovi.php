@@ -733,7 +733,7 @@ if (!empty($recentJobs)):
         ?>
         <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <strong style="font-size: 0.9rem;">#<?= $job['id'] ?> <?= e($job['original_filename']) ?></strong>
+                <strong style="font-size: 0.9rem;">#<?= $job['id'] ?> <?= e($job['original_filename']) ?> <span style="color: #888; font-weight: normal;">(<?= date('H:i:s', strtotime($job['created_at'])) ?>)</span></strong>
                 <span style="color: <?= $color ?>; font-weight: 600; font-size: 0.85rem;"><?= $label ?></span>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #666;">

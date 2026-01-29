@@ -198,7 +198,7 @@ def transcribe(audio_path, language="hr"):
     log(f"Detektirani jezik: {info.language} (vjerojatnost: {info.language_probability:.2%})")
     log(f"Trajanje: {info.duration:.1f}s")
 
-    return [{"start": s.start, "end": s.end, "text": s.text} for s in segments]
+    return [{"start": s.start, "end": s.end, "text": s.text} for s in segments], info.duration
 
 def format_srt(segments):
     """Pretvori segmente u SRT format"""
@@ -333,7 +333,7 @@ Vrati SAMO ispravljeni SRT, bez objašnjenja."""
 
     return srt_content
 
-def upload_result(job_id, srt_content, processing_time, video_path=None, error=None):
+def upload_result(job_id, srt_content, processing_time, video_path=None, error=None, duration=0):
     """Upload rezultata na server"""
     try:
         if video_path and os.path.exists(video_path):
@@ -343,6 +343,7 @@ def upload_result(job_id, srt_content, processing_time, video_path=None, error=N
                 data = {
                     'srt_content': srt_content,
                     'processing_time': str(processing_time),
+                    'duration': str(duration),
                     'error': error or ''
                 }
                 # Remove Content-Type header for multipart
@@ -359,6 +360,7 @@ def upload_result(job_id, srt_content, processing_time, video_path=None, error=N
             data = {
                 "srt_content": srt_content,
                 "processing_time": processing_time,
+                "duration": duration,
                 "error": error
             }
             response = requests.post(
@@ -409,7 +411,7 @@ def process_job(job):
 
         # 3. Transkribiraj
         try:
-            segments = transcribe(audio_path, language)
+            segments, media_duration = transcribe(audio_path, language)
             srt_content = format_srt(segments)
             # Ispravi greške u transkripciji pomoću AI
             log("Šaljem na AI ispravak...")
@@ -441,7 +443,7 @@ def process_job(job):
         else:
             log(f"Uploadam SRT ({len(srt_content)} bytes)...")
 
-        if upload_result(job_id, srt_content, processing_time, final_video_path):
+        if upload_result(job_id, srt_content, processing_time, final_video_path, duration=media_duration):
             log(f"✓ Job #{job_id} završen za {processing_time:.1f}s")
             time.sleep(2)  # Pauza da korisnik vidi poruku
             hide_console()

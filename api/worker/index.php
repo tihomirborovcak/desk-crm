@@ -130,12 +130,14 @@ switch ($action) {
             // Multipart upload
             $srtContent = $_POST['srt_content'] ?? '';
             $processingTime = floatval($_POST['processing_time'] ?? 0);
+            $duration = floatval($_POST['duration'] ?? 0);
             $error = !empty($_POST['error']) ? $_POST['error'] : null;
         } else {
             // JSON upload
             $input = json_decode(file_get_contents('php://input'), true);
             $srtContent = $input['srt_content'] ?? '';
             $processingTime = floatval($input['processing_time'] ?? 0);
+            $duration = floatval($input['duration'] ?? 0);
             $error = $input['error'] ?? null;
         }
 
@@ -208,10 +210,11 @@ switch ($action) {
                 srt_path = ?,
                 video_with_subs_path = ?,
                 processing_time_seconds = ?,
+                duration_seconds = CASE WHEN ? > 0 THEN ? ELSE duration_seconds END,
                 completed_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$srtContent, $srtPath, $videoWithSubsPath, $processingTime, $jobId]);
+        $stmt->execute([$srtContent, $srtPath, $videoWithSubsPath, $processingTime, $duration, $duration, $jobId]);
 
         echo json_encode([
             'success' => true,
