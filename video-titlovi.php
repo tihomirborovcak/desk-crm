@@ -11,6 +11,23 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
+// Download SRT iz baze
+if (isset($_GET['download_srt']) && is_numeric($_GET['download_srt'])) {
+    $jobId = (int)$_GET['download_srt'];
+    $db = getDB();
+    $stmt = $db->prepare("SELECT original_filename, srt_content FROM transcription_jobs WHERE id = ? AND status = 'completed'");
+    $stmt->execute([$jobId]);
+    $job = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($job && $job['srt_content']) {
+        $filename = pathinfo($job['original_filename'], PATHINFO_FILENAME) . '.srt';
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        echo $job['srt_content'];
+        exit;
+    }
+}
+
 set_time_limit(600); // 10 minuta za dulje videe
 
 $error = null;
@@ -748,8 +765,8 @@ if (!empty($recentJobs)):
                     <td><?= $job['duration_seconds'] ? gmdate('i:s', (int)$job['duration_seconds']) : '-' ?></td>
                     <td><?= date('H:i', strtotime($job['created_at'])) ?></td>
                     <td>
-                        <?php if ($job['status'] === 'completed' && $job['srt_path']): ?>
-                        <a href="<?= e($job['srt_path']) ?>" download class="btn btn-sm btn-success">SRT</a>
+                        <?php if ($job['status'] === 'completed'): ?>
+                        <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-success">SRT</a>
                         <?php endif; ?>
                     </td>
                 </tr>

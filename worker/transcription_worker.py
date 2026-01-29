@@ -5,6 +5,9 @@ Koristi faster-whisper za transkripciju s GPU ubrzanjem
 """
 
 import os
+
+# Fix za OpenMP duplicate library error na Windowsu
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import sys
 import time
 import json
@@ -18,7 +21,7 @@ API_KEY = "REDACTED_WORKER_KEY"  # Mora biti isto kao na serveru!
 POLL_INTERVAL = 5  # sekundi između provjera
 WHISPER_MODEL = "large-v3"  # best quality - options: tiny, base, small, medium, large-v2, large-v3
 DEVICE = "cuda"  # ili "cpu" ako nema GPU
-COMPUTE_TYPE = "float16"  # float16 za GPU, int8 za CPU
+COMPUTE_TYPE = "float32"  # float32 za starije GPU (Quadro P4000), float16 za novije (RTX serija)
 
 # Headers za API
 HEADERS = {
