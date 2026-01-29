@@ -334,18 +334,63 @@ function isWhisperInstalled() {
     return $returnCode === 0;
 }
 
+// Dodaj job u worker queue
+function addJobToQueue($videoPath, $audioPath, $originalFilename, $language, $burnSubs, $duration) {
+    $db = getDB();
+
+    $stmt = $db->prepare("
+        INSERT INTO transcription_jobs
+        (original_filename, video_path, audio_path, language, burn_subtitles, duration_seconds, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $originalFilename,
+        $videoPath,
+        $audioPath,
+        $language,
+        $burnSubs ? 1 : 0,
+        $duration,
+        $_SESSION['user_id'] ?? null
+    ]);
+
+    return $db->lastInsertId();
+}
+
+// Dohvati job status
+function getJobStatus($jobId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT * FROM transcription_jobs WHERE id = ?");
+    $stmt->execute([$jobId]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+// Dohvati sve jobove za prikaz
+function getRecentJobs($limit = 20) {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT * FROM transcription_jobs
+            ORDER BY created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
 // Status provjera
 $ffmpegOK = isFfmpegInstalled();
 $geminiOK = file_exists(__DIR__ . '/google-credentials.json');
 $whisperOK = isWhisperInstalled();
+$workerOK = true; // Worker je uvijek dostupan ako je PC upaljen
 
 // Obrada uploada
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
 
     if (!$ffmpegOK) {
         $error = 'FFmpeg nije instaliran na serveru!';
-    } elseif (!$geminiOK) {
-        $error = 'Google credentials nisu postavljeni!';
     } elseif (empty($_FILES['video']['tmp_name'])) {
         $error = 'Odaberite video datoteku';
     } else {
@@ -403,7 +448,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                         $processingLog[] = "Audio veličina: " . round($audioSize / 1024 / 1024, 2) . " MB";
 
                         // 2. Generiraj titlove
-                        if ($method === 'whisper') {
+                        if ($method === 'worker') {
+                            // Spremi audio trajno za worker
+                            $audioDir = UPLOAD_PATH . 'worker_queue/';
+                            if (!is_dir($audioDir)) mkdir($audioDir, 0755, true);
+                            $workerAudioPath = 'uploads/worker_queue/' . $uniqueId . '.mp3';
+                            copy($tempAudioPath, UPLOAD_PATH . '../' . $workerAudioPath);
+
+                            // Spremi video ako treba burn subtitles
+                            $workerVideoPath = null;
+                            if ($burnSubs && !in_array($ext, ['mp3', 'wav', 'm4a'])) {
+                                $workerVideoPath = 'uploads/worker_queue/' . $uniqueId . '.' . $ext;
+                                copy($tempVideoPath, UPLOAD_PATH . '../' . $workerVideoPath);
+                            }
+
+                            // Dodaj u queue
+                            $jobId = addJobToQueue($workerVideoPath, $workerAudioPath, $videoName, $language, $burnSubs, $duration);
+                            $processingLog[] = "Job dodan u queue (ID: $jobId)";
+                            $processingLog[] = "Čeka se obrada na lokalnom PC-u...";
+                            $success = "Job #$jobId dodan u queue! Prati status dolje.";
+                            $pendingJobId = $jobId;
+
+                        } elseif ($method === 'whisper') {
                             $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
                             $subtitleResult = generateSubtitlesWithWhisper($tempAudioPath, $tempDir, $language);
                         } else {
@@ -411,7 +477,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                             $subtitleResult = generateSubtitlesWithGemini($tempAudioPath, $language, $duration);
                         }
 
-                        if (isset($subtitleResult['error'])) {
+                        if ($method === 'worker') {
+                            // Worker job - ne obrađujemo ovdje
+                            logActivity('video_subtitles_queue', 'ai', null);
+                        } elseif (isset($subtitleResult['error'])) {
                             $error = 'Greška pri generiranju titlova: ' . $subtitleResult['error'];
                         } else {
                             $processingLog[] = "Titlovi generirani uspješno!";
@@ -539,13 +608,15 @@ include 'includes/header.php';
             <div class="form-group">
                 <label class="form-label">Metoda transkripcije</label>
                 <select name="method" class="form-control">
+                    <option value="worker" selected>WhisperX Worker (najbolja kvaliteta, lokalni PC)</option>
                     <?php if ($whisperOK): ?>
-                    <option value="whisper" selected>Whisper (precizni timestamps)</option>
+                    <option value="whisper">Whisper Server (sporije)</option>
                     <?php endif; ?>
                     <?php if ($geminiOK): ?>
-                    <option value="gemini">Gemini (brži, manje precizan)</option>
+                    <option value="gemini">Gemini (brz, manje precizan)</option>
                     <?php endif; ?>
                 </select>
+                <small class="form-text">Worker koristi tvoj lokalni PC s GPU za najbolju kvalitetu</small>
             </div>
 
             <div class="form-group">
@@ -557,7 +628,7 @@ include 'includes/header.php';
             </div>
 
             <div class="form-group">
-                <button type="submit" class="btn btn-primary" id="submitBtn" <?= (!$ffmpegOK || (!$geminiOK && !$whisperOK)) ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-primary" id="submitBtn" <?= !$ffmpegOK ? 'disabled' : '' ?>>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="23 7 16 12 23 17 23 7"/>
                         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
@@ -624,6 +695,67 @@ include 'includes/header.php';
                 Preuzmi SRT
             </button>
         </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php
+// Job Queue prikaz
+$recentJobs = getRecentJobs(10);
+if (!empty($recentJobs)):
+?>
+<div class="card mt-2">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title">Worker Queue</h2>
+        <a href="?refresh=1" class="btn btn-sm btn-outline">Osvježi</a>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Datoteka</th>
+                    <th>Status</th>
+                    <th>Trajanje</th>
+                    <th>Vrijeme</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($recentJobs as $job): ?>
+                <tr>
+                    <td>#<?= $job['id'] ?></td>
+                    <td><?= e($job['original_filename']) ?></td>
+                    <td>
+                        <?php
+                        $statusColors = [
+                            'pending' => '#f59e0b',
+                            'processing' => '#3b82f6',
+                            'completed' => '#10b981',
+                            'failed' => '#ef4444'
+                        ];
+                        $statusLabels = [
+                            'pending' => 'Čeka',
+                            'processing' => 'Obrađuje se',
+                            'completed' => 'Gotovo',
+                            'failed' => 'Greška'
+                        ];
+                        $color = $statusColors[$job['status']] ?? '#666';
+                        $label = $statusLabels[$job['status']] ?? $job['status'];
+                        ?>
+                        <span style="color: <?= $color ?>; font-weight: 600;"><?= $label ?></span>
+                    </td>
+                    <td><?= $job['duration_seconds'] ? gmdate('i:s', (int)$job['duration_seconds']) : '-' ?></td>
+                    <td><?= date('H:i', strtotime($job['created_at'])) ?></td>
+                    <td>
+                        <?php if ($job['status'] === 'completed' && $job['srt_path']): ?>
+                        <a href="<?= e($job['srt_path']) ?>" download class="btn btn-sm btn-success">SRT</a>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 <?php endif; ?>
