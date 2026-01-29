@@ -42,6 +42,10 @@ DEVICE = "cuda"  # ili "cpu" ako nema GPU
 COMPUTE_TYPE = "float32"  # float32 za starije GPU (Quadro P4000), float16 za novije (RTX serija)
 FFMPEG_PATH = r"C:\ffmpeg\builds\ffmpeg-2026-01-14-git-6c878f8b82-essentials_build\ffmpeg-2026-01-14-git-6c878f8b82-essentials_build\bin\ffmpeg.exe"
 
+# Google Gemini za AI ispravak transkripcije
+GOOGLE_CREDENTIALS_PATH = r"C:\xampp\htdocs\desk-crm\google-credentials.json"
+USE_AI_CORRECTION = True  # Koristi Gemini za ispravak grešaka
+
 # Headers za API
 HEADERS = {
     "X-API-Key": API_KEY,
@@ -196,38 +200,120 @@ def format_srt(segments):
 
     return "\n".join(srt_lines)
 
-# Rječnik ispravaka - dodaj svoje ispravke ovdje
-CORRECTIONS = {
-    # Format: "krivo": "ispravno"
-    "bratari": "vratari",
-    "bratar": "vratar",
-    "bratara": "vratara",
-    "brataru": "vrataru",
-    "bratarima": "vratarima",
-    # Dodaj još ispravaka po potrebi...
-}
+def get_google_access_token():
+    """Dohvati Google access token iz credentials datoteke"""
+    import jwt
+    import time as t
 
-def fix_transcription(text):
-    """Ispravi česte greške u transkripciji"""
-    import re
+    if not os.path.exists(GOOGLE_CREDENTIALS_PATH):
+        log(f"Google credentials ne postoji: {GOOGLE_CREDENTIALS_PATH}")
+        return None
 
-    for wrong, correct in CORRECTIONS.items():
-        # Case-insensitive zamjena koja čuva originalni case
-        pattern = re.compile(re.escape(wrong), re.IGNORECASE)
+    try:
+        with open(GOOGLE_CREDENTIALS_PATH, 'r') as f:
+            credentials = json.load(f)
 
-        def replace_match(match):
-            orig = match.group(0)
-            # Ako je original sve veliko, vrati sve veliko
-            if orig.isupper():
-                return correct.upper()
-            # Ako počinje velikim slovom, vrati s velikim
-            if orig[0].isupper():
-                return correct.capitalize()
-            return correct
+        now = int(t.time())
+        payload = {
+            'iss': credentials['client_email'],
+            'scope': 'https://www.googleapis.com/auth/cloud-platform',
+            'aud': 'https://oauth2.googleapis.com/token',
+            'iat': now,
+            'exp': now + 3600
+        }
 
-        text = pattern.sub(replace_match, text)
+        token = jwt.encode(payload, credentials['private_key'], algorithm='RS256')
 
-    return text
+        response = requests.post('https://oauth2.googleapis.com/token', data={
+            'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion': token
+        }, timeout=30)
+
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'token': data['access_token'],
+                'project_id': credentials['project_id']
+            }
+        else:
+            log(f"Google auth greška: {response.status_code}")
+            return None
+    except Exception as e:
+        log(f"Greška pri dohvatu Google tokena: {e}")
+        return None
+
+def fix_transcription_with_ai(srt_content, language="hr"):
+    """Koristi Gemini AI za ispravak transkripcijskih grešaka"""
+    if not USE_AI_CORRECTION:
+        return srt_content
+
+    auth = get_google_access_token()
+    if not auth:
+        log("AI ispravak preskočen - nema Google credentials")
+        return srt_content
+
+    lang_names = {
+        'hr': 'hrvatskom',
+        'en': 'engleskom',
+        'de': 'njemačkom',
+        'sl': 'slovenskom',
+        'sr': 'srpskom'
+    }
+    lang_name = lang_names.get(language, 'hrvatskom')
+
+    url = f"https://europe-central2-aiplatform.googleapis.com/v1/projects/{auth['project_id']}/locations/europe-central2/publishers/google/models/gemini-2.0-flash-001:generateContent"
+
+    prompt = f"""Pregledaj ove SRT titlove na {lang_name} jeziku i ispravi SAMO greške u transkripciji.
+
+PRAVILA:
+1. Ispravi riječi koje ne postoje u {lang_name} jeziku zamjenom sa sličnim riječima koje postoje
+2. Npr. "bratari" → "vratari", "kuca" → "kuća"
+3. NE MIJENJAJ vremenske oznake (timestamps)
+4. NE MIJENJAJ strukturu SRT formata
+5. NE DODAVAJ ništa novo, samo ispravi greške
+6. Ako nema grešaka, vrati isti tekst
+
+SRT SADRŽAJ:
+{srt_content}
+
+Vrati SAMO ispravljeni SRT, bez objašnjenja."""
+
+    try:
+        response = requests.post(url,
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f"Bearer {auth['token']}"
+            },
+            json={
+                'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
+                'generationConfig': {
+                    'temperature': 0.1,
+                    'maxOutputTokens': 8000
+                }
+            },
+            timeout=60
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            if 'candidates' in data and data['candidates']:
+                corrected = data['candidates'][0]['content']['parts'][0]['text']
+                # Očisti markdown ako ga ima
+                corrected = corrected.strip()
+                if corrected.startswith('```'):
+                    corrected = '\n'.join(corrected.split('\n')[1:])
+                if corrected.endswith('```'):
+                    corrected = '\n'.join(corrected.split('\n')[:-1])
+                corrected = corrected.strip()
+                log("AI ispravak primijenjen")
+                return corrected
+        else:
+            log(f"Gemini API greška: {response.status_code}")
+
+    except Exception as e:
+        log(f"Greška pri AI ispravku: {e}")
+
+    return srt_content
 
 def upload_result(job_id, srt_content, processing_time, video_path=None, error=None):
     """Upload rezultata na server"""
@@ -307,9 +393,9 @@ def process_job(job):
         try:
             segments = transcribe(audio_path, language)
             srt_content = format_srt(segments)
-            # Ispravi česte greške u transkripciji
-            srt_content = fix_transcription(srt_content)
-            log("Primijenjene ispravke transkripcije")
+            # Ispravi greške u transkripciji pomoću AI
+            log("Šaljem na AI ispravak...")
+            srt_content = fix_transcription_with_ai(srt_content, language)
         except Exception as e:
             log(f"Greška pri transkripciji: {e}")
             upload_result(job_id, "", 0, error=str(e))
