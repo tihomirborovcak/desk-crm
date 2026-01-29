@@ -58,7 +58,11 @@ def log(message):
     """Ispiši log s timestamp-om"""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {message}"
-    print(line)
+    # Print s fallback za Windows encoding probleme
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        print(line.encode('ascii', 'replace').decode('ascii'))
     # Spremi u log file
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
