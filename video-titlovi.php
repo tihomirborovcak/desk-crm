@@ -1,7 +1,7 @@
 <?php
 /**
  * Video Titlovi - generiranje SRT titlova iz videa
- * Koristi ffmpeg za ekstrakciju audia i Whisper za transkripciju
+ * Koristi ffmpeg za ekstrakciju audia i Gemini za transkripciju
  */
 
 define('PAGE_TITLE', 'Video Titlovi');
@@ -31,14 +31,6 @@ if (!is_dir($subtitlesDir)) {
     mkdir($subtitlesDir, 0755, true);
 }
 
-// Provjeri je li Whisper instaliran
-function isWhisperInstalled() {
-    $output = [];
-    $returnCode = 0;
-    exec('whisper --help 2>&1', $output, $returnCode);
-    return $returnCode === 0 || strpos(implode('', $output), 'usage:') !== false;
-}
-
 // Provjeri je li ffmpeg instaliran
 function isFfmpegInstalled() {
     $output = [];
@@ -47,11 +39,21 @@ function isFfmpegInstalled() {
     return $returnCode === 0;
 }
 
+// Dohvati trajanje audio/video datoteke u sekundama
+function getMediaDuration($filePath) {
+    $cmd = sprintf(
+        'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s 2>&1',
+        escapeshellarg($filePath)
+    );
+    $output = trim(shell_exec($cmd));
+    return is_numeric($output) ? floatval($output) : 0;
+}
+
 // Izvuci audio iz videa
 function extractAudio($videoPath, $audioPath) {
-    // Konvertiraj u WAV 16kHz mono (optimalno za Whisper)
+    // Konvertiraj u MP3 (manji file za Gemini)
     $cmd = sprintf(
-        'ffmpeg -i %s -vn -acodec pcm_s16le -ar 16000 -ac 1 %s -y 2>&1',
+        'ffmpeg -i %s -vn -acodec libmp3lame -ar 16000 -ac 1 -b:a 64k %s -y 2>&1',
         escapeshellarg($videoPath),
         escapeshellarg($audioPath)
     );
@@ -66,70 +68,238 @@ function extractAudio($videoPath, $audioPath) {
     ];
 }
 
-// Generiraj titlove s Whisperom
-function generateSubtitles($audioPath, $outputDir, $language = 'hr') {
-    $cmd = sprintf(
-        'whisper %s --language %s --output_format srt --output_dir %s 2>&1',
-        escapeshellarg($audioPath),
-        escapeshellarg($language),
-        escapeshellarg($outputDir)
-    );
+// Google Cloud - JWT autentifikacija (kopija iz transkripcija.php)
+function getGoogleAccessToken() {
+    $credentialsFile = __DIR__ . '/google-credentials.json';
 
-    $output = [];
-    $returnCode = 0;
-    exec($cmd, $output, $returnCode);
+    if (!file_exists($credentialsFile)) {
+        return ['error' => 'Google credentials datoteka nije pronađena'];
+    }
 
-    // Pronađi generirani SRT
-    $audioBasename = pathinfo($audioPath, PATHINFO_FILENAME);
-    $srtPath = $outputDir . '/' . $audioBasename . '.srt';
+    $credentials = json_decode(file_get_contents($credentialsFile), true);
+
+    if (!$credentials || !isset($credentials['private_key'])) {
+        return ['error' => 'Neispravna credentials datoteka'];
+    }
+
+    $header = ['alg' => 'RS256', 'typ' => 'JWT'];
+
+    $now = time();
+    $payload = [
+        'iss' => $credentials['client_email'],
+        'scope' => 'https://www.googleapis.com/auth/cloud-platform',
+        'aud' => 'https://oauth2.googleapis.com/token',
+        'iat' => $now,
+        'exp' => $now + 3600
+    ];
+
+    $base64UrlEncode = function($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    };
+
+    $headerEncoded = $base64UrlEncode(json_encode($header));
+    $payloadEncoded = $base64UrlEncode(json_encode($payload));
+
+    $dataToSign = $headerEncoded . '.' . $payloadEncoded;
+    $privateKey = openssl_pkey_get_private($credentials['private_key']);
+
+    if (!$privateKey) {
+        return ['error' => 'Neispravan privatni ključ'];
+    }
+
+    openssl_sign($dataToSign, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+    $jwt = $dataToSign . '.' . $base64UrlEncode($signature);
+
+    $ch = curl_init('https://oauth2.googleapis.com/token');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_POSTFIELDS => http_build_query([
+            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion' => $jwt
+        ])
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    $data = json_decode($response, true);
+
+    if ($httpCode !== 200 || !isset($data['access_token'])) {
+        $errMsg = $data['error_description'] ?? $data['error'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'Google auth greška: ' . $errMsg];
+    }
 
     return [
-        'success' => file_exists($srtPath),
-        'srt_path' => $srtPath,
-        'output' => implode("\n", $output)
+        'token' => $data['access_token'],
+        'project_id' => $credentials['project_id']
     ];
 }
 
-// Burn titlove u video (opcionalno)
-function burnSubtitles($videoPath, $srtPath, $outputPath) {
-    $cmd = sprintf(
-        'ffmpeg -i %s -vf "subtitles=%s:force_style=\'FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2\'" -c:a copy %s -y 2>&1',
-        escapeshellarg($videoPath),
-        escapeshellarg(str_replace('\\', '/', $srtPath)),
-        escapeshellarg($outputPath)
-    );
+// Gemini - generiraj SRT titlove
+function generateSubtitlesWithGemini($audioPath, $language = 'hr', $duration = 0) {
+    $auth = getGoogleAccessToken();
+    if (isset($auth['error'])) {
+        return $auth;
+    }
 
-    $output = [];
-    $returnCode = 0;
-    exec($cmd, $output, $returnCode);
+    // Učitaj audio i kodiraj u base64
+    $audioContent = base64_encode(file_get_contents($audioPath));
 
-    return [
-        'success' => $returnCode === 0 && file_exists($outputPath),
-        'output' => implode("\n", $output)
+    // Odredi MIME type
+    $ext = strtolower(pathinfo($audioPath, PATHINFO_EXTENSION));
+    $mimeTypes = [
+        'mp3'  => 'audio/mpeg',
+        'wav'  => 'audio/wav',
+        'm4a'  => 'audio/mp4',
     ];
+    $mimeType = $mimeTypes[$ext] ?? 'audio/mpeg';
+
+    $projectId = $auth['project_id'];
+    $region = 'europe-central2';
+    $model = 'gemini-2.0-flash-001';
+
+    $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
+
+    $langName = [
+        'hr' => 'hrvatski',
+        'en' => 'engleski',
+        'de' => 'njemački',
+        'sl' => 'slovenski',
+        'sr' => 'srpski'
+    ][$language] ?? 'hrvatski';
+
+    $systemPrompt = "Ti si profesionalni prevoditelj koji stvara titlove za video.
+Tvoj zadatak je transkribirati audio i generirati SRT titlove s vremenskim oznakama.
+
+PRAVILA ZA SRT FORMAT:
+1. Svaki titl ima redni broj, vremenske oznake i tekst
+2. Format vremena: HH:MM:SS,mmm --> HH:MM:SS,mmm
+3. Maksimalno 2 reda teksta po titlu
+4. Maksimalno 42 znaka po redu
+5. Titl traje 1-6 sekundi
+6. Pauza između titlova: minimalno 0.1 sekunde
+
+PRIMJER SRT FORMATA:
+1
+00:00:01,000 --> 00:00:04,500
+Ovo je prvi titl koji
+se proteže u dva reda.
+
+2
+00:00:05,000 --> 00:00:08,200
+A ovo je drugi titl.
+
+VAŽNO:
+- Transkribiraj na {$langName} jeziku
+- Generiraj SAMO SRT sadržaj, bez dodatnih objašnjenja
+- Procijeni vremenske oznake na temelju govora
+- Audio traje otprilike " . round($duration) . " sekundi";
+
+    $postData = json_encode([
+        'contents' => [
+            [
+                'role' => 'user',
+                'parts' => [
+                    [
+                        'inlineData' => [
+                            'mimeType' => $mimeType,
+                            'data' => $audioContent
+                        ]
+                    ],
+                    [
+                        'text' => 'Generiraj SRT titlove za ovaj audio. Vrati SAMO SRT format, ništa drugo.'
+                    ]
+                ]
+            ]
+        ],
+        'systemInstruction' => [
+            'parts' => [['text' => $systemPrompt]]
+        ],
+        'generationConfig' => [
+            'temperature' => 0.1,
+            'maxOutputTokens' => 8000
+        ]
+    ]);
+
+    // Retry logic
+    $maxRetries = 3;
+    $retryDelay = 5;
+
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 300,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $auth['token']
+            ],
+            CURLOPT_POSTFIELDS => $postData
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            return ['error' => 'Greška: ' . $curlError];
+        }
+
+        $data = json_decode($response, true);
+
+        if ($httpCode === 429 && $attempt < $maxRetries) {
+            sleep($retryDelay * $attempt);
+            continue;
+        }
+
+        if ($httpCode !== 200) {
+            $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+            return ['error' => 'Gemini API greška: ' . $errMsg];
+        }
+
+        if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+            return ['error' => 'Nema odgovora od Gemini-ja'];
+        }
+
+        $srtContent = $data['candidates'][0]['content']['parts'][0]['text'];
+
+        // Očisti markdown ako Gemini doda ```
+        $srtContent = preg_replace('/^```(srt)?\s*/m', '', $srtContent);
+        $srtContent = preg_replace('/```\s*$/m', '', $srtContent);
+        $srtContent = trim($srtContent);
+
+        return ['srt' => $srtContent];
+    }
+
+    return ['error' => 'Gemini API greška nakon ' . $maxRetries . ' pokušaja'];
 }
 
 // Status provjera
 $ffmpegOK = isFfmpegInstalled();
-$whisperOK = isWhisperInstalled();
+$geminiOK = file_exists(__DIR__ . '/google-credentials.json');
 
 // Obrada uploada
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
 
     if (!$ffmpegOK) {
         $error = 'FFmpeg nije instaliran na serveru!';
-    } elseif (!$whisperOK) {
-        $error = 'Whisper nije instaliran na serveru! Pokreni: pip install openai-whisper';
+    } elseif (!$geminiOK) {
+        $error = 'Google credentials nisu postavljeni!';
     } elseif (empty($_FILES['video']['tmp_name'])) {
         $error = 'Odaberite video datoteku';
     } else {
         $videoFile = $_FILES['video'];
         $videoName = $videoFile['name'];
         $language = $_POST['language'] ?? 'hr';
-        $burnSubs = isset($_POST['burn_subtitles']);
 
         // Provjeri format
-        $allowedExts = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv'];
+        $allowedExts = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv', 'mp3', 'wav', 'm4a'];
         $ext = strtolower(pathinfo($videoName, PATHINFO_EXTENSION));
 
         if (!in_array($ext, $allowedExts)) {
@@ -138,71 +308,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             // Generiraj jedinstveno ime
             $uniqueId = date('Ymd_His_') . bin2hex(random_bytes(4));
             $tempVideoPath = $tempDir . $uniqueId . '.' . $ext;
-            $tempAudioPath = $tempDir . $uniqueId . '.wav';
+            $tempAudioPath = $tempDir . $uniqueId . '.mp3';
 
             // Pomakni uploadanu datoteku
             if (!move_uploaded_file($videoFile['tmp_name'], $tempVideoPath)) {
                 $error = 'Greška pri uploadu videa';
             } else {
-                $processingLog[] = "Video učitan: " . $videoName;
+                $processingLog[] = "Datoteka učitana: " . $videoName;
 
-                // 1. Izvuci audio
-                $processingLog[] = "Ekstrahiram audio...";
-                $audioResult = extractAudio($tempVideoPath, $tempAudioPath);
+                // Dohvati trajanje
+                $duration = getMediaDuration($tempVideoPath);
+                $processingLog[] = "Trajanje: " . gmdate("H:i:s", (int)$duration);
 
-                if (!$audioResult['success']) {
-                    $error = 'Greška pri ekstrakciji audia: ' . $audioResult['output'];
+                // Ako je audio format, koristi direktno
+                $audioExts = ['mp3', 'wav', 'm4a'];
+                if (in_array($ext, $audioExts)) {
+                    $tempAudioPath = $tempVideoPath;
+                    $processingLog[] = "Audio format - preskačem ekstrakciju";
                 } else {
-                    $processingLog[] = "Audio ekstrahiran uspješno";
+                    // 1. Izvuci audio
+                    $processingLog[] = "Ekstrahiram audio...";
+                    $audioResult = extractAudio($tempVideoPath, $tempAudioPath);
 
-                    // 2. Generiraj titlove
-                    $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
-                    $subtitleResult = generateSubtitles($tempAudioPath, $tempDir, $language);
-
-                    if (!$subtitleResult['success']) {
-                        $error = 'Greška pri generiranju titlova: ' . $subtitleResult['output'];
+                    if (!$audioResult['success']) {
+                        $error = 'Greška pri ekstrakciji audia: ' . $audioResult['output'];
                     } else {
-                        $processingLog[] = "Titlovi generirani uspješno!";
-
-                        // Učitaj SRT sadržaj
-                        $srtContent = file_get_contents($subtitleResult['srt_path']);
-
-                        // Spremi SRT trajno
-                        $finalSrtName = pathinfo($videoName, PATHINFO_FILENAME) . '_' . $uniqueId . '.srt';
-                        $finalSrtPath = $subtitlesDir . $finalSrtName;
-                        copy($subtitleResult['srt_path'], $finalSrtPath);
-
-                        // 3. Burn titlove ako je odabrano
-                        if ($burnSubs && $srtContent) {
-                            $processingLog[] = "Ugrađujem titlove u video...";
-                            $outputVideoPath = $subtitlesDir . pathinfo($videoName, PATHINFO_FILENAME) . '_subtitled_' . $uniqueId . '.mp4';
-
-                            $burnResult = burnSubtitles($tempVideoPath, $subtitleResult['srt_path'], $outputVideoPath);
-
-                            if ($burnResult['success']) {
-                                $processingLog[] = "Video s titlovima spreman!";
-                                $success = 'Titlovi generirani i ugrađeni u video!';
-                            } else {
-                                $processingLog[] = "Upozorenje: Nije uspjelo ugraditi titlove u video";
-                            }
-                        } else {
-                            $success = 'SRT titlovi uspješno generirani!';
-                        }
-
-                        logActivity('video_subtitles', 'ai', null);
+                        $processingLog[] = "Audio ekstrahiran uspješno";
                     }
+                }
 
-                    // Očisti temp audio
+                if (!$error) {
+                    // Provjeri veličinu audia (Gemini limit 20MB)
+                    $audioSize = filesize($tempAudioPath);
+                    if ($audioSize > 20 * 1024 * 1024) {
+                        $error = 'Audio prevelik za Gemini (max 20MB). Probaj kraći video.';
+                    } else {
+                        $processingLog[] = "Audio veličina: " . round($audioSize / 1024 / 1024, 2) . " MB";
+
+                        // 2. Generiraj titlove s Geminijem
+                        $processingLog[] = "Generiram titlove s Geminijem (jezik: $language)...";
+                        $subtitleResult = generateSubtitlesWithGemini($tempAudioPath, $language, $duration);
+
+                        if (isset($subtitleResult['error'])) {
+                            $error = 'Greška pri generiranju titlova: ' . $subtitleResult['error'];
+                        } else {
+                            $processingLog[] = "Titlovi generirani uspješno!";
+
+                            $srtContent = $subtitleResult['srt'];
+
+                            // Spremi SRT trajno
+                            $finalSrtName = pathinfo($videoName, PATHINFO_FILENAME) . '_' . $uniqueId . '.srt';
+                            $finalSrtPath = $subtitlesDir . $finalSrtName;
+                            file_put_contents($finalSrtPath, $srtContent);
+
+                            $success = 'SRT titlovi uspješno generirani!';
+                            logActivity('video_subtitles', 'ai', null);
+                        }
+                    }
+                }
+
+                // Očisti temp datoteke
+                if ($tempAudioPath !== $tempVideoPath) {
                     @unlink($tempAudioPath);
                 }
-
-                // Očisti temp video
                 @unlink($tempVideoPath);
-
-                // Očisti temp SRT
-                if (isset($subtitleResult['srt_path'])) {
-                    @unlink($subtitleResult['srt_path']);
-                }
             }
         }
     }
@@ -238,12 +407,11 @@ include 'includes/header.php';
                 <?php endif; ?>
             </div>
             <div>
-                <strong>Whisper:</strong>
-                <?php if ($whisperOK): ?>
-                <span style="color: #16a34a;">Instaliran</span>
+                <strong>Gemini:</strong>
+                <?php if ($geminiOK): ?>
+                <span style="color: #16a34a;">Konfiguriran</span>
                 <?php else: ?>
-                <span style="color: #dc2626;">Nije instaliran</span>
-                <br><small><code>pip install openai-whisper</code></small>
+                <span style="color: #dc2626;">Nedostaje google-credentials.json</span>
                 <?php endif; ?>
             </div>
         </div>
@@ -259,9 +427,9 @@ include 'includes/header.php';
             <?= csrfField() ?>
 
             <div class="form-group">
-                <label class="form-label">Video datoteka *</label>
-                <input type="file" name="video" class="form-control" accept=".mp4,.mkv,.avi,.mov,.webm,.flv,.wmv" required>
-                <small class="form-text">Dozvoljeni formati: MP4, MKV, AVI, MOV, WEBM, FLV, WMV</small>
+                <label class="form-label">Video ili audio datoteka *</label>
+                <input type="file" name="video" class="form-control" accept=".mp4,.mkv,.avi,.mov,.webm,.flv,.wmv,.mp3,.wav,.m4a" required>
+                <small class="form-text">Video: MP4, MKV, AVI, MOV, WEBM | Audio: MP3, WAV, M4A (max 20MB za audio)</small>
             </div>
 
             <div class="form-group">
@@ -272,20 +440,11 @@ include 'includes/header.php';
                     <option value="de">Njemački</option>
                     <option value="sl">Slovenski</option>
                     <option value="sr">Srpski</option>
-                    <option value="auto">Automatska detekcija</option>
                 </select>
             </div>
 
             <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                    <input type="checkbox" name="burn_subtitles" value="1">
-                    <span>Ugradi titlove u video (hardcoded)</span>
-                </label>
-                <small class="form-text">Ovo će kreirati novi video s trajno ugrađenim titlovima</small>
-            </div>
-
-            <div class="form-group">
-                <button type="submit" class="btn btn-primary" id="submitBtn" <?= (!$ffmpegOK || !$whisperOK) ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-primary" id="submitBtn" <?= (!$ffmpegOK || !$geminiOK) ? 'disabled' : '' ?>>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="23 7 16 12 23 17 23 7"/>
                         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
