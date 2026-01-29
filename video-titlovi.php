@@ -808,46 +808,10 @@ if (!empty($savedSubtitles)):
 </style>
 
 <script>
-let uploadStartTime = null;
-let uploadTimer = null;
-
 document.getElementById('uploadForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
-    uploadStartTime = Date.now();
-    sessionStorage.setItem('uploadStartTime', uploadStartTime);
-
-    // Pokreni timer
-    uploadTimer = setInterval(function() {
-        const elapsed = Math.floor((Date.now() - uploadStartTime) / 1000);
-        btn.innerHTML = `<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Upload: ${elapsed}s`;
-    }, 1000);
-
-    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Upload: 0s';
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Učitavam...';
     btn.disabled = true;
-});
-
-// Kad se stranica učita - pokaži koliko je trajao upload
-window.addEventListener('load', function() {
-    const btn = document.getElementById('submitBtn');
-    const startTime = sessionStorage.getItem('uploadStartTime');
-
-    if (startTime && btn) {
-        const elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
-        if (elapsed < 300) { // Ako je manje od 5 min
-            console.log(`Upload trajao: ${elapsed}s`);
-            // Prikaži vrijeme na stranici
-            const info = document.createElement('div');
-            info.style.cssText = 'background:#dbeafe;padding:0.5rem 1rem;border-radius:8px;margin-bottom:1rem;font-weight:500;';
-            info.innerHTML = `⏱️ Upload + server: <strong>${elapsed}s</strong>`;
-            document.querySelector('.card-body')?.prepend(info);
-        }
-        sessionStorage.removeItem('uploadStartTime');
-    }
-
-    if (btn) {
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg> Generiraj titlove`;
-        btn.disabled = false;
-    }
 });
 
 function copySrt() {
