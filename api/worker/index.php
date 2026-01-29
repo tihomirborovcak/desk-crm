@@ -175,13 +175,21 @@ switch ($action) {
 
         $videoWithSubsPath = null;
 
+        // Debug log
+        $debugLog = __DIR__ . '/../../uploads/worker_debug.log';
+        file_put_contents($debugLog, date('Y-m-d H:i:s') . " Job $jobId - FILES: " . print_r($_FILES, true) . "\n", FILE_APPEND);
+
         // Provjeri je li worker uploadao video s titlovima
         if (isset($_FILES['video']) && $_FILES['video']['error'] === UPLOAD_ERR_OK) {
             $videoFilename = $baseName . '_titlovi_' . $uniqueId . '.mp4';
             $videoWithSubsPath = 'uploads/subtitles/' . date('Y/m/') . '/' . $videoFilename;
             $videoFullPath = __DIR__ . '/../../' . $videoWithSubsPath;
 
-            move_uploaded_file($_FILES['video']['tmp_name'], $videoFullPath);
+            $moveResult = move_uploaded_file($_FILES['video']['tmp_name'], $videoFullPath);
+            file_put_contents($debugLog, date('Y-m-d H:i:s') . " Move result: " . ($moveResult ? 'OK' : 'FAILED') . " to $videoFullPath\n", FILE_APPEND);
+        } else {
+            $fileError = isset($_FILES['video']) ? $_FILES['video']['error'] : 'no file';
+            file_put_contents($debugLog, date('Y-m-d H:i:s') . " No video file or error: $fileError\n", FILE_APPEND);
         }
 
         // Očisti temp datoteke iz queue
