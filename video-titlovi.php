@@ -1,4 +1,7 @@
 <?php
+// DEBUG - provjeri dolazi li POST
+file_put_contents(__DIR__ . '/upload-debug.log', date('Y-m-d H:i:s') . " - Method: " . $_SERVER['REQUEST_METHOD'] . " - FILES: " . print_r($_FILES, true) . "\n", FILE_APPEND);
+
 /**
  * Video Titlovi - generiranje SRT titlova iz videa
  * Koristi ffmpeg za ekstrakciju audia i Gemini za transkripciju
