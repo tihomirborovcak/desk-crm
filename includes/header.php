@@ -142,6 +142,15 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     Transkripcija
                 </a>
 
+                <a href="video-titlovi.php" class="nav-item <?= $currentPage === 'video-titlovi' ? 'active' : '' ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="6" width="20" height="12" rx="2"/>
+                        <path d="M6 12h.01M10 12h8"/>
+                        <path d="M6 16h.01M10 16h6"/>
+                    </svg>
+                    Video Titlovi
+                </a>
+
                 <a href="tekst-ai.php" class="nav-item <?= $currentPage === 'tekst-ai' ? 'active' : '' ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 20h9"/>
