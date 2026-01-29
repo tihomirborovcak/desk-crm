@@ -147,7 +147,7 @@ def burn_subtitles(video_path, srt_path, output_path):
     cmd = [
         FFMPEG_PATH, '-i', video_path,
         '-vf', f"subtitles='{srt_escaped}':force_style='FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,MarginV=50,MarginL=60,MarginR=60'",
-        '-c:v', 'h264_nvenc', '-cq', '28', '-preset', 'fast',  # NVENC hardversko enkodiranje
+        '-c:v', 'libx264', '-crf', '28', '-preset', 'fast',  # CPU enkodiranje, brži preset
         '-c:a', 'aac', '-b:a', '96k',
         '-movflags', '+faststart',
         '-y', output_path
@@ -181,7 +181,10 @@ def transcribe(audio_path, language="hr"):
     global WHISPER_MODEL_INSTANCE
 
     if WHISPER_MODEL_INSTANCE is None:
+        log("Model nije u memoriji, učitavam...")
         load_whisper_model()
+    else:
+        log("Model već učitan, preskačem učitavanje")
 
     log("Transkribiram...")
     segments, info = WHISPER_MODEL_INSTANCE.transcribe(
