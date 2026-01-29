@@ -719,58 +719,41 @@ if (!empty($recentJobs)):
         <h2 class="card-title">Worker Queue</h2>
         <a href="?refresh=1" class="btn btn-sm btn-outline">Osvježi</a>
     </div>
-    <div class="card-body" style="padding: 0; overflow-x: auto;">
-        <table class="table" style="min-width: 500px;">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Datoteka</th>
-                    <th>Status</th>
-                    <th>Trajanje</th>
-                    <th>Vrijeme</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($recentJobs as $job): ?>
-                <tr>
-                    <td>#<?= $job['id'] ?></td>
-                    <td><?= e($job['original_filename']) ?></td>
-                    <td>
-                        <?php
-                        $statusColors = [
-                            'pending' => '#f59e0b',
-                            'processing' => '#3b82f6',
-                            'completed' => '#10b981',
-                            'failed' => '#ef4444'
-                        ];
-                        $statusLabels = [
-                            'pending' => 'Čeka',
-                            'processing' => 'Obrađuje se',
-                            'completed' => 'Gotovo',
-                            'failed' => 'Greška'
-                        ];
-                        $color = $statusColors[$job['status']] ?? '#666';
-                        $label = $statusLabels[$job['status']] ?? $job['status'];
-                        ?>
-                        <span style="color: <?= $color ?>; font-weight: 600;"><?= $label ?></span>
-                    </td>
-                    <td><?= $job['duration_seconds'] ? gmdate('i:s', (int)$job['duration_seconds']) : '-' ?></td>
-                    <td><?= date('H:i', strtotime($job['created_at'])) ?></td>
-                    <td>
-                        <?php if ($job['status'] === 'completed'): ?>
-                        <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
-                            <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-outline">SRT</a>
-                            <?php if (!empty($job['video_with_subs_path'])): ?>
-                            <a href="<?= e($job['video_with_subs_path']) ?>" download class="btn btn-sm btn-success">Video</a>
-                            <?php endif; ?>
-                        </div>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div class="card-body" style="padding: 0.5rem;">
+        <?php foreach ($recentJobs as $job):
+            $statusColors = [
+                'pending' => '#f59e0b',
+                'processing' => '#3b82f6',
+                'completed' => '#10b981',
+                'failed' => '#ef4444'
+            ];
+            $statusLabels = [
+                'pending' => 'Čeka',
+                'processing' => 'Obrađuje se',
+                'completed' => 'Gotovo',
+                'failed' => 'Greška'
+            ];
+            $color = $statusColors[$job['status']] ?? '#666';
+            $label = $statusLabels[$job['status']] ?? $job['status'];
+        ?>
+        <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <strong style="font-size: 0.9rem;">#<?= $job['id'] ?> <?= e($job['original_filename']) ?></strong>
+                <span style="color: <?= $color ?>; font-weight: 600; font-size: 0.85rem;"><?= $label ?></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #666;">
+                <span><?= $job['duration_seconds'] ? gmdate('i:s', (int)$job['duration_seconds']) : '-' ?> | <?= date('H:i', strtotime($job['created_at'])) ?></span>
+                <?php if ($job['status'] === 'completed'): ?>
+                <div style="display: flex; gap: 0.5rem;">
+                    <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-outline">SRT</a>
+                    <?php if (!empty($job['video_with_subs_path'])): ?>
+                    <a href="<?= e($job['video_with_subs_path']) ?>" download class="btn btn-sm btn-success">Video</a>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
     </div>
 </div>
 <?php endif; ?>
