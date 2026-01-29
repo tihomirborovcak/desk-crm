@@ -719,8 +719,8 @@ if (!empty($recentJobs)):
         <h2 class="card-title">Worker Queue</h2>
         <a href="?refresh=1" class="btn btn-sm btn-outline">Osvježi</a>
     </div>
-    <div class="card-body" style="padding: 0;">
-        <table class="table">
+    <div class="card-body" style="padding: 0; overflow-x: auto;">
+        <table class="table" style="min-width: 500px;">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -757,14 +757,14 @@ if (!empty($recentJobs)):
                     </td>
                     <td><?= $job['duration_seconds'] ? gmdate('i:s', (int)$job['duration_seconds']) : '-' ?></td>
                     <td><?= date('H:i', strtotime($job['created_at'])) ?></td>
-                    <td style="display: flex; gap: 0.25rem;">
+                    <td>
                         <?php if ($job['status'] === 'completed'): ?>
-                        <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-outline">SRT</a>
-                        <?php if (!empty($job['video_with_subs_path'])): ?>
+                        <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                            <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-outline">SRT</a>
+                            <?php if (!empty($job['video_with_subs_path'])): ?>
                             <a href="<?= e($job['video_with_subs_path']) ?>" download class="btn btn-sm btn-success">Video</a>
-                        <?php endif; ?>
-                        <?php else: ?>
-                        <!-- debug: status=<?= $job['status'] ?> video=<?= $job['video_with_subs_path'] ?? 'null' ?> -->
+                            <?php endif; ?>
+                        </div>
                         <?php endif; ?>
                     </td>
                 </tr>
