@@ -280,6 +280,28 @@ VAŽNO:
     return ['error' => 'Gemini API greška nakon ' . $maxRetries . ' pokušaja'];
 }
 
+// Burn titlove u video
+function burnSubtitles($videoPath, $srtPath, $outputPath) {
+    // Escape za ffmpeg subtitle filter
+    $srtPathEscaped = str_replace(['\\', ':', "'"], ['\\\\', '\\:', "\\'"], $srtPath);
+
+    $cmd = sprintf(
+        'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=24,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,MarginV=30\'" -c:a copy -y %s 2>&1',
+        escapeshellarg($videoPath),
+        $srtPathEscaped,
+        escapeshellarg($outputPath)
+    );
+
+    $output = [];
+    $returnCode = 0;
+    exec($cmd, $output, $returnCode);
+
+    return [
+        'success' => $returnCode === 0 && file_exists($outputPath),
+        'output' => implode("\n", $output)
+    ];
+}
+
 // Status provjera
 $ffmpegOK = isFfmpegInstalled();
 $geminiOK = file_exists(__DIR__ . '/google-credentials.json');
@@ -297,6 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         $videoFile = $_FILES['video'];
         $videoName = $videoFile['name'];
         $language = $_POST['language'] ?? 'hr';
+        $burnSubs = isset($_POST['burn_subtitles']);
 
         // Provjeri format
         $allowedExts = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv', 'mp3', 'wav', 'm4a'];
@@ -362,6 +385,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                             file_put_contents($finalSrtPath, $srtContent);
 
                             $success = 'SRT titlovi uspješno generirani!';
+
+                            // Burn titlove u video ako je odabrano
+                            $burnedVideoUrl = null;
+                            if ($burnSubs && !in_array($ext, ['mp3', 'wav', 'm4a'])) {
+                                $processingLog[] = "Ugrađujem titlove u video...";
+                                $burnedVideoName = pathinfo($videoName, PATHINFO_FILENAME) . '_titlovi_' . $uniqueId . '.mp4';
+                                $burnedVideoPath = $subtitlesDir . $burnedVideoName;
+
+                                $burnResult = burnSubtitles($tempVideoPath, $finalSrtPath, $burnedVideoPath);
+
+                                if ($burnResult['success']) {
+                                    $processingLog[] = "Video s titlovima spreman!";
+                                    $burnedVideoUrl = str_replace(UPLOAD_PATH, 'uploads/', $burnedVideoPath);
+                                    $success = 'Titlovi generirani i ugrađeni u video!';
+                                } else {
+                                    $processingLog[] = "Greška pri ugradnji: " . substr($burnResult['output'], 0, 200);
+                                }
+                            }
+
                             logActivity('video_subtitles', 'ai', null);
                         }
                     }
@@ -444,6 +486,14 @@ include 'includes/header.php';
             </div>
 
             <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="burn_subtitles" value="1">
+                    <span>Ugradi titlove u video (hardcoded)</span>
+                </label>
+                <small class="form-text">Kreira novi MP4 video s trajno ugrađenim titlovima</small>
+            </div>
+
+            <div class="form-group">
                 <button type="submit" class="btn btn-primary" id="submitBtn" <?= (!$ffmpegOK || !$geminiOK) ? 'disabled' : '' ?>>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="23 7 16 12 23 17 23 7"/>
@@ -477,6 +527,21 @@ include 'includes/header.php';
         <span class="badge" style="background: #166534; color: white;"><?= e($videoName) ?></span>
     </div>
     <div class="card-body">
+        <?php if (!empty($burnedVideoUrl)): ?>
+        <div style="margin-bottom: 1rem; padding: 1rem; background: #dbeafe; border-radius: 8px; border: 1px solid #93c5fd;">
+            <strong style="color: #1d4ed8;">Video s ugrađenim titlovima spreman!</strong>
+            <div style="margin-top: 0.5rem;">
+                <a href="<?= e($burnedVideoUrl) ?>" download class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="23 7 16 12 23 17 23 7"/>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                    </svg>
+                    Preuzmi video s titlovima
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="srt-preview" id="srtContent"><?= e($srtContent) ?></div>
 
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
