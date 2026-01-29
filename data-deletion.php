@@ -4,9 +4,32 @@
  * This endpoint handles user data deletion requests
  */
 
+// GET request - show info page
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Data Deletion - Zagorjenews</title>
+        <style>
+            body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+            h1 { color: #333; }
+        </style>
+    </head>
+    <body>
+        <h1>Data Deletion Request</h1>
+        <p>To request deletion of your data, please contact us at:</p>
+        <p><a href="mailto:tihomir.borovcak@gmail.com">tihomir.borovcak@gmail.com</a></p>
+        <p>Or use the Facebook app settings to initiate a data deletion request.</p>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
 header('Content-Type: application/json');
 
-// Get signed request from Meta
+// Get signed request from Meta (POST request)
 $signed_request = $_POST['signed_request'] ?? '';
 
 if (empty($signed_request)) {
