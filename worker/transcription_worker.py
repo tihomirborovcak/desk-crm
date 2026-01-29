@@ -160,20 +160,31 @@ def burn_subtitles(video_path, srt_path, output_path):
         log(f"Greška pri ugrađivanju titlova: {e}")
         return False
 
-def transcribe(audio_path, language="hr"):
-    """Transkribiraj s faster-whisper (GPU ubrzanje)"""
+# Globalni model - učitava se jednom pri pokretanju
+WHISPER_MODEL_INSTANCE = None
+
+def load_whisper_model():
+    """Učitaj Whisper model u memoriju (samo jednom)"""
+    global WHISPER_MODEL_INSTANCE
     from faster_whisper import WhisperModel
     import torch
 
-    # Provjeri GPU dostupnost
     device = DEVICE if torch.cuda.is_available() else "cpu"
     compute_type = COMPUTE_TYPE if device == "cuda" else "int8"
 
     log(f"Učitavam faster-whisper model ({WHISPER_MODEL}) na {device}...")
-    model = WhisperModel(WHISPER_MODEL, device=device, compute_type=compute_type)
+    WHISPER_MODEL_INSTANCE = WhisperModel(WHISPER_MODEL, device=device, compute_type=compute_type)
+    log("Model učitan i spreman!")
+
+def transcribe(audio_path, language="hr"):
+    """Transkribiraj s faster-whisper (GPU ubrzanje)"""
+    global WHISPER_MODEL_INSTANCE
+
+    if WHISPER_MODEL_INSTANCE is None:
+        load_whisper_model()
 
     log("Transkribiram...")
-    segments, info = model.transcribe(
+    segments, info = WHISPER_MODEL_INSTANCE.transcribe(
         audio_path,
         language=language,
         beam_size=5,
@@ -459,6 +470,9 @@ def main():
             log("GPU nije dostupan, koristim CPU (sporije)")
     except Exception as e:
         log(f"PyTorch nije instaliran ili greška: {e}")
+
+    # Učitaj model unaprijed (da ne čeka 10s za prvi job)
+    load_whisper_model()
 
     log("Čekam jobove...\n")
 
