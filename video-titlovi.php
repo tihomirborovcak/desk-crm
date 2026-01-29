@@ -806,8 +806,17 @@ if (!empty($savedSubtitles)):
 <script>
 document.getElementById('uploadForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
-    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Obrađujem video...';
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Učitavam...';
     btn.disabled = true;
+});
+
+// Reset button kad se stranica učita (nakon POST-a)
+window.addEventListener('load', function() {
+    const btn = document.getElementById('submitBtn');
+    if (btn) {
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg> Generiraj titlove`;
+        btn.disabled = false;
+    }
 });
 
 function copySrt() {
