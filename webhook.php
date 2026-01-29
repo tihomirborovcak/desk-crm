@@ -88,8 +88,10 @@ $returnCode = 0;
 // Promijeni u direktorij projekta i povuci promjene
 chdir($repoPath);
 
-// Reset lokalnih promjena (opcionalno - odkomentiraj ako treba)
-// exec('git reset --hard HEAD 2>&1', $output, $returnCode);
+// Očisti untracked datoteke koje blokiraju merge
+exec('git clean -fd 2>&1', $output, $returnCode);
+logMessage("Git clean rezultat (code $returnCode):\n" . implode("\n", $output));
+$output = [];
 
 // Git pull
 exec('git pull origin ' . escapeshellarg($branch) . ' 2>&1', $output, $returnCode);
