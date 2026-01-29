@@ -24,8 +24,8 @@
     document.querySelectorAll('a[href]').forEach(function(link) {
         link.addEventListener('click', function(e) {
             var href = this.getAttribute('href');
-            // Preskoči # linkove, javascript: linkove i eksterne linkove
-            if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('http') || this.hasAttribute('target')) {
+            // Preskoči # linkove, javascript: linkove, eksterne linkove i download linkove
+            if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('http') || this.hasAttribute('target') || this.hasAttribute('download')) {
                 return;
             }
             showLoader();
