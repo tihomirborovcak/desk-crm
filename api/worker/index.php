@@ -163,21 +163,62 @@ switch ($action) {
 
         file_put_contents(__DIR__ . '/../../' . $srtPath, $srtContent);
 
+        $videoWithSubsPath = null;
+
+        // Burn subtitles ako je traženo
+        if ($job['burn_subtitles'] && $job['video_path']) {
+            $videoFullPath = __DIR__ . '/../../' . $job['video_path'];
+            $srtFullPath = __DIR__ . '/../../' . $srtPath;
+
+            if (file_exists($videoFullPath)) {
+                $outputFilename = $baseName . '_titlovi_' . $uniqueId . '.mp4';
+                $outputDir = __DIR__ . '/../../uploads/subtitles/' . date('Y/m/');
+                $outputFullPath = $outputDir . $outputFilename;
+                $videoWithSubsPath = 'uploads/subtitles/' . date('Y/m/') . '/' . $outputFilename;
+
+                // Escape za ffmpeg subtitle filter
+                $srtEscaped = str_replace(['\\', ':', "'"], ['\\\\\\\\', '\\:', "\\'"], $srtFullPath);
+
+                $cmd = sprintf(
+                    'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=16,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=1,MarginV=20\'" -c:v libx264 -crf 28 -preset medium -c:a aac -b:a 128k -movflags +faststart -y %s 2>&1',
+                    escapeshellarg($videoFullPath),
+                    $srtEscaped,
+                    escapeshellarg($outputFullPath)
+                );
+
+                exec($cmd, $output, $returnCode);
+
+                if ($returnCode !== 0 || !file_exists($outputFullPath)) {
+                    $videoWithSubsPath = null; // Burn failed, but SRT is still OK
+                }
+
+                // Očisti originalni video iz queue
+                @unlink($videoFullPath);
+            }
+        }
+
+        // Očisti audio iz queue
+        if ($job['audio_path']) {
+            @unlink(__DIR__ . '/../../' . $job['audio_path']);
+        }
+
         // Update job
         $stmt = $db->prepare("
             UPDATE transcription_jobs
             SET status = 'completed',
                 srt_content = ?,
                 srt_path = ?,
+                video_with_subs_path = ?,
                 processing_time_seconds = ?,
                 completed_at = NOW()
             WHERE id = ?
         ");
-        $stmt->execute([$srtContent, $srtPath, $processingTime, $jobId]);
+        $stmt->execute([$srtContent, $srtPath, $videoWithSubsPath, $processingTime, $jobId]);
 
         echo json_encode([
             'success' => true,
             'srt_path' => $srtPath,
+            'video_path' => $videoWithSubsPath,
             'message' => 'Job completed'
         ]);
         break;
