@@ -740,7 +740,11 @@ if (!empty($recentJobs)):
                 <span><?= $job['duration_seconds'] ? gmdate('i:s', (int)$job['duration_seconds']) : '-' ?> | <?= date('H:i', strtotime($job['created_at'])) ?></span>
                 <?php if ($job['status'] === 'completed'): ?>
                 <div style="display: flex; gap: 0.5rem;">
+                    <?php if (!empty($job['srt_path'])): ?>
+                    <a href="<?= e($job['srt_path']) ?>" download class="btn btn-sm btn-outline">SRT</a>
+                    <?php else: ?>
                     <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-outline">SRT</a>
+                    <?php endif; ?>
                     <?php if (!empty($job['video_with_subs_path'])): ?>
                     <a href="<?= e($job['video_with_subs_path']) ?>" download class="btn btn-sm btn-success">Video</a>
                     <?php endif; ?>
