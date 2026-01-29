@@ -224,7 +224,7 @@ switch ($action) {
     // Status joba
     case 'status':
         $jobId = intval($_GET['id'] ?? 0);
-        $stmt = $db->prepare("SELECT id, status, srt_path, error_message, processing_time_seconds FROM transcription_jobs WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, status, srt_path, video_with_subs_path, error_message, processing_time_seconds FROM transcription_jobs WHERE id = ?");
         $stmt->execute([$jobId]);
         $job = $stmt->fetch(PDO::FETCH_ASSOC);
         echo json_encode(['job' => $job]);
