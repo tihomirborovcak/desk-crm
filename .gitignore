@@ -17,6 +17,10 @@ uploads/*
 config/database.php
 config/database.server.php
 config/email.php
+config/gmail-config.php
+
+# Gmail tokens
+storage/
 
 # OS files
 .DS_Store
