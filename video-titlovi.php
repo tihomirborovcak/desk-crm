@@ -439,102 +439,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $duration = getMediaDuration($tempVideoPath);
                 $processingLog[] = "Trajanje: " . gmdate("H:i:s", (int)$duration);
 
-                // Ako je audio format, koristi direktno
-                $audioExts = ['mp3', 'wav', 'm4a'];
-                if (in_array($ext, $audioExts)) {
-                    $tempAudioPath = $tempVideoPath;
-                    $processingLog[] = "Audio format - preskačem ekstrakciju";
+                // Za WORKER - samo spremi video i dodaj u queue (bez ekstrakcije audia)
+                if ($method === 'worker') {
+                    $queueDir = UPLOAD_PATH . 'worker_queue/';
+                    if (!is_dir($queueDir)) mkdir($queueDir, 0755, true);
+                    $workerVideoPath = 'uploads/worker_queue/' . $uniqueId . '.' . $ext;
+                    rename($tempVideoPath, UPLOAD_PATH . '../' . $workerVideoPath);
+
+                    $jobId = addJobToQueue($workerVideoPath, null, $videoName, $language, $burnSubs, $duration);
+                    $processingLog[] = "Job dodan u queue (ID: $jobId)";
+                    $processingLog[] = "Worker će obraditi na lokalnom PC-u...";
+                    $success = "Job #$jobId dodan u queue! Prati status dolje.";
+                    $pendingJobId = $jobId;
+                    logActivity('video_subtitles_queue', 'ai', null);
+
                 } else {
-                    // 1. Izvuci audio
-                    $processingLog[] = "Ekstrahiram audio...";
-                    $audioResult = extractAudio($tempVideoPath, $tempAudioPath);
-
-                    if (!$audioResult['success']) {
-                        $error = 'Greška pri ekstrakciji audia: ' . $audioResult['output'];
+                    // Za WHISPER i GEMINI - ekstrahiraj audio na serveru
+                    $audioExts = ['mp3', 'wav', 'm4a'];
+                    if (in_array($ext, $audioExts)) {
+                        $tempAudioPath = $tempVideoPath;
+                        $processingLog[] = "Audio format - preskačem ekstrakciju";
                     } else {
-                        $processingLog[] = "Audio ekstrahiran uspješno";
-                    }
-                }
+                        $processingLog[] = "Ekstrahiram audio...";
+                        $audioResult = extractAudio($tempVideoPath, $tempAudioPath);
 
-                if (!$error) {
-                    // Provjeri veličinu audia (Gemini limit 20MB)
-                    $audioSize = filesize($tempAudioPath);
-                    if ($audioSize > 20 * 1024 * 1024) {
-                        $error = 'Audio prevelik za Gemini (max 20MB). Probaj kraći video.';
-                    } else {
-                        $processingLog[] = "Audio veličina: " . round($audioSize / 1024 / 1024, 2) . " MB";
-
-                        // 2. Generiraj titlove
-                        if ($method === 'worker') {
-                            // Spremi samo video za worker (worker će sam izvući audio)
-                            $queueDir = UPLOAD_PATH . 'worker_queue/';
-                            if (!is_dir($queueDir)) mkdir($queueDir, 0755, true);
-                            $workerVideoPath = 'uploads/worker_queue/' . $uniqueId . '.' . $ext;
-                            copy($tempVideoPath, UPLOAD_PATH . '../' . $workerVideoPath);
-
-                            // Dodaj u queue (audio_path više ne koristimo)
-                            $jobId = addJobToQueue($workerVideoPath, null, $videoName, $language, $burnSubs, $duration);
-                            $processingLog[] = "Job dodan u queue (ID: $jobId)";
-                            $processingLog[] = "Čeka se obrada na lokalnom PC-u...";
-                            $success = "Job #$jobId dodan u queue! Prati status dolje.";
-                            $pendingJobId = $jobId;
-
-                        } elseif ($method === 'whisper') {
-                            $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
-                            $subtitleResult = generateSubtitlesWithWhisper($tempAudioPath, $tempDir, $language);
+                        if (!$audioResult['success']) {
+                            $error = 'Greška pri ekstrakciji audia: ' . $audioResult['output'];
                         } else {
-                            $processingLog[] = "Generiram titlove s Geminijem (jezik: $language)...";
-                            $subtitleResult = generateSubtitlesWithGemini($tempAudioPath, $language, $duration);
+                            $processingLog[] = "Audio ekstrahiran uspješno";
                         }
+                    }
 
-                        if ($method === 'worker') {
-                            // Worker job - ne obrađujemo ovdje
-                            logActivity('video_subtitles_queue', 'ai', null);
-                        } elseif (isset($subtitleResult['error'])) {
-                            $error = 'Greška pri generiranju titlova: ' . $subtitleResult['error'];
+                    if (!$error) {
+                        $audioSize = filesize($tempAudioPath);
+                        if ($audioSize > 20 * 1024 * 1024 && $method === 'gemini') {
+                            $error = 'Audio prevelik za Gemini (max 20MB). Probaj kraći video.';
                         } else {
-                            $processingLog[] = "Titlovi generirani uspješno!";
+                            $processingLog[] = "Audio veličina: " . round($audioSize / 1024 / 1024, 2) . " MB";
 
-                            $srtContent = $subtitleResult['srt'];
-
-                            // Spremi SRT trajno
-                            $finalSrtName = pathinfo($videoName, PATHINFO_FILENAME) . '_' . $uniqueId . '.srt';
-                            $finalSrtPath = $subtitlesDir . $finalSrtName;
-                            file_put_contents($finalSrtPath, $srtContent);
-
-                            $success = 'SRT titlovi uspješno generirani!';
-
-                            // Burn titlove u video ako je odabrano
-                            $burnedVideoUrl = null;
-                            if ($burnSubs && !in_array($ext, ['mp3', 'wav', 'm4a'])) {
-                                $processingLog[] = "Ugrađujem titlove u video...";
-                                $burnedVideoName = pathinfo($videoName, PATHINFO_FILENAME) . '_titlovi_' . $uniqueId . '.mp4';
-                                $burnedVideoPath = $subtitlesDir . $burnedVideoName;
-
-                                $burnResult = burnSubtitles($tempVideoPath, $finalSrtPath, $burnedVideoPath);
-
-                                if ($burnResult['success']) {
-                                    $processingLog[] = "Video s titlovima spreman!";
-                                    $burnedVideoUrl = str_replace(UPLOAD_PATH, 'uploads/', $burnedVideoPath);
-                                    $success = 'Titlovi generirani i ugrađeni u video!';
-                                } else {
-                                    $processingLog[] = "Greška pri ugradnji: " . substr($burnResult['output'], 0, 200);
-                                }
+                            $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
+                                $subtitleResult = generateSubtitlesWithWhisper($tempAudioPath, $tempDir, $language);
+                            } else {
+                                $processingLog[] = "Generiram titlove s Geminijem (jezik: $language)...";
+                                $subtitleResult = generateSubtitlesWithGemini($tempAudioPath, $language, $duration);
                             }
 
-                            logActivity('video_subtitles', 'ai', null);
+                            if (isset($subtitleResult['error'])) {
+                                $error = 'Greška pri generiranju titlova: ' . $subtitleResult['error'];
+                            } else {
+                                $processingLog[] = "Titlovi generirani uspješno!";
+
+                                $srtContent = $subtitleResult['srt'];
+
+                                // Spremi SRT trajno
+                                $finalSrtName = pathinfo($videoName, PATHINFO_FILENAME) . '_' . $uniqueId . '.srt';
+                                $finalSrtPath = $subtitlesDir . $finalSrtName;
+                                file_put_contents($finalSrtPath, $srtContent);
+
+                                $success = 'SRT titlovi uspješno generirani!';
+
+                                // Burn titlove u video ako je odabrano
+                                $burnedVideoUrl = null;
+                                if ($burnSubs && !in_array($ext, ['mp3', 'wav', 'm4a'])) {
+                                    $processingLog[] = "Ugrađujem titlove u video...";
+                                    $burnedVideoName = pathinfo($videoName, PATHINFO_FILENAME) . '_titlovi_' . $uniqueId . '.mp4';
+                                    $burnedVideoPath = $subtitlesDir . $burnedVideoName;
+
+                                    $burnResult = burnSubtitles($tempVideoPath, $finalSrtPath, $burnedVideoPath);
+
+                                    if ($burnResult['success']) {
+                                        $processingLog[] = "Video s titlovima spreman!";
+                                        $burnedVideoUrl = str_replace(UPLOAD_PATH, 'uploads/', $burnedVideoPath);
+                                        $success = 'Titlovi generirani i ugrađeni u video!';
+                                    } else {
+                                        $processingLog[] = "Greška pri ugradnji: " . substr($burnResult['output'], 0, 200);
+                                    }
+                                }
+
+                                logActivity('video_subtitles', 'ai', null);
+                            }
                         }
                     }
-                }
 
-                // Očisti temp datoteke
-                if ($tempAudioPath !== $tempVideoPath) {
-                    @unlink($tempAudioPath);
-                }
-                @unlink($tempVideoPath);
-                // Očisti Whisper temp SRT ako postoji
-                if (isset($subtitleResult['srt_path'])) {
-                    @unlink($subtitleResult['srt_path']);
+                    // Očisti temp datoteke (samo za non-worker metode)
+                    if ($tempAudioPath !== $tempVideoPath) {
+                        @unlink($tempAudioPath);
+                    }
+                    @unlink($tempVideoPath);
+                    if (isset($subtitleResult['srt_path'])) {
+                        @unlink($subtitleResult['srt_path']);
+                    }
                 }
             }
         }
