@@ -532,7 +532,7 @@ include 'includes/header.php';
         <div style="margin-bottom: 1rem; padding: 1rem; background: #dbeafe; border-radius: 8px; border: 1px solid #93c5fd;">
             <strong style="color: #1d4ed8;">Video s ugrađenim titlovima spreman!</strong>
             <div style="margin-top: 0.5rem;">
-                <a href="<?= e($burnedVideoUrl) ?>" download class="btn btn-primary">
+                <a href="<?= e($burnedVideoUrl) ?>" download target="_blank" class="btn btn-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="23 7 16 12 23 17 23 7"/>
                         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
