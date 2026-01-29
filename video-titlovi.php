@@ -303,9 +303,44 @@ function burnSubtitles($videoPath, $srtPath, $outputPath) {
     ];
 }
 
+// Generiraj titlove s Whisperom (precizni timestamps)
+function generateSubtitlesWithWhisper($audioPath, $outputDir, $language = 'hr') {
+    $model = 'small'; // base, small, medium, large - small je dobar balans
+
+    $cmd = sprintf(
+        'whisper %s --model %s --language %s --output_format srt --output_dir %s 2>&1',
+        escapeshellarg($audioPath),
+        $model,
+        escapeshellarg($language),
+        escapeshellarg($outputDir)
+    );
+
+    $output = [];
+    $returnCode = 0;
+    exec($cmd, $output, $returnCode);
+
+    // Pronađi generirani SRT
+    $audioBasename = pathinfo($audioPath, PATHINFO_FILENAME);
+    $srtPath = $outputDir . '/' . $audioBasename . '.srt';
+
+    if (file_exists($srtPath)) {
+        return ['srt' => file_get_contents($srtPath), 'srt_path' => $srtPath];
+    }
+
+    return ['error' => 'Whisper greška: ' . implode("\n", array_slice($output, -5))];
+}
+
+// Provjeri je li Whisper instaliran
+function isWhisperInstalled() {
+    $output = [];
+    exec('which whisper 2>&1', $output, $returnCode);
+    return $returnCode === 0;
+}
+
 // Status provjera
 $ffmpegOK = isFfmpegInstalled();
 $geminiOK = file_exists(__DIR__ . '/google-credentials.json');
+$whisperOK = isWhisperInstalled();
 
 // Obrada uploada
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
@@ -321,6 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         $videoName = $videoFile['name'];
         $language = $_POST['language'] ?? 'hr';
         $burnSubs = isset($_POST['burn_subtitles']);
+        $method = $_POST['method'] ?? 'whisper';
 
         // Provjeri format
         $allowedExts = ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv', 'mp3', 'wav', 'm4a'];
@@ -369,9 +405,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                     } else {
                         $processingLog[] = "Audio veličina: " . round($audioSize / 1024 / 1024, 2) . " MB";
 
-                        // 2. Generiraj titlove s Geminijem
-                        $processingLog[] = "Generiram titlove s Geminijem (jezik: $language)...";
-                        $subtitleResult = generateSubtitlesWithGemini($tempAudioPath, $language, $duration);
+                        // 2. Generiraj titlove
+                        if ($method === 'whisper') {
+                            $processingLog[] = "Generiram titlove s Whisperom (jezik: $language)...";
+                            $subtitleResult = generateSubtitlesWithWhisper($tempAudioPath, $tempDir, $language);
+                        } else {
+                            $processingLog[] = "Generiram titlove s Geminijem (jezik: $language)...";
+                            $subtitleResult = generateSubtitlesWithGemini($tempAudioPath, $language, $duration);
+                        }
 
                         if (isset($subtitleResult['error'])) {
                             $error = 'Greška pri generiranju titlova: ' . $subtitleResult['error'];
@@ -415,6 +456,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                     @unlink($tempAudioPath);
                 }
                 @unlink($tempVideoPath);
+                // Očisti Whisper temp SRT ako postoji
+                if (isset($subtitleResult['srt_path'])) {
+                    @unlink($subtitleResult['srt_path']);
+                }
             }
         }
     }
@@ -450,11 +495,19 @@ include 'includes/header.php';
                 <?php endif; ?>
             </div>
             <div>
+                <strong>Whisper:</strong>
+                <?php if ($whisperOK): ?>
+                <span style="color: #16a34a;">Instaliran</span>
+                <?php else: ?>
+                <span style="color: #dc2626;">Nije instaliran</span>
+                <?php endif; ?>
+            </div>
+            <div>
                 <strong>Gemini:</strong>
                 <?php if ($geminiOK): ?>
                 <span style="color: #16a34a;">Konfiguriran</span>
                 <?php else: ?>
-                <span style="color: #dc2626;">Nedostaje google-credentials.json</span>
+                <span style="color: #dc2626;">Nedostaje</span>
                 <?php endif; ?>
             </div>
         </div>
@@ -487,6 +540,18 @@ include 'includes/header.php';
             </div>
 
             <div class="form-group">
+                <label class="form-label">Metoda transkripcije</label>
+                <select name="method" class="form-control">
+                    <?php if ($whisperOK): ?>
+                    <option value="whisper" selected>Whisper (precizni timestamps)</option>
+                    <?php endif; ?>
+                    <?php if ($geminiOK): ?>
+                    <option value="gemini">Gemini (brži, manje precizan)</option>
+                    <?php endif; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                     <input type="checkbox" name="burn_subtitles" value="1">
                     <span>Ugradi titlove u video (hardcoded)</span>
@@ -495,7 +560,7 @@ include 'includes/header.php';
             </div>
 
             <div class="form-group">
-                <button type="submit" class="btn btn-primary" id="submitBtn" <?= (!$ffmpegOK || !$geminiOK) ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-primary" id="submitBtn" <?= (!$ffmpegOK || (!$geminiOK && !$whisperOK)) ? 'disabled' : '' ?>>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polygon points="23 7 16 12 23 17 23 7"/>
                         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
