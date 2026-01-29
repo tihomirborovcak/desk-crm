@@ -760,9 +760,11 @@ if (!empty($recentJobs)):
                     <td style="display: flex; gap: 0.25rem;">
                         <?php if ($job['status'] === 'completed'): ?>
                         <a href="?download_srt=<?= $job['id'] ?>" class="btn btn-sm btn-outline">SRT</a>
-                            <?php if (!empty($job['video_with_subs_path'])): ?>
+                        <?php if (!empty($job['video_with_subs_path'])): ?>
                             <a href="<?= e($job['video_with_subs_path']) ?>" download class="btn btn-sm btn-success">Video</a>
-                            <?php endif; ?>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <!-- debug: status=<?= $job['status'] ?> video=<?= $job['video_with_subs_path'] ?? 'null' ?> -->
                         <?php endif; ?>
                     </td>
                 </tr>
