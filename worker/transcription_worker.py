@@ -22,6 +22,7 @@ POLL_INTERVAL = 5  # sekundi između provjera
 WHISPER_MODEL = "large-v3"  # best quality - options: tiny, base, small, medium, large-v2, large-v3
 DEVICE = "cuda"  # ili "cpu" ako nema GPU
 COMPUTE_TYPE = "float32"  # float32 za starije GPU (Quadro P4000), float16 za novije (RTX serija)
+FFMPEG_PATH = r"C:\ffmpeg\builds\ffmpeg-2026-01-14-git-6c878f8b82-essentials_build\ffmpeg-2026-01-14-git-6c878f8b82-essentials_build\bin\ffmpeg.exe"
 
 # Headers za API
 HEADERS = {
@@ -61,20 +62,46 @@ def claim_job(job_id):
         log(f"Greška pri preuzimanju joba: {e}")
         return None
 
-def download_audio(job_id, output_path):
-    """Skini audio datoteku"""
+def download_file(job_id, output_path, file_type="audio"):
+    """Skini datoteku (audio ili video)"""
     try:
-        response = requests.get(f"{SERVER_URL}?action=download&id={job_id}", headers=HEADERS, timeout=300, stream=True)
+        action = "download" if file_type == "audio" else "download_video"
+        response = requests.get(f"{SERVER_URL}?action={action}&id={job_id}", headers=HEADERS, timeout=300, stream=True)
         if response.status_code == 200:
             with open(output_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
             return True
+        elif response.status_code == 404:
+            return False  # File doesn't exist (e.g., no video for audio-only jobs)
         else:
-            log(f"Greška pri skidanju audia: {response.status_code}")
+            log(f"Greška pri skidanju {file_type}: {response.status_code}")
             return False
     except Exception as e:
         log(f"Greška: {e}")
+        return False
+
+def burn_subtitles(video_path, srt_path, output_path):
+    """Ugradi titlove u video koristeći ffmpeg"""
+    import subprocess
+
+    # Escape za ffmpeg subtitle filter (Windows paths)
+    srt_escaped = srt_path.replace('\\', '/').replace(':', '\\:')
+
+    cmd = [
+        FFMPEG_PATH, '-i', video_path,
+        '-vf', f"subtitles='{srt_escaped}':force_style='FontSize=16,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=1,MarginV=20'",
+        '-c:v', 'libx264', '-crf', '23', '-preset', 'fast',
+        '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart',
+        '-y', output_path
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        return result.returncode == 0 and os.path.exists(output_path)
+    except Exception as e:
+        log(f"Greška pri ugrađivanju titlova: {e}")
         return False
 
 def transcribe(audio_path, language="hr"):
@@ -121,20 +148,40 @@ def format_srt(segments):
 
     return "\n".join(srt_lines)
 
-def upload_result(job_id, srt_content, processing_time, error=None):
+def upload_result(job_id, srt_content, processing_time, video_path=None, error=None):
     """Upload rezultata na server"""
     try:
-        data = {
-            "srt_content": srt_content,
-            "processing_time": processing_time,
-            "error": error
-        }
-        response = requests.post(
-            f"{SERVER_URL}?action=complete&id={job_id}",
-            headers=HEADERS,
-            json=data,
-            timeout=60
-        )
+        if video_path and os.path.exists(video_path):
+            # Upload s video datotekom (multipart)
+            with open(video_path, 'rb') as f:
+                files = {'video': ('video.mp4', f, 'video/mp4')}
+                data = {
+                    'srt_content': srt_content,
+                    'processing_time': str(processing_time),
+                    'error': error or ''
+                }
+                # Remove Content-Type header for multipart
+                headers = {"X-API-Key": API_KEY}
+                response = requests.post(
+                    f"{SERVER_URL}?action=complete&id={job_id}",
+                    headers=headers,
+                    data=data,
+                    files=files,
+                    timeout=300
+                )
+        else:
+            # Samo SRT (JSON)
+            data = {
+                "srt_content": srt_content,
+                "processing_time": processing_time,
+                "error": error
+            }
+            response = requests.post(
+                f"{SERVER_URL}?action=complete&id={job_id}",
+                headers=HEADERS,
+                json=data,
+                timeout=60
+            )
         return response.status_code == 200
     except Exception as e:
         log(f"Greška pri uploadu: {e}")
@@ -145,6 +192,7 @@ def process_job(job):
     job_id = job["id"]
     filename = job["original_filename"]
     language = job.get("language", "hr")
+    burn_subs = job.get("burn_subtitles", 0)
 
     log(f"=== Obrađujem job #{job_id}: {filename} ===")
 
@@ -153,11 +201,14 @@ def process_job(job):
     # Kreiraj temp direktorij
     with tempfile.TemporaryDirectory() as temp_dir:
         audio_path = os.path.join(temp_dir, "audio.mp3")
+        video_path = os.path.join(temp_dir, "video.mp4")
+        srt_path = os.path.join(temp_dir, "subtitles.srt")
+        output_video_path = os.path.join(temp_dir, "output.mp4")
 
         # Skini audio
         log("Skidam audio...")
-        if not download_audio(job_id, audio_path):
-            upload_result(job_id, "", 0, "Greška pri skidanju audia")
+        if not download_file(job_id, audio_path, "audio"):
+            upload_result(job_id, "", 0, error="Greška pri skidanju audia")
             return False
 
         # Transkribiraj
@@ -166,14 +217,36 @@ def process_job(job):
             srt_content = format_srt(segments)
         except Exception as e:
             log(f"Greška pri transkripciji: {e}")
-            upload_result(job_id, "", 0, str(e))
+            upload_result(job_id, "", 0, error=str(e))
             return False
+
+        # Burn subtitles ako je traženo
+        final_video_path = None
+        if burn_subs:
+            log("Skidam video za ugrađivanje titlova...")
+            if download_file(job_id, video_path, "video"):
+                # Spremi SRT privremeno
+                with open(srt_path, 'w', encoding='utf-8') as f:
+                    f.write(srt_content)
+
+                log("Ugrađujem titlove u video...")
+                if burn_subtitles(video_path, srt_path, output_video_path):
+                    final_video_path = output_video_path
+                    log(f"Video s titlovima spreman ({os.path.getsize(output_video_path) / 1024 / 1024:.1f} MB)")
+                else:
+                    log("Upozorenje: Nije uspjelo ugrađivanje titlova, šaljem samo SRT")
+            else:
+                log("Video nije dostupan, šaljem samo SRT")
 
         processing_time = time.time() - start_time
 
         # Upload rezultata
-        log(f"Uploadam SRT ({len(srt_content)} bytes)...")
-        if upload_result(job_id, srt_content, processing_time):
+        if final_video_path:
+            log(f"Uploadam video ({os.path.getsize(final_video_path) / 1024 / 1024:.1f} MB)...")
+        else:
+            log(f"Uploadam SRT ({len(srt_content)} bytes)...")
+
+        if upload_result(job_id, srt_content, processing_time, final_video_path):
             log(f"✓ Job #{job_id} završen za {processing_time:.1f}s")
             return True
         else:

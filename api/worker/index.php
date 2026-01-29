@@ -115,6 +115,32 @@ switch ($action) {
         readfile($filePath);
         exit;
 
+    // Download video file
+    case 'download_video':
+        $jobId = intval($_GET['id'] ?? 0);
+        $stmt = $db->prepare("SELECT video_path FROM transcription_jobs WHERE id = ? AND status = 'processing'");
+        $stmt->execute([$jobId]);
+        $job = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$job || !$job['video_path']) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Video not found']);
+            break;
+        }
+
+        $filePath = __DIR__ . '/../../' . $job['video_path'];
+        if (!file_exists($filePath)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Video file not found on disk']);
+            break;
+        }
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="video.mp4"');
+        header('Content-Length: ' . filesize($filePath));
+        readfile($filePath);
+        exit;
+
     // Upload rezultata
     case 'complete':
         if ($method !== 'POST') {
@@ -123,16 +149,26 @@ switch ($action) {
         }
 
         $jobId = intval($_GET['id'] ?? 0);
-        $input = json_decode(file_get_contents('php://input'), true);
 
-        if (!$jobId || !isset($input['srt_content'])) {
+        // Provjeri je li multipart (s video datotekom) ili JSON
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        if (strpos($contentType, 'multipart/form-data') !== false) {
+            // Multipart upload
+            $srtContent = $_POST['srt_content'] ?? '';
+            $processingTime = floatval($_POST['processing_time'] ?? 0);
+            $error = !empty($_POST['error']) ? $_POST['error'] : null;
+        } else {
+            // JSON upload
+            $input = json_decode(file_get_contents('php://input'), true);
+            $srtContent = $input['srt_content'] ?? '';
+            $processingTime = floatval($input['processing_time'] ?? 0);
+            $error = $input['error'] ?? null;
+        }
+
+        if (!$jobId || empty($srtContent)) {
             echo json_encode(['error' => 'Missing data']);
             break;
         }
-
-        $srtContent = $input['srt_content'];
-        $processingTime = floatval($input['processing_time'] ?? 0);
-        $error = $input['error'] ?? null;
 
         if ($error) {
             $stmt = $db->prepare("
@@ -165,41 +201,21 @@ switch ($action) {
 
         $videoWithSubsPath = null;
 
-        // Burn subtitles ako je traženo
-        if ($job['burn_subtitles'] && $job['video_path']) {
-            $videoFullPath = __DIR__ . '/../../' . $job['video_path'];
-            $srtFullPath = __DIR__ . '/../../' . $srtPath;
+        // Provjeri je li worker uploadao video s titlovima
+        if (isset($_FILES['video']) && $_FILES['video']['error'] === UPLOAD_ERR_OK) {
+            $videoFilename = $baseName . '_titlovi_' . $uniqueId . '.mp4';
+            $videoWithSubsPath = 'uploads/subtitles/' . date('Y/m/') . '/' . $videoFilename;
+            $videoFullPath = __DIR__ . '/../../' . $videoWithSubsPath;
 
-            if (file_exists($videoFullPath)) {
-                $outputFilename = $baseName . '_titlovi_' . $uniqueId . '.mp4';
-                $outputDir = __DIR__ . '/../../uploads/subtitles/' . date('Y/m/');
-                $outputFullPath = $outputDir . $outputFilename;
-                $videoWithSubsPath = 'uploads/subtitles/' . date('Y/m/') . '/' . $outputFilename;
-
-                // Escape za ffmpeg subtitle filter
-                $srtEscaped = str_replace(['\\', ':', "'"], ['\\\\\\\\', '\\:', "\\'"], $srtFullPath);
-
-                $cmd = sprintf(
-                    'ffmpeg -i %s -vf "subtitles=\'%s\':force_style=\'FontSize=16,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=1,MarginV=20\'" -c:v libx264 -crf 28 -preset medium -c:a aac -b:a 128k -movflags +faststart -y %s 2>&1',
-                    escapeshellarg($videoFullPath),
-                    $srtEscaped,
-                    escapeshellarg($outputFullPath)
-                );
-
-                exec($cmd, $output, $returnCode);
-
-                if ($returnCode !== 0 || !file_exists($outputFullPath)) {
-                    $videoWithSubsPath = null; // Burn failed, but SRT is still OK
-                }
-
-                // Očisti originalni video iz queue
-                @unlink($videoFullPath);
-            }
+            move_uploaded_file($_FILES['video']['tmp_name'], $videoFullPath);
         }
 
-        // Očisti audio iz queue
+        // Očisti temp datoteke iz queue
         if ($job['audio_path']) {
             @unlink(__DIR__ . '/../../' . $job['audio_path']);
+        }
+        if ($job['video_path']) {
+            @unlink(__DIR__ . '/../../' . $job['video_path']);
         }
 
         // Update job
