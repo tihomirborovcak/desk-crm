@@ -1,4 +1,4 @@
-const CACHE_NAME = 'portal-cms-v1';
+const CACHE_NAME = 'portal-cms-v2';
 
 // Instaliraj - cache osnovne resurse
 self.addEventListener('install', (event) => {
