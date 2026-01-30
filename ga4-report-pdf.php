@@ -164,8 +164,19 @@ foreach ($periods as $period) {
         @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .no-print { display: none; }
-            @page { margin: 1cm; }
+            @page {
+                margin: 1cm;
+                margin-top: 0;
+                margin-bottom: 0;
+            }
         }
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        @page :first { margin-top: 15mm; }
+        @page :left { margin-left: 15mm; }
+        @page :right { margin-right: 15mm; }
         * { box-sizing: border-box; }
         body {
             font-family: 'Roboto', 'Google Sans', -apple-system, sans-serif;
