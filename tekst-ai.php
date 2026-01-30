@@ -823,6 +823,11 @@ Npr:
     <div class="card-body">
         <div class="result-text" id="resultText"><?= nl2br(e($resultText)) ?></div>
 
+        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--gray-600);">
+            Znakova: <strong><?= number_format(mb_strlen($resultText), 0, ',', '.') ?></strong> |
+            Riječi: <strong><?= number_format(str_word_count($resultText, 0, 'čćžšđČĆŽŠĐ'), 0, ',', '.') ?></strong>
+        </div>
+
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button onclick="copyResult()" class="btn btn-success">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
