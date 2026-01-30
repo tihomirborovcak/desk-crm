@@ -211,7 +211,7 @@ function extractZipFiles($zipPath) {
     foreach ($iterator as $file) {
         if ($file->isFile()) {
             $ext = strtolower($file->getExtension());
-            if (in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'docx', 'txt'])) {
+            if (in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'docx', 'xlsx', 'txt'])) {
                 $extractedFiles[] = [
                     'path' => $file->getPathname(),
                     'name' => $file->getFilename(),
@@ -307,6 +307,68 @@ function compressImageForApi($filePath, $mimeType) {
     return $data;
 }
 
+// Izvuci tekst iz Excel dokumenta (.xlsx)
+function extractTextFromXlsx($filePath) {
+    $zip = new ZipArchive();
+    if ($zip->open($filePath) !== true) {
+        return '';
+    }
+
+    $text = '';
+
+    // Prvo učitaj shared strings (tekst ćelija)
+    $sharedStrings = [];
+    $ssContent = $zip->getFromName('xl/sharedStrings.xml');
+    if ($ssContent) {
+        $xml = @simplexml_load_string($ssContent);
+        if ($xml) {
+            foreach ($xml->si as $si) {
+                $sharedStrings[] = (string)$si->t;
+            }
+        }
+    }
+
+    // Učitaj sve sheet-ove
+    for ($i = 1; $i <= 10; $i++) {
+        $sheetContent = $zip->getFromName("xl/worksheets/sheet{$i}.xml");
+        if (!$sheetContent) break;
+
+        $xml = @simplexml_load_string($sheetContent);
+        if (!$xml) continue;
+
+        $rows = [];
+        foreach ($xml->sheetData->row as $row) {
+            $rowData = [];
+            foreach ($row->c as $cell) {
+                $value = '';
+                $type = (string)$cell['t'];
+
+                if ($type === 's' && isset($cell->v)) {
+                    // Shared string
+                    $idx = (int)$cell->v;
+                    $value = $sharedStrings[$idx] ?? '';
+                } elseif (isset($cell->v)) {
+                    $value = (string)$cell->v;
+                }
+
+                if ($value !== '') {
+                    $rowData[] = $value;
+                }
+            }
+            if (!empty($rowData)) {
+                $rows[] = implode(' | ', $rowData);
+            }
+        }
+
+        if (!empty($rows)) {
+            $text .= implode("\n", $rows) . "\n\n";
+        }
+    }
+
+    $zip->close();
+    return trim($text);
+}
+
 // Izvuci tekst iz Word dokumenta (.docx)
 function extractTextFromDocx($filePath) {
     $zip = new ZipArchive();
@@ -400,6 +462,11 @@ Pravila:
             ];
         } elseif ($ext === 'docx') {
             $text = extractTextFromDocx($filePath);
+            if ($text) {
+                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
+            }
+        } elseif ($ext === 'xlsx') {
+            $text = extractTextFromXlsx($filePath);
             if ($text) {
                 $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
             }
@@ -688,8 +755,8 @@ include 'includes/header.php';
 
             <div class="form-group">
                 <label class="form-label">Dokumenti *</label>
-                <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.docx,.txt,.zip" class="form-control" id="fileInput">
-                <small class="form-text">Podržani formati: PDF, slike (JPG, PNG, GIF, WebP), Word (.docx), tekst (.txt), ZIP arhive. Možete odabrati više datoteka.</small>
+                <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.docx,.xlsx,.txt,.zip" class="form-control" id="fileInput">
+                <small class="form-text">Podržani formati: PDF, slike (JPG, PNG, GIF, WebP), Word (.docx), Excel (.xlsx), tekst (.txt), ZIP arhive.</small>
                 <div id="fileList" style="margin-top: 0.5rem;"></div>
             </div>
 
