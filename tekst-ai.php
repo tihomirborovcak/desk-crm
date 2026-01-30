@@ -263,7 +263,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             if (isset($result['error'])) {
                 $error = $result['error'];
             } else {
-                $resultText = $result['text'];
+                // Ukloni višestruke prazne linije
+                $resultText = preg_replace("/\n{3,}/", "\n\n", trim($result['text']));
                 logActivity('ai_text_generate', 'ai', null);
             }
         }
@@ -279,7 +280,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             if (isset($result['error'])) {
                 $error = $result['error'];
             } else {
-                $resultText = $result['text'];
+                // Ukloni višestruke prazne linije
+                $resultText = preg_replace("/\n{3,}/", "\n\n", trim($result['text']));
                 logActivity('ai_text_process', 'ai', null);
             }
         }

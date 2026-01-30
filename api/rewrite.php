@@ -205,9 +205,11 @@ if ($response === false) {
 $result = json_decode($response, true);
 
 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+    // Ukloni višestruke prazne linije
+    $cleanText = preg_replace("/\n{3,}/", "\n\n", trim($result['candidates'][0]['content']['parts'][0]['text']));
     echo json_encode([
         'success' => true,
-        'text' => $result['candidates'][0]['content']['parts'][0]['text']
+        'text' => $cleanText
     ]);
 } else {
     $errorMsg = $result['error']['message'] ?? 'Neočekivan odgovor od API-ja';
