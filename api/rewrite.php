@@ -138,7 +138,7 @@ VAŽNO: Tekst je automatski izvučen sa web stranice i može sadržavati element
 - Tekstovi na engleskom jeziku koji su dio social media postova
 - Navigacijski elementi, linkovi na druge članke
 - Reklame, promocije, pozivi na pretplatu
-- Upozorenja o igrama na sreću, kladionice (npr. "Igre na sreću mogu izazvati ovisnost. 18+")
+- Upozorenja o igrama na sreću, kladionice (npr. 'Igre na sreću mogu izazvati ovisnost. 18+')
 - Komentari čitatelja, tagovi, kategorije
 - Footer informacije, kontakt podaci portala
 - Bilo kakav tekst koji nije dio samog novinarskog članka
