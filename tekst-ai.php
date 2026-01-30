@@ -132,7 +132,13 @@ function preradi($text, $instructions, $title = '') {
     $systemPrompt = "Ti si profesionalni urednik i novinar koji piše na hrvatskom jeziku.
 Tvoj zadatak je preraditi tekst prema uputama korisnika.
 
+FORMAT ODGOVORA:
+NASLOV: [Napiši novi, zanimljiv i privlačan naslov za portal - clickbait ali informativan]
+
+[Prerađeni tekst članka]
+
 Pravila:
+- OBAVEZNO na početku napiši NASLOV: i novi privlačan naslov za portal
 - Piši isključivo na hrvatskom jeziku
 - Koristi pravilan hrvatski pravopis i gramatiku
 - Zadrži činjenice i ključne informacije iz originalnog teksta
@@ -142,8 +148,8 @@ Pravila:
 - NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
 - NE koristi markdown formatiranje (**, *, #, itd.)";
 
-    $titlePart = $title ? "NASLOV: " . $title . "\n\n" : "";
-    $userPrompt = $titlePart . "ORIGINALNI TEKST:\n" . $text . "\n\nUPUTE ZA PRERADU:\n" . $instructions . "\n\nPreradi tekst prema uputama. " . ($title ? "Zadrži ili prilagodi naslov." : "") . " Vrati SAMO prerađeni tekst, bez dodatnih objašnjenja.";
+    $titlePart = $title ? "ORIGINALNI NASLOV: " . $title . "\n\n" : "";
+    $userPrompt = $titlePart . "ORIGINALNI TEKST:\n" . $text . "\n\nUPUTE ZA PRERADU:\n" . $instructions . "\n\nPreradi tekst prema uputama. Smisli NOVI zanimljiv naslov za portal (ne koristi originalni naslov). Započni odgovor s 'NASLOV:' pa novi naslov, pa prazan red, pa prerađeni tekst.";
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -802,8 +808,8 @@ Npr:
             <input type="hidden" name="mode" value="prerada">
 
             <div class="form-group">
-                <label class="form-label">Naslov</label>
-                <input type="text" name="title" class="form-control" placeholder="Naslov članka (opcionalno)" value="<?= e($_POST['title'] ?? '') ?>">
+                <label class="form-label">Originalni naslov</label>
+                <input type="text" name="title" class="form-control" placeholder="Naslov originalnog članka (opcionalno - AI će generirati novi)" value="<?= e($_POST['title'] ?? '') ?>">
             </div>
 
             <div class="form-group">
