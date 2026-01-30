@@ -325,48 +325,62 @@ include 'includes/header.php';
             <iframe id="articleIframe" style="width: 100%; height: 100%; border: none;"></iframe>
         </div>
 
-        <!-- Donji dio - prerada -->
-        <div style="flex-shrink: 0; max-height: 45%; overflow-y: auto; background: #f9fafb;">
-            <div style="padding: 1rem;">
-                <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
-                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
-                    <p>Dohvaćam članak...</p>
-                </div>
+        <!-- Donji dio - 2 stupca -->
+        <div style="flex-shrink: 0; height: 45%; overflow: hidden; background: #f9fafb; border-top: 3px solid #1e3a5f;">
+            <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
+                <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                <p>Dohvaćam članak...</p>
+            </div>
 
-                <div id="modalContent" style="display: none;">
-                    <!-- Gumb za preradu -->
-                    <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
-                        <button type="button" id="rewriteBtn" onclick="rewriteText()" class="btn btn-primary">
-                            Preradi s AI
-                        </button>
-                        <span id="rewriteStatus" style="font-size: 0.875rem; color: #6b7280;"></span>
-                    </div>
-
-                    <!-- Naslov -->
-                    <div style="margin-bottom: 1rem;">
-                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151; display: block; margin-bottom: 0.25rem;">Naslov</label>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <input type="text" id="modalNewTitle" style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem;" placeholder="Naslov prerađenog članka...">
-                            <button type="button" onclick="copyField('modalNewTitle')" class="btn btn-outline" style="padding: 0.5rem 0.75rem; font-size: 0.75rem;">Kopiraj</button>
+            <div id="modalContent" style="display: none; height: 100%;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; height: 100%;">
+                    <!-- Lijevi stupac - originalni tekst -->
+                    <div style="padding: 1rem; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <label style="font-weight: 600; font-size: 0.875rem; color: #374151;">Originalni tekst</label>
+                            <span id="modalOriginalCount" style="font-size: 0.75rem; color: #9ca3af;"></span>
                         </div>
+                        <textarea id="modalOriginal" style="flex: 1; width: 100%; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: none; background: white;" readonly></textarea>
                     </div>
 
-                    <!-- Tekst -->
-                    <div style="margin-bottom: 1rem;">
-                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151; display: block; margin-bottom: 0.25rem;">Tekst</label>
-                        <textarea id="modalRewritten" style="width: 100%; height: 150px; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;" placeholder="Prerađeni tekst će se pojaviti ovdje..."></textarea>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
-                            <span id="modalRewrittenCount" style="font-size: 0.75rem; color: #9ca3af;"></span>
-                            <button type="button" onclick="copyField('modalRewritten')" class="btn btn-outline" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">Kopiraj tekst</button>
+                    <!-- Desni stupac - prerada -->
+                    <div style="padding: 1rem; display: flex; flex-direction: column; overflow-y: auto;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <label style="font-weight: 600; font-size: 0.875rem; color: #374151;">Prerađeni članak</label>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span id="rewriteStatus" style="font-size: 0.75rem; color: #6b7280;"></span>
+                                <button type="button" id="rewriteBtn" onclick="rewriteText()" class="btn btn-primary" style="padding: 0.4rem 0.75rem; font-size: 0.8rem;">
+                                    Preradi s AI
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Link izvora -->
-                    <div style="margin-bottom: 1rem;">
-                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151; display: block; margin-bottom: 0.25rem;">Izvor</label>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <input type="text" id="modalSourceUrl" readonly style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.75rem; background: #f3f4f6; color: #6b7280;">
-                            <button type="button" onclick="copyField('modalSourceUrl')" class="btn btn-outline" style="padding: 0.5rem 0.75rem; font-size: 0.75rem;">Kopiraj link</button>
+                        <!-- Naslov -->
+                        <div style="margin-bottom: 0.75rem;">
+                            <label style="font-weight: 500; font-size: 0.75rem; color: #6b7280; display: block; margin-bottom: 0.25rem;">Naslov</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="modalNewTitle" style="flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem;" placeholder="Naslov...">
+                                <button type="button" onclick="copyField('modalNewTitle')" class="btn btn-outline" style="padding: 0.4rem 0.6rem; font-size: 0.7rem;">Kopiraj</button>
+                            </div>
+                        </div>
+
+                        <!-- Tekst -->
+                        <div style="flex: 1; display: flex; flex-direction: column; margin-bottom: 0.75rem; min-height: 100px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <label style="font-weight: 500; font-size: 0.75rem; color: #6b7280;">Tekst</label>
+                                <span id="modalRewrittenCount" style="font-size: 0.7rem; color: #9ca3af;"></span>
+                            </div>
+                            <textarea id="modalRewritten" style="flex: 1; width: 100%; padding: 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: none;" placeholder="Prerađeni tekst..."></textarea>
+                            <button type="button" onclick="copyField('modalRewritten')" class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.7rem; margin-top: 0.25rem; align-self: flex-end;">Kopiraj tekst</button>
+                        </div>
+
+                        <!-- Izvor -->
+                        <div>
+                            <label style="font-weight: 500; font-size: 0.75rem; color: #6b7280; display: block; margin-bottom: 0.25rem;">Link izvora</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="modalSourceUrl" readonly style="flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.7rem; background: #f3f4f6; color: #6b7280;">
+                                <button type="button" onclick="copyField('modalSourceUrl')" class="btn btn-outline" style="padding: 0.4rem 0.6rem; font-size: 0.7rem;">Kopiraj</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -374,14 +388,11 @@ include 'includes/header.php';
         </div>
 
         <!-- Footer -->
-        <div style="padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb; text-align: right; flex-shrink: 0; background: white;">
-            <button type="button" id="modalCloseBtn" class="btn btn-outline">Zatvori</button>
+        <div style="padding: 0.5rem 1rem; border-top: 1px solid #e5e7eb; text-align: right; flex-shrink: 0; background: white;">
+            <button type="button" id="modalCloseBtn" class="btn btn-outline" style="padding: 0.4rem 1rem;">Zatvori</button>
         </div>
     </div>
 </div>
-
-<!-- Skriveni textarea za originalni tekst -->
-<textarea id="modalOriginal" style="display: none;"></textarea>
 
 <script>
 let currentArticleUrl = '';
@@ -399,12 +410,13 @@ async function openRewrite(id, url, sourceName) {
 
     // Resetiraj polja
     document.getElementById('modalOriginal').value = '';
+    document.getElementById('modalOriginalCount').textContent = '';
     document.getElementById('modalNewTitle').value = '';
     document.getElementById('modalRewritten').value = '';
     document.getElementById('modalRewrittenCount').textContent = '';
     document.getElementById('modalSourceUrl').value = url;
     document.getElementById('modalTitle').textContent = 'Preradi članak - ' + sourceName;
-    document.getElementById('rewriteStatus').textContent = '';
+    document.getElementById('rewriteStatus').textContent = 'Učitavam...';
 
     // Učitaj originalni članak u iframe
     iframe.src = url;
@@ -432,9 +444,11 @@ async function openRewrite(id, url, sourceName) {
             originalTitle = data.title || '';
             const fullText = data.title + "\n\n" + data.content;
             document.getElementById('modalOriginal').value = fullText;
-            document.getElementById('rewriteStatus').textContent = 'Spremno za preradu (' + data.length.toLocaleString() + ' znakova)';
+            document.getElementById('modalOriginalCount').textContent = data.length.toLocaleString() + ' znakova';
+            document.getElementById('rewriteStatus').textContent = 'Spremno';
         } else {
-            document.getElementById('rewriteStatus').textContent = 'Greška: ' + data.error;
+            document.getElementById('modalOriginal').value = 'Greška: ' + data.error;
+            document.getElementById('rewriteStatus').textContent = 'Greška';
         }
     } catch (e) {
         loading.style.display = 'none';
