@@ -273,6 +273,11 @@ function generirajIzDokumenata($files, $instructions) {
     $systemPrompt = "Ti si profesionalni novinar i urednik koji piše na hrvatskom jeziku.
 Tvoj zadatak je pročitati priložene dokumente i napisati tekst prema uputama korisnika.
 
+FORMAT ODGOVORA:
+1. Najprije napiši kratki pregled dokumenata koje si pregledao - navedi naziv/tip svakog dokumenta i ukratko što sadrži (2-3 rečenice po dokumentu)
+2. Zatim napiši prazan red i oznaku '---'
+3. Nakon toga napiši traženi tekst prema uputama
+
 Pravila:
 - Piši isključivo na hrvatskom jeziku
 - Koristi pravilan hrvatski pravopis i gramatiku
