@@ -213,8 +213,9 @@ if ($response === false) {
 $result = json_decode($response, true);
 
 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-    // Ukloni višestruke prazne linije
-    $cleanText = preg_replace("/\n{3,}/", "\n\n", trim($result['candidates'][0]['content']['parts'][0]['text']));
+    // Ukloni sve višestruke prazne linije - ostavi samo jedan newline
+    $cleanText = trim($result['candidates'][0]['content']['parts'][0]['text']);
+    $cleanText = preg_replace("/\n{2,}/", "\n", $cleanText);
     echo json_encode([
         'success' => true,
         'text' => $cleanText
