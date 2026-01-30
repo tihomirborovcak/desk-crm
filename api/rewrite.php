@@ -225,10 +225,15 @@ if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
     $cleanText = preg_replace('/^•\s*/m', '', $cleanText);            // • bullet -> ukloni
     $cleanText = preg_replace('/^#+\s*/m', '', $cleanText);           // ### heading -> ukloni
     // Ukloni sve prazne linije
-    while (preg_match('/\n\s*\n/', $cleanText)) {
-        $cleanText = preg_replace('/\n\s*\n/', "\n", $cleanText);
+    while (strpos($cleanText, "\n\n") !== false) {
+        $cleanText = str_replace("\n\n", "\n", $cleanText);
     }
-    $cleanText = trim($cleanText);
+    // Ukloni linije koje su samo razmaci
+    $lines = explode("\n", $cleanText);
+    $lines = array_filter($lines, function($line) {
+        return trim($line) !== '';
+    });
+    $cleanText = trim(implode("\n", $lines));
     echo json_encode([
         'success' => true,
         'text' => $cleanText
