@@ -216,12 +216,17 @@ $result = json_decode($response, true);
 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
     // Očisti markdown i višestruke prazne linije iz odgovora
     $cleanText = trim($result['candidates'][0]['content']['parts'][0]['text']);
+    $cleanText = str_replace("\r\n", "\n", $cleanText);               // normaliziraj line endings
+    $cleanText = str_replace("\r", "\n", $cleanText);
     $cleanText = preg_replace('/\*\*(.+?)\*\*/s', '$1', $cleanText);  // **bold** -> bold
     $cleanText = preg_replace('/\*([^*\n]+)\*/s', '$1', $cleanText);  // *italic* -> italic
     $cleanText = preg_replace('/^\*\s+/m', '', $cleanText);           // * bullet -> ukloni
     $cleanText = preg_replace('/^-\s+/m', '', $cleanText);            // - bullet -> ukloni
+    $cleanText = preg_replace('/^•\s*/m', '', $cleanText);            // • bullet -> ukloni
     $cleanText = preg_replace('/^#+\s*/m', '', $cleanText);           // ### heading -> ukloni
-    $cleanText = preg_replace("/\n{2,}/", "\n", $cleanText);          // višestruke prazne linije
+    $cleanText = preg_replace('/\n\s*\n/', "\n", $cleanText);         // prazne linije (i s razmacima)
+    $cleanText = preg_replace('/\n{2,}/', "\n", $cleanText);          // višestruki newlines
+    $cleanText = trim($cleanText);
     echo json_encode([
         'success' => true,
         'text' => $cleanText
