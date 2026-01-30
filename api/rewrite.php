@@ -25,6 +25,8 @@ header('Content-Type: application/json; charset=utf-8');
 // Dohvati JSON input
 $input = json_decode(file_get_contents('php://input'), true);
 $text = trim($input['text'] ?? '');
+$sourceUrl = trim($input['source_url'] ?? '');
+$sourceName = trim($input['source_name'] ?? '');
 
 if (empty($text)) {
     echo json_encode(['success' => false, 'error' => 'Tekst je prazan']);
@@ -127,7 +129,18 @@ Pravila:
 - Ne dodaji nove informacije koje nisu u originalnom tekstu
 - Ne dodaji komentare ili objašnjenja, vrati samo prerađeni tekst";
 
-$userPrompt = "Preradi sljedeći članak:\n\n" . $text;
+// Ako imamo izvor, dodaj instrukciju za navođenje izvora
+$sourceInstruction = "";
+if (!empty($sourceName)) {
+    $systemPrompt .= "\n- Na kraju članka OBAVEZNO dodaj rečenicu koja navodi izvor informacija";
+    $sourceInstruction = "\n\nIZVOR: " . $sourceName;
+    if (!empty($sourceUrl)) {
+        $sourceInstruction .= " (" . $sourceUrl . ")";
+    }
+    $sourceInstruction .= "\nNa kraju prerađenog teksta dodaj rečenicu poput: 'Kako navodi " . $sourceName . ", ...' ili '" . $sourceName . " prenosi da...' - uklopi prirodno u tekst.";
+}
+
+$userPrompt = "Preradi sljedeći članak:\n\n" . $text . $sourceInstruction;
 
 $ch = curl_init($url);
 curl_setopt_array($ch, [

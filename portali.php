@@ -293,7 +293,7 @@ include 'includes/header.php';
                                     <?= date('d.m.Y H:i', strtotime($clanak['objavljeno_at'])) ?>
                                 </span>
                                 <?php endif; ?>
-                                <button type="button" onclick='openRewrite(<?= $clanak["id"] ?>, <?= json_encode($clanak["url"]) ?>)' style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
+                                <button type="button" onclick='openRewrite(<?= $clanak["id"] ?>, <?= json_encode($clanak["url"]) ?>, <?= json_encode($portal["naziv"]) ?>)' style="font-size: 0.7rem; color: #059669; background: none; border: none; cursor: pointer; padding: 0;">
                                     Preradi
                                 </button>
                             </div>
@@ -353,8 +353,14 @@ include 'includes/header.php';
 </div>
 
 <script>
-async function openRewrite(id, url) {
-    console.log('openRewrite called with:', id, url);
+let currentArticleUrl = '';
+let currentSourceName = '';
+
+async function openRewrite(id, url, sourceName) {
+    console.log('openRewrite called with:', id, url, sourceName);
+    currentArticleUrl = url;
+    currentSourceName = sourceName;
+
     const modal = document.getElementById('rewriteModal');
     const loading = document.getElementById('modalLoading');
     const content = document.getElementById('modalContent');
@@ -431,7 +437,11 @@ async function rewriteText() {
         const response = await fetch('api/rewrite.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({text: original})
+            body: JSON.stringify({
+                text: original,
+                source_url: currentArticleUrl,
+                source_name: currentSourceName
+            })
         });
 
         const data = await response.json();
