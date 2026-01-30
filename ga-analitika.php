@@ -570,6 +570,7 @@ include 'includes/header.php';
         'geography' => 'Geografija',
         'devices' => 'Uređaji',
         'landing' => 'Landing',
+        'pdf_report' => '📄 PDF Izvještaj',
     ];
     // Zarada samo za admine
     if (isAdmin()) {
@@ -1749,6 +1750,51 @@ $revenueChange = calcChange($currentRevenue, $previousRevenue);
     </div>
 </div>
 <?php endif; ?>
+
+<?php elseif ($reportType === 'pdf_report'): ?>
+<!-- PDF IZVJEŠTAJ -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📄 Generiraj PDF izvještaj</h2>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="ga4-report-pdf.php" target="_blank" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+            <div>
+                <label class="form-label">Od datuma</label>
+                <input type="date" name="start_date" class="form-control" value="<?= date('Y-m-01', strtotime('-2 months')) ?>" required>
+            </div>
+            <div>
+                <label class="form-label">Do datuma</label>
+                <input type="date" name="end_date" class="form-control" value="<?= date('Y-m-d') ?>" required>
+            </div>
+            <div>
+                <label class="form-label">Grupiraj po</label>
+                <select name="group_by" class="form-control">
+                    <option value="month">Mjesecima</option>
+                    <option value="week">Tjednima</option>
+                    <option value="day">Danima</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                📄 Generiraj PDF
+            </button>
+        </form>
+
+        <div style="margin-top: 2rem; padding: 1rem; background: #f3f4f6; border-radius: 8px;">
+            <h4 style="margin-bottom: 0.5rem;">Brzi izvještaji:</h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <a href="ga4-report-pdf.php?start_date=<?= date('Y-m-01', strtotime('-2 months')) ?>&end_date=<?= date('Y-m-d') ?>&group_by=month"
+                   target="_blank" class="btn btn-outline">Zadnja 3 mjeseca</a>
+                <a href="ga4-report-pdf.php?start_date=<?= date('Y-01-01') ?>&end_date=<?= date('Y-m-d') ?>&group_by=month"
+                   target="_blank" class="btn btn-outline">Ova godina</a>
+                <a href="ga4-report-pdf.php?start_date=<?= date('Y-m-01', strtotime('-11 months')) ?>&end_date=<?= date('Y-m-d') ?>&group_by=month"
+                   target="_blank" class="btn btn-outline">Zadnjih 12 mjeseci</a>
+                <a href="ga4-report-pdf.php?start_date=<?= date('Y-m-d', strtotime('-30 days')) ?>&end_date=<?= date('Y-m-d') ?>&group_by=day"
+                   target="_blank" class="btn btn-outline">Zadnjih 30 dana</a>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php else: ?>
 <div class="card">

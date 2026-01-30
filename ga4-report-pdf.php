@@ -1,6 +1,14 @@
 <?php
 // GA4 PDF Report
+require_once 'includes/auth.php';
+requireLogin();
+
 define('GA4_PROPERTY_ID', '279956882');
+
+// Parametri iz GET-a
+$startDate = $_GET['start_date'] ?? date('Y-m-01', strtotime('-2 months'));
+$endDate = $_GET['end_date'] ?? date('Y-m-d');
+$groupBy = $_GET['group_by'] ?? 'month';
 
 function getGoogleAccessToken() {
     $credentialsFile = __DIR__ . '/google-credentials.json';
@@ -73,26 +81,69 @@ function getGA4Report($startDate, $endDate) {
     return json_decode($response, true);
 }
 
-$months = [
-    ['name' => 'Studeni 2025', 'start' => '2025-11-01', 'end' => '2025-11-30'],
-    ['name' => 'Prosinac 2025', 'start' => '2025-12-01', 'end' => '2025-12-31'],
-    ['name' => 'Siječanj 2026', 'start' => '2026-01-01', 'end' => '2026-01-29']
-];
+// Generiraj periode ovisno o groupBy
+$periods = [];
+$start = new DateTime($startDate);
+$end = new DateTime($endDate);
+$monthNames = ['', 'Siječanj', 'Veljača', 'Ožujak', 'Travanj', 'Svibanj', 'Lipanj',
+               'Srpanj', 'Kolovoz', 'Rujan', 'Listopad', 'Studeni', 'Prosinac'];
+
+if ($groupBy === 'month') {
+    $current = clone $start;
+    $current->modify('first day of this month');
+    while ($current <= $end) {
+        $periodStart = $current->format('Y-m-d');
+        $current->modify('last day of this month');
+        $periodEnd = min($current->format('Y-m-d'), $end->format('Y-m-d'));
+        $periods[] = [
+            'name' => $monthNames[(int)$current->format('n')] . ' ' . $current->format('Y'),
+            'start' => $periodStart,
+            'end' => $periodEnd
+        ];
+        $current->modify('first day of next month');
+    }
+} elseif ($groupBy === 'week') {
+    $current = clone $start;
+    $weekNum = 1;
+    while ($current <= $end) {
+        $periodStart = $current->format('Y-m-d');
+        $current->modify('+6 days');
+        $periodEnd = min($current->format('Y-m-d'), $end->format('Y-m-d'));
+        $periods[] = [
+            'name' => 'Tjedan ' . $weekNum . ' (' . (new DateTime($periodStart))->format('d.m.') . ' - ' . (new DateTime($periodEnd))->format('d.m.') . ')',
+            'start' => $periodStart,
+            'end' => $periodEnd
+        ];
+        $current->modify('+1 day');
+        $weekNum++;
+    }
+} else { // day
+    $current = clone $start;
+    $dayNames = ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'];
+    while ($current <= $end) {
+        $periods[] = [
+            'name' => $dayNames[(int)$current->format('w')] . ', ' . $current->format('d.m.Y'),
+            'start' => $current->format('Y-m-d'),
+            'end' => $current->format('Y-m-d')
+        ];
+        $current->modify('+1 day');
+    }
+}
 
 $results = [];
 $totalViews = 0;
 $totalUsers = 0;
 $totalSessions = 0;
 
-foreach ($months as $month) {
-    $data = getGA4Report($month['start'], $month['end']);
+foreach ($periods as $period) {
+    $data = getGA4Report($period['start'], $period['end']);
     $row = $data['rows'][0]['metricValues'] ?? null;
     if ($row) {
         $views = (int)$row[0]['value'];
         $users = (int)$row[1]['value'];
         $sessions = (int)$row[2]['value'];
         $results[] = [
-            'name' => $month['name'],
+            'name' => $period['name'],
             'views' => $views,
             'users' => $users,
             'sessions' => $sessions
@@ -272,7 +323,7 @@ foreach ($months as $month) {
     </button>
 
     <div class="footer">
-        GA4 Property ID: <?= GA4_PROPERTY_ID ?> | Razdoblje: Studeni 2025 - Siječanj 2026
+        GA4 Property ID: <?= GA4_PROPERTY_ID ?> | Razdoblje: <?= date('d.m.Y', strtotime($startDate)) ?> - <?= date('d.m.Y', strtotime($endDate)) ?>
     </div>
 </body>
 </html>
