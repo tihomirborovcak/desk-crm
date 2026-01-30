@@ -3,6 +3,9 @@
  * API endpoint za preradu teksta s Google Gemini (Vertex AI)
  */
 
+// Debug: log every request
+file_put_contents('/tmp/rewrite_debug.log', date('Y-m-d H:i:s') . " - Request received\n", FILE_APPEND);
+
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
 
