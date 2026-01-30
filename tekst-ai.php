@@ -193,6 +193,54 @@ Pravila:
     return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
 }
 
+// Raspakuj ZIP i vrati listu fajlova
+function extractZipFiles($zipPath) {
+    $extractedFiles = [];
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        return [];
+    }
+
+    $tempDir = sys_get_temp_dir() . '/zip_' . uniqid();
+    mkdir($tempDir, 0755, true);
+    $zip->extractTo($tempDir);
+    $zip->close();
+
+    // Rekurzivno pronađi sve fajlove
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tempDir));
+    foreach ($iterator as $file) {
+        if ($file->isFile()) {
+            $ext = strtolower($file->getExtension());
+            if (in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'docx', 'txt'])) {
+                $extractedFiles[] = [
+                    'path' => $file->getPathname(),
+                    'name' => $file->getFilename(),
+                    'ext' => $ext
+                ];
+            }
+        }
+    }
+
+    return ['files' => $extractedFiles, 'tempDir' => $tempDir];
+}
+
+// Obriši temp direktorij
+function cleanupTempDir($dir) {
+    if (!is_dir($dir)) return;
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($files as $file) {
+        if ($file->isDir()) {
+            rmdir($file->getPathname());
+        } else {
+            unlink($file->getPathname());
+        }
+    }
+    rmdir($dir);
+}
+
 // Izvuci tekst iz Word dokumenta (.docx)
 function extractTextFromDocx($filePath) {
     $zip = new ZipArchive();
@@ -236,6 +284,47 @@ Pravila:
     // Pripremi parts za multimodalni request
     $parts = [];
     $textContent = "";
+    $tempDirs = []; // Za cleanup ZIP direktorija
+
+    // Funkcija za obradu jednog fajla
+    $processFile = function($filePath, $fileName, $ext, $mimeType = null) use (&$parts, &$textContent) {
+        if (!$mimeType) {
+            $mimeTypes = [
+                'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
+                'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp',
+                'pdf' => 'application/pdf'
+            ];
+            $mimeType = $mimeTypes[$ext] ?? 'application/octet-stream';
+        }
+
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            $data = base64_encode(file_get_contents($filePath));
+            $parts[] = [
+                'inlineData' => [
+                    'mimeType' => $mimeType,
+                    'data' => $data
+                ]
+            ];
+        } elseif ($ext === 'pdf') {
+            $data = base64_encode(file_get_contents($filePath));
+            $parts[] = [
+                'inlineData' => [
+                    'mimeType' => 'application/pdf',
+                    'data' => $data
+                ]
+            ];
+        } elseif ($ext === 'docx') {
+            $text = extractTextFromDocx($filePath);
+            if ($text) {
+                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
+            }
+        } elseif ($ext === 'txt') {
+            $text = file_get_contents($filePath);
+            if ($text) {
+                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
+            }
+        }
+    };
 
     foreach ($files['tmp_name'] as $i => $tmpName) {
         if (empty($tmpName) || $files['error'][$i] !== UPLOAD_ERR_OK) {
@@ -246,36 +335,17 @@ Pravila:
         $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
         $mimeType = $files['type'][$i];
 
-        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-            // Slika - pošalji kao base64
-            $data = base64_encode(file_get_contents($tmpName));
-            $parts[] = [
-                'inlineData' => [
-                    'mimeType' => $mimeType,
-                    'data' => $data
-                ]
-            ];
-        } elseif ($ext === 'pdf') {
-            // PDF - pošalji kao base64
-            $data = base64_encode(file_get_contents($tmpName));
-            $parts[] = [
-                'inlineData' => [
-                    'mimeType' => 'application/pdf',
-                    'data' => $data
-                ]
-            ];
-        } elseif ($ext === 'docx') {
-            // Word - izvuci tekst
-            $text = extractTextFromDocx($tmpName);
-            if ($text) {
-                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
+        if ($ext === 'zip') {
+            // ZIP - raspakuj i obradi sve fajlove
+            $zipResult = extractZipFiles($tmpName);
+            if (!empty($zipResult['files'])) {
+                $tempDirs[] = $zipResult['tempDir'];
+                foreach ($zipResult['files'] as $zipFile) {
+                    $processFile($zipFile['path'], $zipFile['name'], $zipFile['ext']);
+                }
             }
-        } elseif ($ext === 'txt') {
-            // Tekst fajl
-            $text = file_get_contents($tmpName);
-            if ($text) {
-                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
-            }
+        } else {
+            $processFile($tmpName, $fileName, $ext, $mimeType);
         }
     }
 
@@ -288,6 +358,7 @@ Pravila:
     $parts[] = ['text' => "\n\nUPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama na temelju priloženih dokumenata. Vrati SAMO tekst, bez dodatnih objašnjenja."];
 
     if (count($parts) < 2) {
+        foreach ($tempDirs as $dir) { cleanupTempDir($dir); }
         return ['error' => 'Nije učitan nijedan podržani dokument'];
     }
 
@@ -335,6 +406,11 @@ Pravila:
 
     if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
         return ['error' => 'Nema odgovora od Gemini-ja'];
+    }
+
+    // Cleanup temp direktorija od ZIP-ova
+    foreach ($tempDirs as $dir) {
+        cleanupTempDir($dir);
     }
 
     return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
@@ -523,8 +599,8 @@ include 'includes/header.php';
 
             <div class="form-group">
                 <label class="form-label">Dokumenti *</label>
-                <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.docx,.txt" class="form-control" id="fileInput">
-                <small class="form-text">Podržani formati: PDF, slike (JPG, PNG, GIF, WebP), Word (.docx), tekst (.txt). Možete odabrati više datoteka.</small>
+                <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.docx,.txt,.zip" class="form-control" id="fileInput">
+                <small class="form-text">Podržani formati: PDF, slike (JPG, PNG, GIF, WebP), Word (.docx), tekst (.txt), ZIP arhive. Možete odabrati više datoteka.</small>
                 <div id="fileList" style="margin-top: 0.5rem;"></div>
             </div>
 
