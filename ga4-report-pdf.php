@@ -158,129 +158,211 @@ foreach ($periods as $period) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>GA4 Izvještaj - <?= date('d.m.Y') ?></title>
+    <title>Analytics - <?= date('d.m.Y') ?></title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
     <style>
         @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .no-print { display: none; }
+            @page { margin: 1cm; }
         }
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 40px;
+            font-family: 'Roboto', 'Google Sans', -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
             background: #fff;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            border-bottom: 3px solid #2563eb;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            color: #1e40af;
-            margin: 0;
-            font-size: 28px;
-        }
-        .header .subtitle {
-            color: #6b7280;
-            margin-top: 8px;
-        }
-        .header .date {
-            color: #9ca3af;
+            color: #202124;
             font-size: 14px;
-            margin-top: 5px;
+            line-height: 1.5;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 30px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        .ga-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e8eaed;
+            margin-bottom: 24px;
         }
-        th, td {
-            padding: 15px 20px;
+        .ga-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .ga-logo svg { width: 32px; height: 32px; }
+        .ga-logo-text {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 22px;
+            color: #5f6368;
+            font-weight: 400;
+        }
+        .ga-logo-text span { color: #202124; }
+        .ga-property {
+            margin-left: auto;
             text-align: right;
-            border-bottom: 1px solid #e5e7eb;
         }
-        th {
-            background: #2563eb;
-            color: white;
-            font-weight: 600;
+        .ga-property-name {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 16px;
+            font-weight: 500;
+            color: #202124;
         }
-        th:first-child, td:first-child {
-            text-align: left;
+        .ga-property-id {
+            font-size: 12px;
+            color: #5f6368;
         }
-        tr:nth-child(even) {
-            background: #f9fafb;
+        .ga-date-range {
+            background: #f8f9fa;
+            border: 1px solid #e8eaed;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        tr:hover {
-            background: #f3f4f6;
+        .ga-date-range svg { width: 20px; height: 20px; color: #5f6368; }
+        .ga-date-range-text {
+            font-weight: 500;
+            color: #202124;
         }
-        .total-row {
-            background: #1e40af !important;
-            color: white;
-            font-weight: bold;
+        .ga-section-title {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 16px;
+            font-weight: 500;
+            color: #202124;
+            margin: 24px 0 16px 0;
         }
-        .total-row:hover {
-            background: #1e40af !important;
-        }
-        .summary {
+        .ga-cards {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-top: 30px;
+            gap: 16px;
+            margin-bottom: 24px;
         }
-        .summary-card {
-            background: linear-gradient(135deg, #2563eb, #1e40af);
-            color: white;
-            padding: 25px;
-            border-radius: 12px;
-            text-align: center;
+        .ga-card {
+            background: #fff;
+            border: 1px solid #e8eaed;
+            border-radius: 8px;
+            padding: 16px;
         }
-        .summary-card .value {
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 5px;
+        .ga-card-label {
+            font-size: 12px;
+            color: #5f6368;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        .summary-card .label {
-            opacity: 0.9;
-            font-size: 14px;
+        .ga-card-value {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 28px;
+            font-weight: 500;
+            color: #202124;
         }
-        .footer {
-            margin-top: 40px;
-            text-align: center;
-            color: #9ca3af;
+        .ga-card-value.blue { color: #1a73e8; }
+        .ga-card-value.green { color: #137333; }
+        .ga-card-value.orange { color: #e37400; }
+        .ga-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+        .ga-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #5f6368;
+            border-bottom: 1px solid #e8eaed;
+            background: #f8f9fa;
+        }
+        .ga-table th:not(:first-child) { text-align: right; }
+        .ga-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e8eaed;
+            color: #202124;
+        }
+        .ga-table td:not(:first-child) {
+            text-align: right;
+            font-family: 'Google Sans', sans-serif;
+        }
+        .ga-table tr:hover { background: #f8f9fa; }
+        .ga-table .total-row {
+            background: #e8f0fe !important;
+            font-weight: 500;
+        }
+        .ga-table .total-row td { color: #1a73e8; }
+        .ga-footer {
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #e8eaed;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #5f6368;
             font-size: 12px;
         }
         .print-btn {
-            background: #2563eb;
+            background: #1a73e8;
             color: white;
             border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
+            padding: 10px 24px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
-            margin: 20px auto;
-            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'Google Sans', sans-serif;
         }
-        .print-btn:hover {
-            background: #1e40af;
-        }
+        .print-btn:hover { background: #1557b0; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Google Analytics 4 - Izvještaj</h1>
-        <div class="subtitle">Zagorje Promocija - Analitika web prometa</div>
-        <div class="date">Generirano: <?= date('d.m.Y H:i') ?></div>
+    <div class="ga-header">
+        <div class="ga-logo">
+            <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <g fill="none" fill-rule="evenodd">
+                    <path d="M10 42c0 3.3 2.7 6 6 6s6-2.7 6-6V10c0-3.3-2.7-6-6-6s-6 2.7-6 6v32z" fill="#F9AB00"/>
+                    <path d="M26 42c0 3.3 2.7 6 6 6s6-2.7 6-6V26c0-3.3-2.7-6-6-6s-6 2.7-6 6v16z" fill="#E37400"/>
+                    <circle cx="48" cy="42" r="6" fill="#F9AB00"/>
+                </g>
+            </svg>
+            <span class="ga-logo-text"><span>Google</span> Analytics</span>
+        </div>
+        <div class="ga-property">
+            <div class="ga-property-name">zagorje-info.com.hr</div>
+            <div class="ga-property-id">Property ID: <?= GA4_PROPERTY_ID ?></div>
+        </div>
     </div>
 
-    <table>
+    <div class="ga-date-range">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <span class="ga-date-range-text"><?= date('d. M Y.', strtotime($startDate)) ?> – <?= date('d. M Y.', strtotime($endDate)) ?></span>
+    </div>
+
+    <div class="ga-section-title">Pregled ključnih metrika</div>
+    <div class="ga-cards">
+        <div class="ga-card">
+            <div class="ga-card-label">Pregledi stranica</div>
+            <div class="ga-card-value blue"><?= number_format($totalViews, 0, ',', '.') ?></div>
+        </div>
+        <div class="ga-card">
+            <div class="ga-card-label">Korisnici</div>
+            <div class="ga-card-value green"><?= number_format($totalUsers, 0, ',', '.') ?></div>
+        </div>
+        <div class="ga-card">
+            <div class="ga-card-label">Sesije</div>
+            <div class="ga-card-value orange"><?= number_format($totalSessions, 0, ',', '.') ?></div>
+        </div>
+    </div>
+
+    <div class="ga-section-title">Detaljna analiza po razdobljima</div>
+    <table class="ga-table">
         <thead>
             <tr>
-                <th>Mjesec</th>
-                <th>Pregledi</th>
+                <th>Razdoblje</th>
+                <th>Pregledi stranica</th>
                 <th>Korisnici</th>
                 <th>Sesije</th>
             </tr>
@@ -295,7 +377,7 @@ foreach ($periods as $period) {
             </tr>
             <?php endforeach; ?>
             <tr class="total-row">
-                <td>UKUPNO</td>
+                <td>Ukupno</td>
                 <td><?= number_format($totalViews, 0, ',', '.') ?></td>
                 <td><?= number_format($totalUsers, 0, ',', '.') ?></td>
                 <td><?= number_format($totalSessions, 0, ',', '.') ?></td>
@@ -303,27 +385,16 @@ foreach ($periods as $period) {
         </tbody>
     </table>
 
-    <div class="summary">
-        <div class="summary-card">
-            <div class="value"><?= number_format($totalViews, 0, ',', '.') ?></div>
-            <div class="label">Ukupno pregleda</div>
+    <div class="ga-footer">
+        <div>
+            <span>Generirano: <?= date('d.m.Y. H:i') ?></span>
         </div>
-        <div class="summary-card">
-            <div class="value"><?= number_format($totalUsers, 0, ',', '.') ?></div>
-            <div class="label">Ukupno korisnika</div>
+        <button class="print-btn no-print" onclick="window.print()">
+            Spremi kao PDF
+        </button>
+        <div>
+            <span>© <?= date('Y') ?> Google Analytics</span>
         </div>
-        <div class="summary-card">
-            <div class="value"><?= number_format($totalSessions, 0, ',', '.') ?></div>
-            <div class="label">Ukupno sesija</div>
-        </div>
-    </div>
-
-    <button class="print-btn no-print" onclick="window.print()">
-        🖨️ Spremi kao PDF
-    </button>
-
-    <div class="footer">
-        GA4 Property ID: <?= GA4_PROPERTY_ID ?> | Razdoblje: <?= date('d.m.Y', strtotime($startDate)) ?> - <?= date('d.m.Y', strtotime($endDate)) ?>
     </div>
 </body>
 </html>
