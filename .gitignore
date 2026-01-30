@@ -19,6 +19,7 @@ config/database.server.php
 config/email.php
 config/gmail-config.php
 config/facebook.php
+config/api-keys.php
 
 # API webhooks with secrets
 api/whatsapp/webhook/index.php

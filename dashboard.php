@@ -5,6 +5,7 @@
 
 require_once 'includes/auth.php';
 require_once 'includes/functions.php';
+require_once 'config/api-keys.php';
 
 requireLogin();
 
@@ -78,7 +79,6 @@ $stubicaLatest = parseRSS($stubicaRSS, 8);
 // ============================================
 // FEEDLY API - Općine i gradovi
 // ============================================
-define('FEEDLY_TOKEN', 'REDACTED_FEEDLY_TOKEN');
 
 function feedlyFetch($streamId, $count = 10) {
     $url = 'https://cloud.feedly.com/v3/streams/contents?' . http_build_query([

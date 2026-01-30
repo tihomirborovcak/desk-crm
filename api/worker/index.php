@@ -6,12 +6,12 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../../config/database.php';
+require_once __DIR__ . '/../../config/api-keys.php';
 
 // Jednostavna API key autentikacija
 $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
-$validApiKey = 'REDACTED_WORKER_KEY'; // Promijeni ovo!
 
-if ($apiKey !== $validApiKey) {
+if ($apiKey !== WORKER_API_KEY) {
     http_response_code(401);
     echo json_encode(['error' => 'Invalid API key']);
     exit;
