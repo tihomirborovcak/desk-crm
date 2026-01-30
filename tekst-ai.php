@@ -139,7 +139,9 @@ Pravila:
 - Zadrži činjenice i ključne informacije iz originalnog teksta
 - Prilagodi stil prema uputama
 - Budi jasan, koncizan i profesionalan
-- Ne izmišljaj nove informacije koje nisu u originalnom tekstu";
+- Ne izmišljaj nove informacije koje nisu u originalnom tekstu
+- NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
+- NE koristi markdown formatiranje (**, *, #, itd.)";
 
     $userPrompt = "ORIGINALNI TEKST:\n" . $text . "\n\nUPUTE ZA PRERADU:\n" . $instructions . "\n\nPreradi tekst prema uputama. Vrati SAMO prerađeni tekst, bez dodatnih objašnjenja.";
 
@@ -215,7 +217,9 @@ Pravila:
 - Budi kreativan ali činjenično točan
 - Prilagodi stil i ton prema uputama
 - Budi jasan, koncizan i profesionalan
-- Ako upute zahtijevaju specifične informacije koje ne poznaješ, koristi placeholder tekst [DODATI: opis]";
+- Ako upute zahtijevaju specifične informacije koje ne poznaješ, koristi placeholder tekst [DODATI: opis]
+- NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
+- NE koristi markdown formatiranje (**, *, #, itd.)";
 
     $userPrompt = "UPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama. Vrati SAMO tekst, bez dodatnih objašnjenja.";
 
