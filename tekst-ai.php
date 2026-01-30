@@ -274,7 +274,7 @@ function generirajIzDokumenata($files, $instructions) {
 Tvoj zadatak je pročitati priložene dokumente i napisati tekst prema uputama korisnika.
 
 FORMAT ODGOVORA:
-1. Najprije napiši kratki pregled dokumenata koje si pregledao - navedi naziv/tip svakog dokumenta i ukratko što sadrži (2-3 rečenice po dokumentu)
+1. Najprije napiši PREGLED SVIH DOKUMENATA - navedi SVAKI dokument koji si primio, njegov naziv/tip i ukratko što sadrži (1-2 rečenice po dokumentu). OBAVEZNO navedi SVE dokumente bez iznimke!
 2. Zatim napiši prazan red i oznaku '---'
 3. Nakon toga napiši traženi tekst prema uputama
 
@@ -359,8 +359,12 @@ Pravila:
         $parts[] = ['text' => "SADRŽAJ DOKUMENATA:\n" . $textContent];
     }
 
+    // Broj dokumenata za AI
+    $docCount = count($parts);
+    if ($textContent) $docCount--; // tekstualni sadržaj je jedan part
+
     // Dodaj upute
-    $parts[] = ['text' => "\n\nUPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama na temelju priloženih dokumenata. Vrati SAMO tekst, bez dodatnih objašnjenja."];
+    $parts[] = ['text' => "\n\nUKUPNO DOKUMENATA: " . $docCount . "\n\nUPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama na temelju SVIH priloženih dokumenata. Obavezno navedi SVE dokumente u pregledu!"];
 
     if (count($parts) < 2) {
         foreach ($tempDirs as $dir) { cleanupTempDir($dir); }
