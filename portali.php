@@ -312,99 +312,134 @@ include 'includes/header.php';
 </div>
 
 <!-- Modal za preradu -->
-<div id="rewriteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;">
-    <div id="modalInner" style="background: white; max-width: 900px; margin: 2rem auto; border-radius: 12px; overflow: hidden;">
-        <div style="background: #1e3a5f; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <strong>Preradi članak</strong>
+<div id="rewriteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; overflow: hidden;">
+    <div id="modalInner" style="background: white; width: 100%; height: 100%; display: flex; flex-direction: column;">
+        <!-- Header -->
+        <div style="background: #1e3a5f; color: white; padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <strong id="modalTitle">Preradi članak</strong>
             <button type="button" id="modalCloseX" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
         </div>
-        <div style="padding: 1rem;">
-            <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
-                <div class="spinner" style="margin: 0 auto 1rem;"></div>
-                <p>Dohvaćam članak sa stranice...</p>
-            </div>
-            <div id="modalContent" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="font-weight: 500; font-size: 0.875rem; color: #374151;">Originalni tekst (sa stranice)</label>
-                    <textarea id="modalOriginal" style="width: 100%; height: 300px; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;"></textarea>
-                    <div id="modalOriginalCount" style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem;"></div>
+
+        <!-- Originalni članak - iframe -->
+        <div style="flex: 1; min-height: 0; border-bottom: 3px solid #1e3a5f;">
+            <iframe id="articleIframe" style="width: 100%; height: 100%; border: none;"></iframe>
+        </div>
+
+        <!-- Donji dio - prerada -->
+        <div style="flex-shrink: 0; max-height: 45%; overflow-y: auto; background: #f9fafb;">
+            <div style="padding: 1rem;">
+                <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
+                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                    <p>Dohvaćam članak...</p>
                 </div>
-                <div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151;">Prerađeni tekst</label>
-                        <button type="button" id="rewriteBtn" onclick="rewriteText()" class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
+
+                <div id="modalContent" style="display: none;">
+                    <!-- Gumb za preradu -->
+                    <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+                        <button type="button" id="rewriteBtn" onclick="rewriteText()" class="btn btn-primary">
                             Preradi s AI
                         </button>
+                        <span id="rewriteStatus" style="font-size: 0.875rem; color: #6b7280;"></span>
                     </div>
-                    <textarea id="modalRewritten" style="width: 100%; height: 300px; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;" placeholder="Klikni 'Preradi s AI' za generiranje prerađenog teksta..."></textarea>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
-                        <span id="modalRewrittenCount" style="font-size: 0.75rem; color: #9ca3af;"></span>
-                        <button type="button" onclick="copyRewritten()" class="btn btn-outline" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
-                            Kopiraj
-                        </button>
+
+                    <!-- Naslov -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151; display: block; margin-bottom: 0.25rem;">Naslov</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="modalNewTitle" style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem;" placeholder="Naslov prerađenog članka...">
+                            <button type="button" onclick="copyField('modalNewTitle')" class="btn btn-outline" style="padding: 0.5rem 0.75rem; font-size: 0.75rem;">Kopiraj</button>
+                        </div>
+                    </div>
+
+                    <!-- Tekst -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151; display: block; margin-bottom: 0.25rem;">Tekst</label>
+                        <textarea id="modalRewritten" style="width: 100%; height: 150px; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; resize: vertical;" placeholder="Prerađeni tekst će se pojaviti ovdje..."></textarea>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem;">
+                            <span id="modalRewrittenCount" style="font-size: 0.75rem; color: #9ca3af;"></span>
+                            <button type="button" onclick="copyField('modalRewritten')" class="btn btn-outline" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">Kopiraj tekst</button>
+                        </div>
+                    </div>
+
+                    <!-- Link izvora -->
+                    <div style="margin-bottom: 1rem;">
+                        <label style="font-weight: 500; font-size: 0.875rem; color: #374151; display: block; margin-bottom: 0.25rem;">Izvor</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="modalSourceUrl" readonly style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.75rem; background: #f3f4f6; color: #6b7280;">
+                            <button type="button" onclick="copyField('modalSourceUrl')" class="btn btn-outline" style="padding: 0.5rem 0.75rem; font-size: 0.75rem;">Kopiraj link</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div style="padding: 1rem; border-top: 1px solid #e5e7eb; text-align: right;">
+
+        <!-- Footer -->
+        <div style="padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb; text-align: right; flex-shrink: 0; background: white;">
             <button type="button" id="modalCloseBtn" class="btn btn-outline">Zatvori</button>
         </div>
     </div>
 </div>
 
+<!-- Skriveni textarea za originalni tekst -->
+<textarea id="modalOriginal" style="display: none;"></textarea>
+
 <script>
 let currentArticleUrl = '';
 let currentSourceName = '';
+let originalTitle = '';
 
 async function openRewrite(id, url, sourceName) {
-    console.log('openRewrite called with:', id, url, sourceName);
     currentArticleUrl = url;
     currentSourceName = sourceName;
 
     const modal = document.getElementById('rewriteModal');
     const loading = document.getElementById('modalLoading');
     const content = document.getElementById('modalContent');
-    console.log('Elements:', {modal, loading, content});
+    const iframe = document.getElementById('articleIframe');
 
-    // Resetiraj
+    // Resetiraj polja
     document.getElementById('modalOriginal').value = '';
-    document.getElementById('modalOriginalCount').textContent = '';
+    document.getElementById('modalNewTitle').value = '';
     document.getElementById('modalRewritten').value = '';
     document.getElementById('modalRewrittenCount').textContent = '';
+    document.getElementById('modalSourceUrl').value = url;
+    document.getElementById('modalTitle').textContent = 'Preradi članak - ' + sourceName;
+    document.getElementById('rewriteStatus').textContent = '';
 
-    // Prikaži modal i loading
-    modal.hidden = false;
-    modal.style.cssText = 'display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 1rem; overflow-y: auto;';
+    // Učitaj originalni članak u iframe
+    iframe.src = url;
+
+    // Prikaži modal
+    modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000;';
     document.body.style.overflow = 'hidden';
     loading.style.display = 'block';
     content.style.display = 'none';
 
+    // Dohvati tekst članka za AI preradu
     try {
-        console.log('Fetching article from URL:', url);
         const response = await fetch('api/fetch-article.php', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({url: url})
         });
-        console.log('Response status:', response.status);
 
         const data = await response.json();
-        console.log('Response data:', data);
 
         loading.style.display = 'none';
-        content.style.display = 'grid';
+        content.style.display = 'block';
 
         if (data.success) {
+            originalTitle = data.title || '';
             const fullText = data.title + "\n\n" + data.content;
             document.getElementById('modalOriginal').value = fullText;
-            document.getElementById('modalOriginalCount').textContent = data.length.toLocaleString() + ' znakova';
+            document.getElementById('rewriteStatus').textContent = 'Spremno za preradu (' + data.length.toLocaleString() + ' znakova)';
         } else {
-            document.getElementById('modalOriginal').value = 'Greška: ' + data.error;
+            document.getElementById('rewriteStatus').textContent = 'Greška: ' + data.error;
         }
     } catch (e) {
         loading.style.display = 'none';
-        content.style.display = 'grid';
-        document.getElementById('modalOriginal').value = 'Greška pri dohvaćanju članka: ' + e.message;
+        content.style.display = 'block';
+        document.getElementById('rewriteStatus').textContent = 'Greška pri dohvaćanju: ' + e.message;
     }
 }
 
@@ -424,6 +459,7 @@ function closeModal() {
 async function rewriteText() {
     const btn = document.getElementById('rewriteBtn');
     const original = document.getElementById('modalOriginal').value;
+    const status = document.getElementById('rewriteStatus');
 
     if (!original || original.startsWith('Greška')) {
         alert('Nema teksta za preradu');
@@ -432,6 +468,7 @@ async function rewriteText() {
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:4px;display:inline-block;vertical-align:middle;"></span> Prerađujem...';
+    status.textContent = 'AI prerađuje članak...';
 
     try {
         const response = await fetch('api/rewrite.php', {
@@ -447,21 +484,36 @@ async function rewriteText() {
         const data = await response.json();
 
         if (data.success) {
-            document.getElementById('modalRewritten').value = data.text;
-            document.getElementById('modalRewrittenCount').textContent = data.text.length.toLocaleString() + ' znakova';
+            // Razdvoji naslov i tekst (prvi red je naslov)
+            const lines = data.text.split('\n');
+            let newTitle = '';
+            let newText = data.text;
+
+            // Ako prvi red izgleda kao naslov (kraći od 200 znakova i nema točku na kraju)
+            if (lines.length > 1 && lines[0].length < 200 && !lines[0].trim().endsWith('.')) {
+                newTitle = lines[0].trim();
+                newText = lines.slice(1).join('\n').trim();
+            }
+
+            document.getElementById('modalNewTitle').value = newTitle;
+            document.getElementById('modalRewritten').value = newText;
+            document.getElementById('modalRewrittenCount').textContent = newText.length.toLocaleString() + ' znakova';
+            status.textContent = 'Prerađeno!';
         } else {
-            alert('Greška: ' + data.error);
+            status.textContent = 'Greška: ' + data.error;
         }
     } catch (e) {
-        alert('Greška pri komunikaciji sa serverom');
+        status.textContent = 'Greška pri komunikaciji sa serverom';
     }
 
     btn.disabled = false;
     btn.textContent = 'Preradi s AI';
 }
 
-function copyRewritten() {
-    const text = document.getElementById('modalRewritten').value;
+function copyField(fieldId) {
+    const field = document.getElementById(fieldId);
+    const text = field.value;
+
     if (!text) {
         alert('Nema teksta za kopiranje');
         return;
@@ -471,41 +523,25 @@ function copyRewritten() {
         const btn = event.target;
         const originalText = btn.textContent;
         btn.textContent = 'Kopirano!';
-        setTimeout(() => btn.textContent = originalText, 1500);
+        btn.style.background = '#d1fae5';
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '';
+        }, 1500);
     });
 }
 
+function closeModal() {
+    document.getElementById('rewriteModal').style.cssText = 'display: none !important';
+    document.getElementById('articleIframe').src = '';
+    document.body.style.overflow = '';
+}
+
 // Event listeneri za zatvaranje modala
-document.getElementById('modalCloseX').addEventListener('click', function() {
-    console.log('X clicked - hiding modal directly');
-    document.getElementById('rewriteModal').style.cssText = 'display: none !important';
-    document.body.style.overflow = '';
-});
-
-document.getElementById('modalCloseBtn').addEventListener('click', function() {
-    console.log('Zatvori clicked - hiding modal directly');
-    document.getElementById('rewriteModal').style.cssText = 'display: none !important';
-    document.body.style.overflow = '';
-});
-
-document.getElementById('rewriteModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        console.log('Background clicked');
-        document.getElementById('rewriteModal').style.cssText = 'display: none !important';
-        document.body.style.overflow = '';
-    }
-});
-
-document.getElementById('modalInner').addEventListener('click', function(e) {
-    e.stopPropagation();
-});
-
+document.getElementById('modalCloseX').addEventListener('click', closeModal);
+document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        console.log('Escape pressed');
-        document.getElementById('rewriteModal').style.cssText = 'display: none !important';
-        document.body.style.overflow = '';
-    }
+    if (e.key === 'Escape') closeModal();
 });
 </script>
 
