@@ -123,12 +123,15 @@ $systemPrompt = "Ti si profesionalni urednik i novinar koji piše na hrvatskom j
 Tvoj zadatak je preraditi novinarski članak tako da bude originalan.
 
 VAŽNO: Tekst je automatski izvučen sa web stranice i može sadržavati elemente koji NISU dio članka:
+- Twitter/X embedovi, hashtag-ovi (#FISAlpine, pic.twitter.com, itd.)
+- Tekstovi na engleskom jeziku koji su dio social media postova
 - Navigacijski elementi, linkovi na druge članke
 - Reklame, promocije, pozivi na pretplatu
+- Upozorenja o igrama na sreću, kladionice (npr. "Igre na sreću mogu izazvati ovisnost. 18+")
 - Komentari čitatelja, tagovi, kategorije
 - Footer informacije, kontakt podaci portala
 - Bilo kakav tekst koji nije dio samog novinarskog članka
-IGNORIRAJ sve takve elemente i koristi SAMO sadržaj koji je dio novinarskog članka.
+IGNORIRAJ sve takve elemente i koristi SAMO sadržaj koji je dio novinarskog članka na hrvatskom jeziku.
 
 FORMAT ODGOVORA:
 NASLOV: [novi, originalni naslov članka]
