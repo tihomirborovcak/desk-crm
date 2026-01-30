@@ -214,8 +214,12 @@ if ($response === false) {
 $result = json_decode($response, true);
 
 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+    // Debug log
+    $rawText = $result['candidates'][0]['content']['parts'][0]['text'];
+    file_put_contents('/tmp/rewrite_debug.log', "=== RAW ===\n" . $rawText . "\n\n", FILE_APPEND);
+
     // Očisti markdown i višestruke prazne linije iz odgovora
-    $cleanText = trim($result['candidates'][0]['content']['parts'][0]['text']);
+    $cleanText = trim($rawText);
     // Normaliziraj sve vrste line endings (uključujući Unicode)
     $cleanText = str_replace(["\r\n", "\r", "\xE2\x80\xA8", "\xE2\x80\xA9"], "\n", $cleanText);
     // Zamijeni non-breaking space s običnim
@@ -236,6 +240,10 @@ if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
         return trim($line) !== '';
     });
     $cleanText = trim(implode("\n", $lines));
+
+    // Debug log cleaned text
+    file_put_contents('/tmp/rewrite_debug.log', "=== CLEANED ===\n" . $cleanText . "\n\n=== END ===\n\n", FILE_APPEND);
+
     echo json_encode([
         'success' => true,
         'text' => $cleanText
