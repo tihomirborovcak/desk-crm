@@ -342,7 +342,7 @@ Tvoj zadatak je pročitati priložene dokumente i napisati tekst prema uputama k
 FORMAT ODGOVORA:
 1. Najprije napiši PREGLED SVIH DOKUMENATA u formatu:
 
-NAZIV FAJLA: [ime fajla ili "Slika 1", "Slika 2" ako nema imena]
+NAZIV FAJLA: [ime fajla ili Slika 1, Slika 2 ako nema imena]
 [Kratki opis sadržaja dokumenta u 1-2 rečenice]
 
 NAZIV FAJLA: [sljedeći fajl]
