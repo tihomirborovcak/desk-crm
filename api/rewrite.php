@@ -230,14 +230,10 @@ if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
     $cleanText = preg_replace('/\*\*(.+?)\*\*/s', '$1', $cleanText);  // **bold** -> bold
     $cleanText = preg_replace('/\*([^*\n]+)\*/s', '$1', $cleanText);  // *italic* -> italic
     $cleanText = str_replace('**', '', $cleanText);                   // preostali **
-    $cleanText = preg_replace('/^[\*\-•]\s*/m', '', $cleanText);       // bullet na početku linije
+    $cleanText = preg_replace('/^(?:[\*\-•]|\xC2\xB7)\s*/m', '', $cleanText);  // bullet na početku linije
     $cleanText = preg_replace('/\*+$/m', '', $cleanText);             // * na kraju linija
     $cleanText = preg_replace('/^#+\s*/m', '', $cleanText);           // ### heading -> ukloni
-    // Ukloni sve prazne linije
-    while (strpos($cleanText, "\n\n") !== false) {
-        $cleanText = str_replace("\n\n", "\n", $cleanText);
-    }
-    // Ukloni linije koje su samo razmaci
+    // Ukloni prazne linije - split, filter, join
     $lines = explode("\n", $cleanText);
     $lines = array_filter($lines, function($line) {
         return trim($line) !== '';

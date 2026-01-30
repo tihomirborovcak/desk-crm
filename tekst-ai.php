@@ -19,22 +19,21 @@ set_time_limit(120);
 // Funkcija za čišćenje AI outputa - uklanja markdown i prazne linije
 function cleanAiOutput($text) {
     $clean = trim($text);
-    // Normaliziraj line endings
+    // Normaliziraj sve vrste line endings (uključujući Unicode)
     $clean = str_replace(["\r\n", "\r", "\xE2\x80\xA8", "\xE2\x80\xA9"], "\n", $clean);
+    // Zamijeni non-breaking space s običnim
     $clean = str_replace(["\xC2\xA0", "\xE2\x80\x89", "\xE2\x80\xAF"], " ", $clean);
-    // Ukloni markdown
-    $clean = preg_replace('/\*\*(.+?)\*\*/s', '$1', $clean);  // **bold**
-    $clean = preg_replace('/\*([^*\n]+)\*/s', '$1', $clean);  // *italic*
-    $clean = str_replace('**', '', $clean);
-    $clean = preg_replace('/^[\*\-•]\s*/m', '', $clean);       // bullets
-    $clean = preg_replace('/\*+$/m', '', $clean);              // trailing *
-    $clean = preg_replace('/^#+\s*/m', '', $clean);            // headings
-    // Ukloni prazne linije
-    while (strpos($clean, "\n\n") !== false) {
-        $clean = str_replace("\n\n", "\n", $clean);
-    }
+    $clean = preg_replace('/\*\*(.+?)\*\*/s', '$1', $clean);  // **bold** -> bold
+    $clean = preg_replace('/\*([^*\n]+)\*/s', '$1', $clean);  // *italic* -> italic
+    $clean = str_replace('**', '', $clean);                   // preostali **
+    $clean = preg_replace('/^(?:[\*\-•]|\xC2\xB7)\s*/m', '', $clean);  // bullet na početku linije
+    $clean = preg_replace('/\*+$/m', '', $clean);             // * na kraju linija
+    $clean = preg_replace('/^#+\s*/m', '', $clean);           // ### heading -> ukloni
+    // Ukloni prazne linije - split, filter, join
     $lines = explode("\n", $clean);
-    $lines = array_filter($lines, function($line) { return trim($line) !== ''; });
+    $lines = array_filter($lines, function($line) {
+        return trim($line) !== '';
+    });
     return trim(implode("\n", $lines));
 }
 
@@ -194,6 +193,153 @@ Pravila:
     return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
 }
 
+// Izvuci tekst iz Word dokumenta (.docx)
+function extractTextFromDocx($filePath) {
+    $zip = new ZipArchive();
+    if ($zip->open($filePath) !== true) {
+        return '';
+    }
+    $content = $zip->getFromName('word/document.xml');
+    $zip->close();
+    if (!$content) {
+        return '';
+    }
+    // Ukloni XML tagove i zadrži tekst
+    $content = strip_tags($content);
+    $content = preg_replace('/\s+/', ' ', $content);
+    return trim($content);
+}
+
+// Google Gemini - generiraj tekst iz dokumenata
+function generirajIzDokumenata($files, $instructions) {
+    $auth = getGoogleAccessToken();
+    if (isset($auth['error'])) {
+        return $auth;
+    }
+
+    $projectId = $auth['project_id'];
+    $region = 'europe-central2';
+    $model = 'gemini-2.0-flash-001';
+    $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
+
+    $systemPrompt = "Ti si profesionalni novinar i urednik koji piše na hrvatskom jeziku.
+Tvoj zadatak je pročitati priložene dokumente i napisati tekst prema uputama korisnika.
+
+Pravila:
+- Piši isključivo na hrvatskom jeziku
+- Koristi pravilan hrvatski pravopis i gramatiku
+- Izvuci ključne informacije iz svih dokumenata
+- Budi jasan, koncizan i profesionalan
+- NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
+- NE koristi markdown formatiranje (**, *, #, itd.)";
+
+    // Pripremi parts za multimodalni request
+    $parts = [];
+    $textContent = "";
+
+    foreach ($files['tmp_name'] as $i => $tmpName) {
+        if (empty($tmpName) || $files['error'][$i] !== UPLOAD_ERR_OK) {
+            continue;
+        }
+
+        $fileName = $files['name'][$i];
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $mimeType = $files['type'][$i];
+
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            // Slika - pošalji kao base64
+            $data = base64_encode(file_get_contents($tmpName));
+            $parts[] = [
+                'inlineData' => [
+                    'mimeType' => $mimeType,
+                    'data' => $data
+                ]
+            ];
+        } elseif ($ext === 'pdf') {
+            // PDF - pošalji kao base64
+            $data = base64_encode(file_get_contents($tmpName));
+            $parts[] = [
+                'inlineData' => [
+                    'mimeType' => 'application/pdf',
+                    'data' => $data
+                ]
+            ];
+        } elseif ($ext === 'docx') {
+            // Word - izvuci tekst
+            $text = extractTextFromDocx($tmpName);
+            if ($text) {
+                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
+            }
+        } elseif ($ext === 'txt') {
+            // Tekst fajl
+            $text = file_get_contents($tmpName);
+            if ($text) {
+                $textContent .= "\n\n--- Dokument: {$fileName} ---\n" . $text;
+            }
+        }
+    }
+
+    // Dodaj tekstualni sadržaj ako postoji
+    if ($textContent) {
+        $parts[] = ['text' => "SADRŽAJ DOKUMENATA:\n" . $textContent];
+    }
+
+    // Dodaj upute
+    $parts[] = ['text' => "\n\nUPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama na temelju priloženih dokumenata. Vrati SAMO tekst, bez dodatnih objašnjenja."];
+
+    if (count($parts) < 2) {
+        return ['error' => 'Nije učitan nijedan podržani dokument'];
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $auth['token']
+        ],
+        CURLOPT_POSTFIELDS => json_encode([
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => $parts
+                ]
+            ],
+            'systemInstruction' => [
+                'parts' => [['text' => $systemPrompt]]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.7,
+                'maxOutputTokens' => 8000
+            ]
+        ])
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        return ['error' => 'Greška: ' . $curlError];
+    }
+
+    $data = json_decode($response, true);
+
+    if ($httpCode !== 200) {
+        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+        return ['error' => 'Gemini API greška: ' . $errMsg];
+    }
+
+    if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+        return ['error' => 'Nema odgovora od Gemini-ja'];
+    }
+
+    return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+}
+
 // Google Gemini - generiraj novi tekst
 function generirajTekst($instructions) {
     $auth = getGoogleAccessToken();
@@ -279,7 +425,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $mode = $_POST['mode'] ?? 'prerada';
     $activeTab = $mode;
 
-    if ($mode === 'novi') {
+    if ($mode === 'dokumenti') {
+        // Iz dokumenata
+        if (empty($_FILES['documents']['tmp_name'][0])) {
+            $error = 'Odaberite barem jedan dokument';
+        } elseif (empty($instructions)) {
+            $error = 'Unesite upute za pisanje teksta';
+        } else {
+            $result = generirajIzDokumenata($_FILES['documents'], $instructions);
+
+            if (isset($result['error'])) {
+                $error = $result['error'];
+            } else {
+                $resultText = cleanAiOutput($result['text']);
+                logActivity('ai_text_from_docs', 'ai', null);
+            }
+        }
+    } elseif ($mode === 'novi') {
         // Novi tekst - samo upute
         if (empty($instructions)) {
             $error = 'Unesite upute za pisanje teksta';
@@ -337,9 +499,64 @@ include 'includes/header.php';
         </svg>
         Novi tekst
     </a>
+    <a href="?tab=dokumenti" class="tab <?= $activeTab === 'dokumenti' ? 'active' : '' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <path d="M9 13h6"/>
+            <path d="M9 17h3"/>
+        </svg>
+        Iz dokumenata
+    </a>
 </div>
 
-<?php if ($activeTab === 'prerada'): ?>
+<?php if ($activeTab === 'dokumenti'): ?>
+<!-- IZ DOKUMENATA -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Generiraj tekst iz dokumenata</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" id="docsForm" enctype="multipart/form-data">
+            <?= csrfField() ?>
+            <input type="hidden" name="mode" value="dokumenti">
+
+            <div class="form-group">
+                <label class="form-label">Dokumenti *</label>
+                <input type="file" name="documents[]" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.docx,.txt" class="form-control" id="fileInput">
+                <small class="form-text">Podržani formati: PDF, slike (JPG, PNG, GIF, WebP), Word (.docx), tekst (.txt). Možete odabrati više datoteka.</small>
+                <div id="fileList" style="margin-top: 0.5rem;"></div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Upute za pisanje *</label>
+                <textarea name="instructions" class="form-control" rows="4" placeholder="Opišite kakav tekst želite na temelju dokumenata...
+
+Npr:
+- Napiši vijest na temelju priloženog priopćenja
+- Sažmi dokument u 200 riječi
+- Izvuci ključne informacije i napiši članak"><?= e($activeTab === 'dokumenti' ? $instructions : '') ?></textarea>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary" id="docsSubmitBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    Generiraj tekst
+                </button>
+            </div>
+        </form>
+
+        <?php if ($error && $activeTab === 'dokumenti'): ?>
+        <div class="alert alert-danger" style="margin-top: 1rem;">
+            <?= e($error) ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php elseif ($activeTab === 'prerada'): ?>
 <!-- PRERADA TEKSTA -->
 <div class="card">
     <div class="card-header">
@@ -380,7 +597,7 @@ include 'includes/header.php';
     </div>
 </div>
 
-<?php else: ?>
+<?php elseif ($activeTab === 'novi'): ?>
 <!-- NOVI TEKST -->
 <div class="card">
     <div class="card-header">
@@ -607,6 +824,30 @@ document.getElementById('newTextForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('newSubmitBtn');
     btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Generiram...';
     btn.disabled = true;
+});
+
+// Loading state za dokumente formu
+document.getElementById('docsForm')?.addEventListener('submit', function() {
+    const btn = document.getElementById('docsSubmitBtn');
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Obrađujem dokumente...';
+    btn.disabled = true;
+});
+
+// Prikaz odabranih fajlova
+document.getElementById('fileInput')?.addEventListener('change', function() {
+    const fileList = document.getElementById('fileList');
+    if (this.files.length > 0) {
+        let html = '<div style="font-size: 0.85rem; color: var(--gray-600);">Odabrano ' + this.files.length + ' datoteka:</div>';
+        html += '<ul style="margin: 0.25rem 0 0 1rem; font-size: 0.85rem;">';
+        for (let i = 0; i < this.files.length; i++) {
+            const size = (this.files[i].size / 1024).toFixed(1);
+            html += '<li>' + this.files[i].name + ' (' + size + ' KB)</li>';
+        }
+        html += '</ul>';
+        fileList.innerHTML = html;
+    } else {
+        fileList.innerHTML = '';
+    }
 });
 
 // Loading state za doradu
