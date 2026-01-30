@@ -241,6 +241,72 @@ function cleanupTempDir($dir) {
     rmdir($dir);
 }
 
+// Kompresiraj sliku za API (max 1024px, kvaliteta 80%)
+function compressImageForApi($filePath, $mimeType) {
+    $maxDim = 1024;
+
+    // Učitaj sliku
+    switch ($mimeType) {
+        case 'image/jpeg':
+            $img = @imagecreatefromjpeg($filePath);
+            break;
+        case 'image/png':
+            $img = @imagecreatefrompng($filePath);
+            break;
+        case 'image/gif':
+            $img = @imagecreatefromgif($filePath);
+            break;
+        case 'image/webp':
+            $img = @imagecreatefromwebp($filePath);
+            break;
+        default:
+            return null;
+    }
+
+    if (!$img) {
+        return file_get_contents($filePath);
+    }
+
+    $width = imagesx($img);
+    $height = imagesy($img);
+
+    // Ako je slika manja od max, vrati original
+    if ($width <= $maxDim && $height <= $maxDim) {
+        imagedestroy($img);
+        return file_get_contents($filePath);
+    }
+
+    // Izračunaj nove dimenzije
+    if ($width > $height) {
+        $newWidth = $maxDim;
+        $newHeight = (int)($height * ($maxDim / $width));
+    } else {
+        $newHeight = $maxDim;
+        $newWidth = (int)($width * ($maxDim / $height));
+    }
+
+    // Kreiraj novu sliku
+    $newImg = imagecreatetruecolor($newWidth, $newHeight);
+
+    // Očuvaj transparentnost za PNG
+    if ($mimeType === 'image/png') {
+        imagealphablending($newImg, false);
+        imagesavealpha($newImg, true);
+    }
+
+    imagecopyresampled($newImg, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+    // Spremi u buffer
+    ob_start();
+    imagejpeg($newImg, null, 80);
+    $data = ob_get_clean();
+
+    imagedestroy($img);
+    imagedestroy($newImg);
+
+    return $data;
+}
+
 // Izvuci tekst iz Word dokumenta (.docx)
 function extractTextFromDocx($filePath) {
     $zip = new ZipArchive();
@@ -303,10 +369,12 @@ Pravila:
         }
 
         if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-            $data = base64_encode(file_get_contents($filePath));
+            // Kompresiraj sliku za manji request
+            $imageData = compressImageForApi($filePath, $mimeType);
+            $data = base64_encode($imageData);
             $parts[] = [
                 'inlineData' => [
-                    'mimeType' => $mimeType,
+                    'mimeType' => 'image/jpeg', // kompresirana je uvijek JPEG
                     'data' => $data
                 ]
             ];
