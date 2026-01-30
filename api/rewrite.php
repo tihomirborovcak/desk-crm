@@ -153,7 +153,8 @@ Pravila:
 - Zadrži sve činjenice i ključne informacije iz originalnog teksta
 - Promijeni strukturu rečenica i koristi sinonime
 - Ne dodaji nove informacije koje nisu u originalnom tekstu
-- Naslov mora biti drugačiji od originalnog ali prenositi istu poruku";
+- Naslov mora biti drugačiji od originalnog ali prenositi istu poruku
+- NE koristi markdown formatiranje u odgovoru - bez **, *, #, bullet points i slično. Piši čisti tekst.";
 
 // Ako imamo izvor, dodaj instrukciju za navođenje izvora
 $sourceInstruction = "";
@@ -213,9 +214,14 @@ if ($response === false) {
 $result = json_decode($response, true);
 
 if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-    // Ukloni sve višestruke prazne linije - ostavi samo jedan newline
+    // Očisti markdown i višestruke prazne linije iz odgovora
     $cleanText = trim($result['candidates'][0]['content']['parts'][0]['text']);
-    $cleanText = preg_replace("/\n{2,}/", "\n", $cleanText);
+    $cleanText = preg_replace('/\*\*(.+?)\*\*/s', '$1', $cleanText);  // **bold** -> bold
+    $cleanText = preg_replace('/\*([^*\n]+)\*/s', '$1', $cleanText);  // *italic* -> italic
+    $cleanText = preg_replace('/^\*\s+/m', '', $cleanText);           // * bullet -> ukloni
+    $cleanText = preg_replace('/^-\s+/m', '', $cleanText);            // - bullet -> ukloni
+    $cleanText = preg_replace('/^#+\s*/m', '', $cleanText);           // ### heading -> ukloni
+    $cleanText = preg_replace("/\n{2,}/", "\n", $cleanText);          // višestruke prazne linije
     echo json_encode([
         'success' => true,
         'text' => $cleanText
