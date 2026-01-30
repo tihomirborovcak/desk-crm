@@ -329,7 +329,7 @@ foreach ($periods as $period) {
             <span class="ga-logo-text"><span>Google</span> Analytics</span>
         </div>
         <div class="ga-property">
-            <div class="ga-property-name">zagorje-info.com.hr</div>
+            <div class="ga-property-name">zagorje.com</div>
             <div class="ga-property-id">Property ID: <?= GA4_PROPERTY_ID ?></div>
         </div>
     </div>
