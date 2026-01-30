@@ -356,7 +356,9 @@ Pravila:
 - NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
 - NE koristi markdown formatiranje (**, *, #, itd.)
 - NIKADA ne stavljaj imena fajlova, reference na dokumente ili oznake poput (SLIKA:...) u tekst članka
-- Tekst članka mora biti čist novinarski tekst bez ikakvih tehničkih oznaka";
+- Tekst članka mora biti čist novinarski tekst bez ikakvih tehničkih oznaka
+- Piši opširno i detaljno - članak treba imati minimalno 4-5 odlomaka
+- Iskoristi sve relevantne informacije iz dokumenata";
 
     // Pripremi parts za multimodalni request
     $parts = [];
