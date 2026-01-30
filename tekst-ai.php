@@ -116,7 +116,7 @@ function getGoogleAccessToken() {
 }
 
 // Google Gemini prerada teksta
-function preradi($text, $instructions) {
+function preradi($text, $instructions, $title = '') {
     $auth = getGoogleAccessToken();
 
     if (isset($auth['error'])) {
@@ -142,7 +142,8 @@ Pravila:
 - NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
 - NE koristi markdown formatiranje (**, *, #, itd.)";
 
-    $userPrompt = "ORIGINALNI TEKST:\n" . $text . "\n\nUPUTE ZA PRERADU:\n" . $instructions . "\n\nPreradi tekst prema uputama. Vrati SAMO prerađeni tekst, bez dodatnih objašnjenja.";
+    $titlePart = $title ? "NASLOV: " . $title . "\n\n" : "";
+    $userPrompt = $titlePart . "ORIGINALNI TEKST:\n" . $text . "\n\nUPUTE ZA PRERADU:\n" . $instructions . "\n\nPreradi tekst prema uputama. " . ($title ? "Zadrži ili prilagodi naslov." : "") . " Vrati SAMO prerađeni tekst, bez dodatnih objašnjenja.";
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -689,12 +690,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         }
     } else {
         // Prerada teksta
+        $title = trim($_POST['title'] ?? '');
         if (empty($originalText)) {
             $error = 'Unesite tekst za preradu';
         } elseif (empty($instructions)) {
             $error = 'Unesite upute za preradu';
         } else {
-            $result = preradi($originalText, $instructions);
+            $result = preradi($originalText, $instructions, $title);
 
             if (isset($result['error'])) {
                 $error = $result['error'];
@@ -798,6 +800,11 @@ Npr:
         <form method="POST" id="textForm">
             <?= csrfField() ?>
             <input type="hidden" name="mode" value="prerada">
+
+            <div class="form-group">
+                <label class="form-label">Naslov</label>
+                <input type="text" name="title" class="form-control" placeholder="Naslov članka (opcionalno)" value="<?= e($_POST['title'] ?? '') ?>">
+            </div>
 
             <div class="form-group">
                 <label class="form-label">Originalni tekst *</label>
