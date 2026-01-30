@@ -34,6 +34,14 @@ if (empty($text)) {
     exit;
 }
 
+// Očisti markdown oznake i višestruke prazne linije iz ulaznog teksta
+$text = preg_replace('/\*\*(.+?)\*\*/', '$1', $text); // **bold** -> bold
+$text = preg_replace('/\*(.+?)\*/', '$1', $text);     // *italic* -> italic
+$text = preg_replace('/^\*\s+/m', '- ', $text);       // * bullet -> - bullet
+$text = preg_replace('/^#+\s*/m', '', $text);         // ### heading -> heading
+$text = preg_replace("/\n{3,}/", "\n\n", $text);      // višestruke prazne linije
+$text = trim($text);
+
 // Google Gemini - JWT token
 function getGoogleAccessToken() {
     $credentialsFile = dirname(__DIR__) . '/google-credentials.json';
