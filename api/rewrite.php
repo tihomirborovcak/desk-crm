@@ -122,6 +122,14 @@ $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/loc
 $systemPrompt = "Ti si profesionalni urednik i novinar koji piše na hrvatskom jeziku.
 Tvoj zadatak je preraditi novinarski članak tako da bude originalan.
 
+VAŽNO: Tekst je automatski izvučen sa web stranice i može sadržavati elemente koji NISU dio članka:
+- Navigacijski elementi, linkovi na druge članke
+- Reklame, promocije, pozivi na pretplatu
+- Komentari čitatelja, tagovi, kategorije
+- Footer informacije, kontakt podaci portala
+- Bilo kakav tekst koji nije dio samog novinarskog članka
+IGNORIRAJ sve takve elemente i koristi SAMO sadržaj koji je dio novinarskog članka.
+
 FORMAT ODGOVORA:
 NASLOV: [novi, originalni naslov članka]
 
