@@ -340,18 +340,13 @@ function generirajIzDokumenata($files, $instructions) {
 Tvoj zadatak je pročitati priložene dokumente i napisati tekst prema uputama korisnika.
 
 FORMAT ODGOVORA:
-1. Najprije napiši PREGLED SVIH DOKUMENATA u formatu:
 
-NAZIV FAJLA: [ime fajla ili Slika 1, Slika 2 ako nema imena]
-[Kratki opis sadržaja dokumenta u 1-2 rečenice]
+PREGLEDANI DOKUMENTI:
+[Za svaki dokument napiši ime fajla i kratki opis sadržaja u 1-2 rečenice. Navedi SVE dokumente!]
 
-NAZIV FAJLA: [sljedeći fajl]
-[Kratki opis]
+---
 
-... i tako za SVAKI dokument koji si primio. OBAVEZNO navedi SVE dokumente!
-
-2. Zatim napiši prazan red i oznaku '---'
-3. Nakon toga napiši traženi tekst prema uputama
+[Ovdje napiši traženi tekst prema uputama. Tekst mora biti ČIST - bez ikakvih referenci na fajlove, bez zagrada s imenima dokumenata, bez oznaka SLIKA: ili PDF:. Piši kao profesionalni novinar koji je pročitao izvore i piše članak.]
 
 Pravila:
 - Piši isključivo na hrvatskom jeziku
@@ -359,7 +354,9 @@ Pravila:
 - Izvuci ključne informacije iz svih dokumenata
 - Budi jasan, koncizan i profesionalan
 - NE koristi bullet points, liste ni nabrajanja - piši u tekućim paragrafima
-- NE koristi markdown formatiranje (**, *, #, itd.)";
+- NE koristi markdown formatiranje (**, *, #, itd.)
+- NIKADA ne stavljaj imena fajlova, reference na dokumente ili oznake poput (SLIKA:...) u tekst članka
+- Tekst članka mora biti čist novinarski tekst bez ikakvih tehničkih oznaka";
 
     // Pripremi parts za multimodalni request
     $parts = [];
