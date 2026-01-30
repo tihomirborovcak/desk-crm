@@ -8,12 +8,6 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
-// Samo urednici i admini
-if (!isEditor()) {
-    header('Location: dashboard.php');
-    exit;
-}
-
 define('PAGE_TITLE', 'GA4 Analitika');
 
 // GA4 Property ID
