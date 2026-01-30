@@ -340,7 +340,16 @@ function generirajIzDokumenata($files, $instructions) {
 Tvoj zadatak je pročitati priložene dokumente i napisati tekst prema uputama korisnika.
 
 FORMAT ODGOVORA:
-1. Najprije napiši PREGLED SVIH DOKUMENATA - navedi SVAKI dokument koji si primio, njegov naziv/tip i ukratko što sadrži (1-2 rečenice po dokumentu). OBAVEZNO navedi SVE dokumente bez iznimke!
+1. Najprije napiši PREGLED SVIH DOKUMENATA u formatu:
+
+NAZIV FAJLA: [ime fajla ili "Slika 1", "Slika 2" ako nema imena]
+[Kratki opis sadržaja dokumenta u 1-2 rečenice]
+
+NAZIV FAJLA: [sljedeći fajl]
+[Kratki opis]
+
+... i tako za SVAKI dokument koji si primio. OBAVEZNO navedi SVE dokumente!
+
 2. Zatim napiši prazan red i oznaku '---'
 3. Nakon toga napiši traženi tekst prema uputama
 
@@ -369,6 +378,8 @@ Pravila:
         }
 
         if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+            // Dodaj ime fajla prije slike
+            $parts[] = ['text' => "[SLIKA: {$fileName}]"];
             // Kompresiraj sliku za manji request
             $imageData = compressImageForApi($filePath, $mimeType);
             $data = base64_encode($imageData);
@@ -379,6 +390,8 @@ Pravila:
                 ]
             ];
         } elseif ($ext === 'pdf') {
+            // Dodaj ime fajla prije PDF-a
+            $parts[] = ['text' => "[PDF: {$fileName}]"];
             $data = base64_encode(file_get_contents($filePath));
             $parts[] = [
                 'inlineData' => [
