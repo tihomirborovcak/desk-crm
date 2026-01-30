@@ -312,35 +312,30 @@ include 'includes/header.php';
 </div>
 
 <!-- Modal za preradu -->
-<div id="rewriteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; overflow: hidden;">
-    <div id="modalInner" style="background: white; width: 100%; height: 100%; display: flex; flex-direction: column;">
+<div id="rewriteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; padding: 2rem;">
+    <div id="modalInner" style="background: white; max-width: 1200px; margin: 0 auto; border-radius: 12px; overflow: hidden;">
         <!-- Header -->
-        <div style="background: #1e3a5f; color: white; padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div style="background: #1e3a5f; color: white; padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center;">
             <strong id="modalTitle">Preradi članak</strong>
             <button type="button" id="modalCloseX" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
         </div>
 
-        <!-- Originalni članak - iframe -->
-        <div style="flex: 1; min-height: 0; border-bottom: 3px solid #1e3a5f;">
-            <iframe id="articleIframe" style="width: 100%; height: 100%; border: none;"></iframe>
-        </div>
-
-        <!-- Donji dio - 2 stupca -->
-        <div style="flex-shrink: 0; height: 45%; overflow: hidden; background: #f9fafb; border-top: 3px solid #1e3a5f;">
+        <!-- Sadržaj - 2 stupca -->
+        <div style="background: #f9fafb;">
             <div id="modalLoading" style="text-align: center; padding: 2rem; display: none;">
                 <div class="spinner" style="margin: 0 auto 1rem;"></div>
                 <p>Dohvaćam članak...</p>
             </div>
 
-            <div id="modalContent" style="display: none; height: 100%;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; height: 100%;">
+            <div id="modalContent" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; min-height: 500px;">
                     <!-- Lijevi stupac - originalni tekst -->
-                    <div style="padding: 1rem; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="padding: 1rem; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                             <label style="font-weight: 600; font-size: 0.875rem; color: #374151;">Originalni tekst</label>
                             <span id="modalOriginalCount" style="font-size: 0.75rem; color: #9ca3af;"></span>
                         </div>
-                        <textarea id="modalOriginal" style="flex: 1; width: 100%; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: none; background: white;" readonly></textarea>
+                        <textarea id="modalOriginal" style="flex: 1; width: 100%; min-height: 400px; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: vertical; background: white;" readonly></textarea>
                     </div>
 
                     <!-- Desni stupac - prerada -->
@@ -371,12 +366,12 @@ include 'includes/header.php';
                         </div>
 
                         <!-- Tekst -->
-                        <div style="flex: 1; display: flex; flex-direction: column; margin-bottom: 0.75rem; min-height: 100px;">
+                        <div style="flex: 1; display: flex; flex-direction: column; margin-bottom: 0.75rem;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
                                 <label style="font-weight: 500; font-size: 0.75rem; color: #6b7280;">Tekst</label>
                                 <span id="modalRewrittenCount" style="font-size: 0.7rem; color: #9ca3af;"></span>
                             </div>
-                            <textarea id="modalRewritten" style="flex: 1; width: 100%; padding: 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: none;" placeholder="Prerađeni tekst..."></textarea>
+                            <textarea id="modalRewritten" style="flex: 1; width: 100%; min-height: 200px; padding: 0.6rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: vertical;" placeholder="Prerađeni tekst..."></textarea>
                             <button type="button" onclick="copyField('modalRewritten')" class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.7rem; margin-top: 0.25rem; align-self: flex-end;">Kopiraj tekst</button>
                         </div>
 
@@ -412,7 +407,6 @@ async function openRewrite(id, url, sourceName) {
     const modal = document.getElementById('rewriteModal');
     const loading = document.getElementById('modalLoading');
     const content = document.getElementById('modalContent');
-    const iframe = document.getElementById('articleIframe');
 
     // Resetiraj polja
     document.getElementById('modalOriginal').value = '';
@@ -425,11 +419,11 @@ async function openRewrite(id, url, sourceName) {
     document.getElementById('rewriteStatus').textContent = 'Učitavam...';
     document.getElementById('modalAiInstructions').value = '';
 
-    // Učitaj originalni članak u iframe
-    iframe.src = url;
+    // Otvori originalni članak u novom prozoru
+    window.open(url, '_blank');
 
     // Prikaži modal
-    modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000;';
+    modal.style.cssText = 'display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; padding: 2rem;';
     document.body.style.overflow = 'hidden';
     loading.style.display = 'block';
     content.style.display = 'none';
@@ -556,7 +550,6 @@ function copyField(fieldId) {
 
 function closeModal() {
     document.getElementById('rewriteModal').style.cssText = 'display: none !important';
-    document.getElementById('articleIframe').src = '';
     document.body.style.overflow = '';
 }
 
