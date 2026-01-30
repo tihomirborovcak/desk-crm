@@ -16,6 +16,28 @@ requireLogin();
 
 set_time_limit(120);
 
+// Funkcija za čišćenje AI outputa - uklanja markdown i prazne linije
+function cleanAiOutput($text) {
+    $clean = trim($text);
+    // Normaliziraj line endings
+    $clean = str_replace(["\r\n", "\r", "\xE2\x80\xA8", "\xE2\x80\xA9"], "\n", $clean);
+    $clean = str_replace(["\xC2\xA0", "\xE2\x80\x89", "\xE2\x80\xAF"], " ", $clean);
+    // Ukloni markdown
+    $clean = preg_replace('/\*\*(.+?)\*\*/s', '$1', $clean);  // **bold**
+    $clean = preg_replace('/\*([^*\n]+)\*/s', '$1', $clean);  // *italic*
+    $clean = str_replace('**', '', $clean);
+    $clean = preg_replace('/^[\*\-•]\s*/m', '', $clean);       // bullets
+    $clean = preg_replace('/\*+$/m', '', $clean);              // trailing *
+    $clean = preg_replace('/^#+\s*/m', '', $clean);            // headings
+    // Ukloni prazne linije
+    while (strpos($clean, "\n\n") !== false) {
+        $clean = str_replace("\n\n", "\n", $clean);
+    }
+    $lines = explode("\n", $clean);
+    $lines = array_filter($lines, function($line) { return trim($line) !== ''; });
+    return trim(implode("\n", $lines));
+}
+
 $originalText = $_POST['original_text'] ?? '';
 $instructions = $_POST['instructions'] ?? '';
 $resultText = null;
@@ -263,8 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             if (isset($result['error'])) {
                 $error = $result['error'];
             } else {
-                // Ukloni višestruke prazne linije
-                $resultText = preg_replace("/\n{3,}/", "\n\n", trim($result['text']));
+                $resultText = cleanAiOutput($result['text']);
                 logActivity('ai_text_generate', 'ai', null);
             }
         }
@@ -280,8 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             if (isset($result['error'])) {
                 $error = $result['error'];
             } else {
-                // Ukloni višestruke prazne linije
-                $resultText = preg_replace("/\n{3,}/", "\n\n", trim($result['text']));
+                $resultText = cleanAiOutput($result['text']);
                 logActivity('ai_text_process', 'ai', null);
             }
         }
