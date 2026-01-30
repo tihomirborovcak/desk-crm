@@ -27,6 +27,7 @@ $input = json_decode(file_get_contents('php://input'), true);
 $text = trim($input['text'] ?? '');
 $sourceUrl = trim($input['source_url'] ?? '');
 $sourceName = trim($input['source_name'] ?? '');
+$userInstructions = trim($input['instructions'] ?? '');
 
 if (empty($text)) {
     echo json_encode(['success' => false, 'error' => 'Tekst je prazan']);
@@ -146,7 +147,13 @@ if (!empty($sourceName)) {
     $sourceInstruction .= "\nNa kraju prerađenog teksta dodaj rečenicu poput: 'Kako navodi " . $sourceName . ", ...' ili 'Prenosi " . $sourceName . ".' - uklopi prirodno u tekst.";
 }
 
-$userPrompt = "Preradi sljedeći članak:\n\n" . $text . $sourceInstruction;
+// Dodaj korisničke upute ako postoje
+$customInstructions = "";
+if (!empty($userInstructions)) {
+    $customInstructions = "\n\nDODATNE UPUTE OD KORISNIKA: " . $userInstructions;
+}
+
+$userPrompt = "Preradi sljedeći članak:\n\n" . $text . $sourceInstruction . $customInstructions;
 
 $ch = curl_init($url);
 curl_setopt_array($ch, [

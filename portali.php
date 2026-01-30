@@ -364,16 +364,10 @@ include 'includes/header.php';
                             </div>
                         </div>
 
-                        <!-- Upute -->
-                        <div id="rewriteInstructions" style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #1e40af;">
-                            <strong>Upute:</strong>
-                            <ol style="margin: 0.5rem 0 0 1rem; padding: 0;">
-                                <li>Pregledaj originalni članak gore i lijevo</li>
-                                <li>Klikni "Preradi s AI" za generiranje novog teksta</li>
-                                <li>AI će predložiti novi naslov i prerađeni tekst</li>
-                                <li>Na kraju teksta bit će naveden izvor</li>
-                                <li>Kopiraj naslov, tekst i link izvora po potrebi</li>
-                            </ol>
+                        <!-- Upute za AI -->
+                        <div style="margin-bottom: 0.75rem;">
+                            <label style="font-weight: 500; font-size: 0.75rem; color: #6b7280; display: block; margin-bottom: 0.25rem;">Upute za AI (opcionalno)</label>
+                            <textarea id="modalAiInstructions" style="width: 100%; height: 45px; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.8rem; resize: none;" placeholder="Npr: skrati tekst, formalniji ton, fokusiraj se na..."></textarea>
                         </div>
 
                         <!-- Tekst -->
@@ -429,7 +423,7 @@ async function openRewrite(id, url, sourceName) {
     document.getElementById('modalSourceUrl').value = url;
     document.getElementById('modalTitle').textContent = 'Preradi članak - ' + sourceName;
     document.getElementById('rewriteStatus').textContent = 'Učitavam...';
-    document.getElementById('rewriteInstructions').style.display = 'block';
+    document.getElementById('modalAiInstructions').value = '';
 
     // Učitaj originalni članak u iframe
     iframe.src = url;
@@ -486,6 +480,7 @@ function closeModal() {
 async function rewriteText() {
     const btn = document.getElementById('rewriteBtn');
     const original = document.getElementById('modalOriginal').value;
+    const aiInstructions = document.getElementById('modalAiInstructions').value.trim();
     const status = document.getElementById('rewriteStatus');
 
     if (!original || original.startsWith('Greška')) {
@@ -504,7 +499,8 @@ async function rewriteText() {
             body: JSON.stringify({
                 text: original,
                 source_url: currentArticleUrl,
-                source_name: currentSourceName
+                source_name: currentSourceName,
+                instructions: aiInstructions
             })
         });
 
@@ -525,7 +521,6 @@ async function rewriteText() {
             document.getElementById('modalNewTitle').value = newTitle;
             document.getElementById('modalRewritten').value = newText;
             document.getElementById('modalRewrittenCount').textContent = newText.length.toLocaleString() + ' znakova';
-            document.getElementById('rewriteInstructions').style.display = 'none';
             status.textContent = 'Prerađeno!';
         } else {
             status.textContent = 'Greška: ' + data.error;
