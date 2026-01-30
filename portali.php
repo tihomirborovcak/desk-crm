@@ -419,9 +419,6 @@ async function openRewrite(id, url, sourceName) {
     document.getElementById('rewriteStatus').textContent = 'Učitavam...';
     document.getElementById('modalAiInstructions').value = '';
 
-    // Otvori originalni članak u novom prozoru
-    window.open(url, '_blank');
-
     // Prikaži modal
     modal.style.cssText = 'display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; padding: 2rem;';
     document.body.style.overflow = 'hidden';
