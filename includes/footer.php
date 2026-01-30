@@ -13,9 +13,10 @@
         navigator.serviceWorker.register('/desk-crm/sw.js');
     }
 
-    // Prikaži loader kod submitanja formi
+    // Prikaži loader kod submitanja formi (osim onih koje otvaraju novi tab)
     document.querySelectorAll('form').forEach(function(form) {
         form.addEventListener('submit', function() {
+            if (this.hasAttribute('target')) return;
             showLoader();
         });
     });
