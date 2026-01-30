@@ -121,13 +121,19 @@ $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/loc
 $systemPrompt = "Ti si profesionalni urednik i novinar koji piše na hrvatskom jeziku.
 Tvoj zadatak je preraditi novinarski članak tako da bude originalan.
 
+FORMAT ODGOVORA:
+NASLOV: [novi, originalni naslov članka]
+
+[prerađeni tekst članka]
+
 Pravila:
+- OBAVEZNO na početku napiši 'NASLOV:' i zatim novi, originalni naslov
 - Piši isključivo na hrvatskom jeziku
 - Koristi pravilan hrvatski pravopis i gramatiku
 - Zadrži sve činjenice i ključne informacije iz originalnog teksta
 - Promijeni strukturu rečenica i koristi sinonime
 - Ne dodaji nove informacije koje nisu u originalnom tekstu
-- Ne dodaji komentare ili objašnjenja, vrati samo prerađeni tekst";
+- Naslov mora biti drugačiji od originalnog ali prenositi istu poruku";
 
 // Ako imamo izvor, dodaj instrukciju za navođenje izvora
 $sourceInstruction = "";
@@ -137,7 +143,7 @@ if (!empty($sourceName)) {
     if (!empty($sourceUrl)) {
         $sourceInstruction .= " (" . $sourceUrl . ")";
     }
-    $sourceInstruction .= "\nNa kraju prerađenog teksta dodaj rečenicu poput: 'Kako navodi " . $sourceName . ", ...' ili '" . $sourceName . " prenosi da...' - uklopi prirodno u tekst.";
+    $sourceInstruction .= "\nNa kraju prerađenog teksta dodaj rečenicu poput: 'Kako navodi " . $sourceName . ", ...' ili 'Prenosi " . $sourceName . ".' - uklopi prirodno u tekst.";
 }
 
 $userPrompt = "Preradi sljedeći članak:\n\n" . $text . $sourceInstruction;

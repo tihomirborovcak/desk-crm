@@ -364,6 +364,18 @@ include 'includes/header.php';
                             </div>
                         </div>
 
+                        <!-- Upute -->
+                        <div id="rewriteInstructions" style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: #1e40af;">
+                            <strong>Upute:</strong>
+                            <ol style="margin: 0.5rem 0 0 1rem; padding: 0;">
+                                <li>Pregledaj originalni članak gore i lijevo</li>
+                                <li>Klikni "Preradi s AI" za generiranje novog teksta</li>
+                                <li>AI će predložiti novi naslov i prerađeni tekst</li>
+                                <li>Na kraju teksta bit će naveden izvor</li>
+                                <li>Kopiraj naslov, tekst i link izvora po potrebi</li>
+                            </ol>
+                        </div>
+
                         <!-- Tekst -->
                         <div style="flex: 1; display: flex; flex-direction: column; margin-bottom: 0.75rem; min-height: 100px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
@@ -417,6 +429,7 @@ async function openRewrite(id, url, sourceName) {
     document.getElementById('modalSourceUrl').value = url;
     document.getElementById('modalTitle').textContent = 'Preradi članak - ' + sourceName;
     document.getElementById('rewriteStatus').textContent = 'Učitavam...';
+    document.getElementById('rewriteInstructions').style.display = 'block';
 
     // Učitaj originalni članak u iframe
     iframe.src = url;
@@ -498,20 +511,21 @@ async function rewriteText() {
         const data = await response.json();
 
         if (data.success) {
-            // Razdvoji naslov i tekst (prvi red je naslov)
-            const lines = data.text.split('\n');
             let newTitle = '';
             let newText = data.text;
 
-            // Ako prvi red izgleda kao naslov (kraći od 200 znakova i nema točku na kraju)
-            if (lines.length > 1 && lines[0].length < 200 && !lines[0].trim().endsWith('.')) {
-                newTitle = lines[0].trim();
-                newText = lines.slice(1).join('\n').trim();
+            // Parsiraj "NASLOV:" iz odgovora
+            const naslovMatch = data.text.match(/^NASLOV:\s*(.+?)(?:\n|$)/i);
+            if (naslovMatch) {
+                newTitle = naslovMatch[1].trim();
+                // Ukloni NASLOV: liniju iz teksta
+                newText = data.text.replace(/^NASLOV:\s*.+?\n+/i, '').trim();
             }
 
             document.getElementById('modalNewTitle').value = newTitle;
             document.getElementById('modalRewritten').value = newText;
             document.getElementById('modalRewrittenCount').textContent = newText.length.toLocaleString() + ' znakova';
+            document.getElementById('rewriteInstructions').style.display = 'none';
             status.textContent = 'Prerađeno!';
         } else {
             status.textContent = 'Greška: ' + data.error;
