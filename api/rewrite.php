@@ -220,7 +220,9 @@ if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
     $cleanText = str_replace("\r", "\n", $cleanText);
     $cleanText = preg_replace('/\*\*(.+?)\*\*/s', '$1', $cleanText);  // **bold** -> bold
     $cleanText = preg_replace('/\*([^*\n]+)\*/s', '$1', $cleanText);  // *italic* -> italic
-    $cleanText = preg_replace('/^\*\s+/m', '', $cleanText);           // * bullet -> ukloni
+    $cleanText = str_replace('**', '', $cleanText);                   // preostali **
+    $cleanText = preg_replace('/^\*\s*/m', '', $cleanText);           // * na početku linije
+    $cleanText = preg_replace('/\*+$/m', '', $cleanText);             // * na kraju linija
     $cleanText = preg_replace('/^-\s+/m', '', $cleanText);            // - bullet -> ukloni
     $cleanText = preg_replace('/^•\s*/m', '', $cleanText);            // • bullet -> ukloni
     $cleanText = preg_replace('/^#+\s*/m', '', $cleanText);           // ### heading -> ukloni
