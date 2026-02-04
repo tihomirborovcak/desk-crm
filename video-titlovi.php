@@ -10,6 +10,7 @@ require_once 'includes/auth.php';
 require_once 'includes/functions.php';
 
 requireLogin();
+requireRole(['admin']);
 
 // Download SRT iz baze
 if (isset($_GET['download_srt']) && is_numeric($_GET['download_srt'])) {
@@ -177,7 +178,7 @@ function generateSubtitlesWithGemini($audioPath, $language = 'hr', $duration = 0
 
     $projectId = $auth['project_id'];
     $region = 'europe-central2';
-    $model = 'gemini-2.0-flash-001';
+    $model = 'gemini-2.5-flash';
 
     $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
 

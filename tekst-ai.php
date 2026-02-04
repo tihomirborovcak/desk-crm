@@ -178,7 +178,7 @@ function preradi($text, $instructions, $title = '') {
 
     $projectId = $auth['project_id'];
     $region = 'europe-central2';
-    $model = 'gemini-2.0-flash-001';
+    $model = 'gemini-2.5-flash';
 
     $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
 
@@ -413,7 +413,7 @@ function generirajIzDokumenata($files, $instructions) {
 
     $projectId = $auth['project_id'];
     $region = 'europe-central2';
-    $model = 'gemini-2.0-flash-001';
+    $model = 'gemini-2.5-flash';
     $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
 
     $systemPrompt = "Ti si profesionalni novinar i urednik koji piše na hrvatskom jeziku.
@@ -560,7 +560,7 @@ function generirajTekst($instructions) {
 
     $projectId = $auth['project_id'];
     $region = 'europe-central2';
-    $model = 'gemini-2.0-flash-001';
+    $model = 'gemini-2.5-flash';
 
     $url = "https://{$region}-aiplatform.googleapis.com/v1/projects/{$projectId}/locations/{$region}/publishers/google/models/{$model}:generateContent";
 

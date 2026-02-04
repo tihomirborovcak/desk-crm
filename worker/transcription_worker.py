@@ -279,7 +279,7 @@ def fix_transcription_with_ai(srt_content, language="hr"):
     }
     lang_name = lang_names.get(language, 'hrvatskom')
 
-    url = f"https://europe-central2-aiplatform.googleapis.com/v1/projects/{auth['project_id']}/locations/europe-central2/publishers/google/models/gemini-2.0-flash-001:generateContent"
+    url = f"https://europe-central2-aiplatform.googleapis.com/v1/projects/{auth['project_id']}/locations/europe-central2/publishers/google/models/gemini-2.5-flash:generateContent"
 
     prompt = f"""Pregledaj ove SRT titlove na {lang_name} jeziku i ispravi SAMO greške u transkripciji.
 
