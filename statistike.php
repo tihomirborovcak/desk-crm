@@ -25,10 +25,18 @@ $startDate = sprintf('%04d-%02d-01', $year, $month);
 $endDate = date('Y-m-t', strtotime($startDate));
 
 $monthNames = [
-    1 => 'Sij', 2 => 'Velj', 3 => 'Ožu', 4 => 'Tra',
-    5 => 'Svi', 6 => 'Lip', 7 => 'Srp', 8 => 'Kol',
-    9 => 'Ruj', 10 => 'Lis', 11 => 'Stu', 12 => 'Pro'
+    1 => 'Siječanj', 2 => 'Veljača', 3 => 'Ožujak', 4 => 'Travanj',
+    5 => 'Svibanj', 6 => 'Lipanj', 7 => 'Srpanj', 8 => 'Kolovoz',
+    9 => 'Rujan', 10 => 'Listopad', 11 => 'Studeni', 12 => 'Prosinac'
 ];
+
+// Navigacija mjeseca
+$prevMonth = $month - 1;
+$prevYear = $year;
+if ($prevMonth < 1) { $prevMonth = 12; $prevYear--; }
+$nextMonth = $month + 1;
+$nextYear = $year;
+if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
 
 // Dohvati sve aktivne korisnike
 $users = $db->query("SELECT id, full_name FROM users WHERE active = 1 ORDER BY full_name")->fetchAll();
@@ -118,8 +126,6 @@ require_once 'includes/header.php';
 .week-header { font-size: 0.7rem; color: var(--text-muted); }
 .event-list { font-size: 0.75rem; margin: 0; padding-left: 1rem; }
 .event-list li { margin: 2px 0; }
-.compact-filter { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; padding: 0.5rem; }
-.compact-filter select, .compact-filter button { font-size: 0.8rem; padding: 0.3rem 0.5rem; }
 .view-toggle { display: flex; gap: 0; }
 .view-toggle a { padding: 0.3rem 0.6rem; font-size: 0.75rem; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-secondary); }
 .view-toggle a:first-child { border-radius: 4px 0 0 4px; }
@@ -134,29 +140,18 @@ require_once 'includes/header.php';
 .user-sabina { background: #dbeafe !important; }
 </style>
 
-<div class="page-header" style="margin-bottom: 0.5rem;">
-    <h1 style="font-size: 1.1rem;">Statistike - <?= $monthNames[$month] ?> <?= $year ?></h1>
-</div>
-
-<div class="card" style="margin-bottom: 0.75rem; padding: 0;">
-    <form method="get" class="compact-filter">
-        <select name="month">
-            <?php foreach ($monthNames as $num => $name): ?>
-            <option value="<?= $num ?>" <?= $month == $num ? 'selected' : '' ?>><?= $name ?></option>
-            <?php endforeach; ?>
-        </select>
-        <select name="year">
-            <?php for ($y = date('Y') - 2; $y <= date('Y') + 1; $y++): ?>
-            <option value="<?= $y ?>" <?= $year == $y ? 'selected' : '' ?>><?= $y ?></option>
-            <?php endfor; ?>
-        </select>
-        <input type="hidden" name="view" value="<?= e($view) ?>">
-        <button type="submit" class="btn btn-primary">OK</button>
-        <div class="view-toggle" style="margin-left: auto;">
+<div class="card" style="margin-bottom: 0.75rem; padding: 0.75rem;">
+    <div class="d-flex" style="align-items: center; justify-content: space-between;">
+        <div class="d-flex gap-1" style="align-items: center;">
+            <a href="?month=<?= $prevMonth ?>&year=<?= $prevYear ?>&view=<?= e($view) ?>" class="btn btn-outline" style="padding: 0.3rem 0.6rem;">&#8249;</a>
+            <span style="font-weight: 600; font-size: 1.1rem; min-width: 160px; text-align: center;"><?= $monthNames[$month] ?> <?= $year ?></span>
+            <a href="?month=<?= $nextMonth ?>&year=<?= $nextYear ?>&view=<?= e($view) ?>" class="btn btn-outline" style="padding: 0.3rem 0.6rem;">&#8250;</a>
+        </div>
+        <div class="view-toggle">
             <a href="?month=<?= $month ?>&year=<?= $year ?>&view=month" class="<?= $view == 'month' ? 'active' : '' ?>">Mjesec</a>
             <a href="?month=<?= $month ?>&year=<?= $year ?>&view=week" class="<?= $view == 'week' ? 'active' : '' ?>">Tjedni</a>
         </div>
-    </form>
+    </div>
 </div>
 
 <!-- Dežurstva -->
@@ -170,10 +165,10 @@ require_once 'includes/header.php';
                     <th class="num week-header">T<?= $w ?></th>
                     <?php endforeach; ?>
                 <?php endif; ?>
-                <th class="num"><span class="j">J</span></th>
-                <th class="num"><span class="p">P</span></th>
-                <th class="num"><span class="v">V</span></th>
-                <th class="num">Uk</th>
+                <th class="num"><span class="j">Jutarnja</span></th>
+                <th class="num"><span class="p">Popodnevna</span></th>
+                <th class="num"><span class="v">Večernja</span></th>
+                <th class="num">Ukupno</th>
             </tr>
         </thead>
         <tbody>
