@@ -50,14 +50,30 @@ if (!$item) {
     exit;
 }
 
-// Navigacija
-$stmt = $db->prepare("SELECT id, title FROM transcriptions WHERE id < ? ORDER BY id DESC LIMIT 1");
-$stmt->execute([$id]);
-$prevItem = $stmt->fetch();
+// Ako je admin_only, samo admin može vidjeti
+if (!empty($item['admin_only']) && !isAdmin()) {
+    header('Location: transkripcija.php');
+    exit;
+}
 
-$stmt = $db->prepare("SELECT id, title FROM transcriptions WHERE id > ? ORDER BY id ASC LIMIT 1");
-$stmt->execute([$id]);
-$nextItem = $stmt->fetch();
+// Navigacija - admin vidi sve, ostali samo ne-admin_only
+if (isAdmin()) {
+    $stmt = $db->prepare("SELECT id, title FROM transcriptions WHERE id < ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$id]);
+    $prevItem = $stmt->fetch();
+
+    $stmt = $db->prepare("SELECT id, title FROM transcriptions WHERE id > ? ORDER BY id ASC LIMIT 1");
+    $stmt->execute([$id]);
+    $nextItem = $stmt->fetch();
+} else {
+    $stmt = $db->prepare("SELECT id, title FROM transcriptions WHERE id < ? AND admin_only = 0 ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$id]);
+    $prevItem = $stmt->fetch();
+
+    $stmt = $db->prepare("SELECT id, title FROM transcriptions WHERE id > ? AND admin_only = 0 ORDER BY id ASC LIMIT 1");
+    $stmt->execute([$id]);
+    $nextItem = $stmt->fetch();
+}
 
 $success = null;
 $error = null;
@@ -65,8 +81,10 @@ $error = null;
 // Brisanje
 if (isset($_GET['delete']) && verifyCSRFToken($_GET['token'] ?? '')) {
     if (!empty($item['audio_path'])) {
-        $audioFile = UPLOAD_PATH . $item['audio_path'];
-        if (file_exists($audioFile)) unlink($audioFile);
+        foreach (explode(', ', $item['audio_path']) as $ap) {
+            $audioFile = UPLOAD_PATH . trim($ap);
+            if (file_exists($audioFile)) unlink($audioFile);
+        }
     }
     $stmt = $db->prepare("DELETE FROM transcriptions WHERE id = ?");
     $stmt->execute([$id]);
@@ -77,8 +95,10 @@ if (isset($_GET['delete']) && verifyCSRFToken($_GET['token'] ?? '')) {
 // Brisanje audio
 if (isset($_GET['delete_audio']) && verifyCSRFToken($_GET['token'] ?? '')) {
     if (!empty($item['audio_path'])) {
-        $audioFile = UPLOAD_PATH . $item['audio_path'];
-        if (file_exists($audioFile)) unlink($audioFile);
+        foreach (explode(', ', $item['audio_path']) as $ap) {
+            $audioFile = UPLOAD_PATH . trim($ap);
+            if (file_exists($audioFile)) unlink($audioFile);
+        }
         $stmt = $db->prepare("UPDATE transcriptions SET audio_path = NULL WHERE id = ?");
         $stmt->execute([$id]);
     }
@@ -152,7 +172,7 @@ include 'includes/header.php';
 <div class="page-header tv-header">
     <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
         <a href="transkripcija.php" class="btn btn-outline">← Natrag</a>
-        <h1 class="view-mode"><?= e($item['title']) ?></h1>
+        <h1 class="view-mode"><?= e($item['title']) ?><?php if (!empty($item['admin_only'])): ?> <span style="background: #dc3545; color: white; font-size: 12px; padding: 3px 8px; border-radius: 4px; vertical-align: middle;">Samo admin</span><?php endif; ?></h1>
     </div>
     <div class="tv-nav">
         <a href="<?= $prevItem ? 'transkripcija-view.php?id=' . $prevItem['id'] : '#' ?>" class="tv-nav-btn <?= $prevItem ? '' : 'disabled' ?>">← Prethodna</a>
@@ -199,15 +219,24 @@ include 'includes/header.php';
 
 <!-- VIEW MODE -->
 <?php if (!empty($item['audio_path'])):
-    $audioUrl = UPLOAD_URL . $item['audio_path'];
+    $audioPaths = array_map('trim', explode(', ', $item['audio_path']));
+    $audioNames = !empty($item['audio_filename']) ? array_map('trim', explode(', ', $item['audio_filename'])) : [];
 ?>
 <div class="tv-audio-box view-mode">
     <div class="tv-audio-header">
-        <h2 class="tv-audio-title">Audio snimka</h2>
-        <a href="?id=<?= $id ?>&delete_audio=1&token=<?= generateCSRFToken() ?>" style="background:#dc2626;color:white;padding:0.25rem 0.75rem;border-radius:4px;font-size:0.75rem;" onclick="return confirm('Obrisati audio?')">Obriši audio</a>
+        <h2 class="tv-audio-title">Audio snimke (<?= count($audioPaths) ?>)</h2>
+        <a href="?id=<?= $id ?>&delete_audio=1&token=<?= generateCSRFToken() ?>" style="background:#dc2626;color:white;padding:0.25rem 0.75rem;border-radius:4px;font-size:0.75rem;" onclick="return confirm('Obrisati sve audio fajlove?')">Obriši audio</a>
     </div>
-    <audio controls style="width: 100%;"><source src="<?= e($audioUrl) ?>" type="audio/mpeg"></audio>
-    <div style="margin-top: 0.5rem;"><a href="<?= e($audioUrl) ?>" download style="color:#1e40af;font-size:0.875rem;">Preuzmi audio</a></div>
+    <?php foreach ($audioPaths as $idx => $ap):
+        $audioUrl = UPLOAD_URL . $ap;
+        $audioLabel = $audioNames[$idx] ?? 'Ton ' . ($idx + 1);
+    ?>
+    <div style="<?= $idx > 0 ? 'margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;' : '' ?>">
+        <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.25rem;"><?= e($audioLabel) ?></div>
+        <audio controls style="width: 100%;"><source src="<?= e($audioUrl) ?>"></audio>
+        <div style="margin-top: 0.25rem;"><a href="<?= e($audioUrl) ?>" download style="color:#1e40af;font-size:0.8rem;">Preuzmi</a></div>
+    </div>
+    <?php endforeach; ?>
 </div>
 <?php endif; ?>
 
