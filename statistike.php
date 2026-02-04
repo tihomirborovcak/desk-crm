@@ -35,20 +35,17 @@ $users = $db->query("SELECT id, full_name FROM users WHERE active = 1 ORDER BY f
 $userMap = [];
 foreach ($users as $u) $userMap[$u['id']] = $u['full_name'];
 
-// Dežurstva po korisniku - iz OBJE tablice (events i shifts)
+// Dežurstva po korisniku - iz shifts tablice
 $shiftStats = [];
-
-// 1. Iz events tablice (event_type='dezurstvo')
 $stmt = $db->prepare("
-    SELECT ea.user_id,
-        SUM(CASE WHEN e.title LIKE '%jutarnja%' THEN 1 ELSE 0 END) as j,
-        SUM(CASE WHEN e.title LIKE '%popodnevna%' THEN 1 ELSE 0 END) as p,
-        SUM(CASE WHEN e.title LIKE '%večernja%' OR e.title LIKE '%vecernja%' THEN 1 ELSE 0 END) as v,
-        WEEK(e.event_date, 1) as week_num
-    FROM events e
-    JOIN event_assignments ea ON e.id = ea.event_id
-    WHERE e.event_type = 'dezurstvo' AND e.event_date BETWEEN ? AND ?
-    GROUP BY ea.user_id, WEEK(e.event_date, 1)
+    SELECT user_id,
+        SUM(CASE WHEN shift_type = 'morning' THEN 1 ELSE 0 END) as j,
+        SUM(CASE WHEN shift_type = 'afternoon' THEN 1 ELSE 0 END) as p,
+        SUM(CASE WHEN shift_type = 'full' THEN 1 ELSE 0 END) as v,
+        WEEK(shift_date, 1) as week_num
+    FROM shifts
+    WHERE shift_date BETWEEN ? AND ?
+    GROUP BY user_id, WEEK(shift_date, 1)
 ");
 $stmt->execute([$startDate, $endDate]);
 while ($row = $stmt->fetch()) {
@@ -62,35 +59,6 @@ while ($row = $stmt->fetch()) {
     $shiftStats[$uid]['total']['j'] += $row['j'];
     $shiftStats[$uid]['total']['p'] += $row['p'];
     $shiftStats[$uid]['total']['v'] += $row['v'];
-}
-
-// 2. Iz shifts tablice
-try {
-    $stmt = $db->prepare("
-        SELECT user_id,
-            SUM(CASE WHEN shift_type = 'morning' THEN 1 ELSE 0 END) as j,
-            SUM(CASE WHEN shift_type = 'afternoon' THEN 1 ELSE 0 END) as p,
-            SUM(CASE WHEN shift_type = 'full' THEN 1 ELSE 0 END) as v,
-            WEEK(shift_date, 1) as week_num
-        FROM shifts
-        WHERE shift_date BETWEEN ? AND ?
-        GROUP BY user_id, WEEK(shift_date, 1)
-    ");
-    $stmt->execute([$startDate, $endDate]);
-    while ($row = $stmt->fetch()) {
-        $uid = $row['user_id'];
-        $wk = $row['week_num'];
-        if (!isset($shiftStats[$uid])) $shiftStats[$uid] = ['total' => ['j'=>0,'p'=>0,'v'=>0], 'weeks' => []];
-        if (!isset($shiftStats[$uid]['weeks'][$wk])) $shiftStats[$uid]['weeks'][$wk] = ['j'=>0,'p'=>0,'v'=>0];
-        $shiftStats[$uid]['weeks'][$wk]['j'] += $row['j'];
-        $shiftStats[$uid]['weeks'][$wk]['p'] += $row['p'];
-        $shiftStats[$uid]['weeks'][$wk]['v'] += $row['v'];
-        $shiftStats[$uid]['total']['j'] += $row['j'];
-        $shiftStats[$uid]['total']['p'] += $row['p'];
-        $shiftStats[$uid]['total']['v'] += $row['v'];
-    }
-} catch (PDOException $e) {
-    // shifts tablica možda ne postoji
 }
 
 // Događaji po korisniku

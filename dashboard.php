@@ -149,14 +149,34 @@ $eventsByDay = [];
 foreach ($upcomingEvents as $evt) {
     $date = $evt['event_date'];
     if (!isset($eventsByDay[$date])) {
-        $eventsByDay[$date] = ['shifts' => [], 'events' => []];
+        $eventsByDay[$date] = [];
     }
-    if ($evt['event_type'] === 'dezurstvo') {
-        $eventsByDay[$date]['shifts'][] = $evt;
-    } else {
-        $eventsByDay[$date]['events'][] = $evt;
+    $eventsByDay[$date][] = $evt;
+}
+
+// Dežurstva za nadolazećih 7 dana (iz shifts tablice)
+$upcomingShiftsByDay = [];
+$stmtUpShifts = $db->query("
+    SELECT s.shift_date, s.shift_type, u.full_name
+    FROM shifts s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.shift_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+    ORDER BY s.shift_date, s.shift_type
+");
+while ($row = $stmtUpShifts->fetch()) {
+    $date = $row['shift_date'];
+    if (!isset($upcomingShiftsByDay[$date])) {
+        $upcomingShiftsByDay[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
+    }
+    $firstName = explode(' ', $row['full_name'])[0];
+    if (!$upcomingShiftsByDay[$date][$row['shift_type']]) {
+        $upcomingShiftsByDay[$date][$row['shift_type']] = $firstName;
     }
 }
+
+// Svi datumi s eventima ili dežurstvima
+$allUpcomingDates = array_unique(array_merge(array_keys($eventsByDay), array_keys($upcomingShiftsByDay)));
+sort($allUpcomingDates);
 
 // Hrvatski nazivi dana i mjeseci
 $daysHr = [
@@ -182,81 +202,37 @@ $stmt = $db->prepare("
 $stmt->execute([$userId]);
 $myEvents = $stmt->fetchAll();
 
-// Moja dežurstva (nadolazeća) - iz OBJE tablice
-$myShifts = [];
-
-// 1. Iz events tablice (event_type='dezurstvo')
+// Moja dežurstva (nadolazeća) - iz shifts tablice
 $stmt = $db->prepare("
-    SELECT e.id, e.title, e.event_date, e.event_time, e.end_time, 'event' as source
-    FROM events e
-    JOIN event_assignments ea ON e.id = ea.event_id
-    WHERE ea.user_id = ? AND e.event_date >= CURDATE() AND e.event_type = 'dezurstvo'
-    ORDER BY e.event_date, e.event_time
+    SELECT s.id,
+           CASE s.shift_type
+               WHEN 'morning' THEN '☀️ Jutarnja smjena'
+               WHEN 'afternoon' THEN '🌤️ Popodnevna smjena'
+               WHEN 'full' THEN '🌙 Večernja smjena'
+           END as title,
+           s.shift_date as event_date
+    FROM shifts s
+    WHERE s.user_id = ? AND s.shift_date >= CURDATE()
+    ORDER BY s.shift_date
+    LIMIT 10
 ");
 $stmt->execute([$userId]);
-$myShifts = array_merge($myShifts, $stmt->fetchAll());
+$myShifts = $stmt->fetchAll();
 
-// 2. Iz shifts tablice
-try {
-    $stmt = $db->prepare("
-        SELECT s.id,
-               CASE s.shift_type
-                   WHEN 'morning' THEN '☀️ Jutarnja smjena'
-                   WHEN 'afternoon' THEN '🌤️ Popodnevna smjena'
-                   WHEN 'full' THEN '🌙 Večernja smjena'
-               END as title,
-               s.shift_date as event_date,
-               NULL as event_time,
-               NULL as end_time,
-               'shift' as source
-        FROM shifts s
-        WHERE s.user_id = ? AND s.shift_date >= CURDATE()
-        ORDER BY s.shift_date
-    ");
-    $stmt->execute([$userId]);
-    $myShifts = array_merge($myShifts, $stmt->fetchAll());
-} catch (PDOException $e) {
-    // shifts tablica možda ne postoji
-}
-
-// Sortiraj po datumu
-usort($myShifts, fn($a, $b) => $a['event_date'] <=> $b['event_date']);
-$myShifts = array_slice($myShifts, 0, 10);
-
-// Danas na dežurstvu - iz OBJE tablice (events i shifts)
+// Danas na dežurstvu - iz shifts tablice
 $todayShifts = [];
-
-// 1. Iz events tablice (event_type='dezurstvo')
-$stmt = $db->query("
-    SELECT e.*, GROUP_CONCAT(u.full_name SEPARATOR ', ') as assigned_people
-    FROM events e
-    LEFT JOIN event_assignments ea ON e.id = ea.event_id
-    LEFT JOIN users u ON ea.user_id = u.id
-    WHERE e.event_date = CURDATE() AND e.event_type = 'dezurstvo'
-    GROUP BY e.id
-    ORDER BY e.event_time
+$stmtToday = $db->query("
+    SELECT s.shift_type, u.full_name
+    FROM shifts s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.shift_date = CURDATE()
+    ORDER BY s.shift_type
 ");
-$todayShifts = $stmt->fetchAll();
-
-// 2. Iz shifts tablice (ako postoji)
-try {
-    $stmtOldShifts = $db->query("
-        SELECT s.*, u.full_name
-        FROM shifts s
-        JOIN users u ON s.user_id = u.id
-        WHERE s.shift_date = CURDATE()
-        ORDER BY s.shift_type
-    ");
-    $oldShifts = $stmtOldShifts->fetchAll();
-    foreach ($oldShifts as $os) {
-        $todayShifts[] = [
-            'title' => ($os['shift_type'] === 'morning' ? '☀️ Jutarnja' : ($os['shift_type'] === 'afternoon' ? '🌤️ Popodnevna' : '🌙 Večernja')) . ' - ' . $os['full_name'],
-            'assigned_people' => $os['full_name'],
-            'shift_type_old' => $os['shift_type']
-        ];
-    }
-} catch (Exception $e) {
-    // Shifts tablica možda ne postoji - ignoriraj
+while ($row = $stmtToday->fetch()) {
+    $todayShifts[] = [
+        'shift_type' => $row['shift_type'],
+        'assigned_people' => $row['full_name']
+    ];
 }
 
 // Statistike
@@ -290,29 +266,9 @@ include 'includes/header.php';
 // Kompaktni prikaz današnjih dežurstava
 $shiftsCompact = ['morning' => '', 'afternoon' => '', 'full' => ''];
 foreach ($todayShifts as $s) {
-    $title = $s['title'] ?? '';
-    $firstName = '';
-    if (!empty($s['assigned_people'])) {
-        $firstName = explode(' ', $s['assigned_people'])[0];
-    } elseif (strpos($title, ' - ') !== false) {
-        $parts = explode(' - ', $title);
-        $firstName = explode(' ', end($parts))[0];
-    }
-
-    // Odredi tip smjene - prvo iz shift_type_old (stara tablica), pa iz naslova
-    $shiftType = '';
-    if (!empty($s['shift_type_old'])) {
-        $shiftType = $s['shift_type_old'];
-    } elseif (stripos($title, 'jutarn') !== false) {
-        $shiftType = 'morning';
-    } elseif (stripos($title, 'popodnevn') !== false) {
-        $shiftType = 'afternoon';
-    } elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false || stripos($title, 'cijeli') !== false) {
-        $shiftType = 'full';
-    }
-
-    if ($shiftType && $firstName && !$shiftsCompact[$shiftType]) {
-        $shiftsCompact[$shiftType] = $firstName;
+    $firstName = explode(' ', $s['assigned_people'])[0];
+    if ($s['shift_type'] && $firstName && !$shiftsCompact[$s['shift_type']]) {
+        $shiftsCompact[$s['shift_type']] = $firstName;
     }
 }
 if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['full']):
@@ -472,14 +428,14 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
                 <?php foreach ($myShifts as $shift):
                     $shiftDayName = $daysHr[date('l', strtotime($shift['event_date']))];
                 ?>
-                <a href="event-edit.php?id=<?= $shift['id'] ?>" class="list-item" style="padding: 1rem;">
+                <div class="list-item" style="padding: 1rem;">
                     <div class="list-item-content">
                         <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem;">
                             <?= $shiftDayName ?>, <?= date('j.n.Y.', strtotime($shift['event_date'])) ?>
                         </div>
                         <div class="list-item-title" style="font-size: 1rem; color: #666;"><?= e($shift['title']) ?></div>
                     </div>
-                </a>
+                </div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -523,46 +479,36 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
 </div>
 
 <!-- Nadolazeći eventi -->
-<?php if (!empty($eventsByDay)): ?>
+<?php if (!empty($allUpcomingDates)): ?>
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">🗓️ Nadolazeći eventi (7 dana)</h2>
         <a href="events.php" class="btn btn-sm btn-outline">Svi eventi</a>
     </div>
     <div class="card-body" style="padding: 0;">
-        <?php foreach ($eventsByDay as $date => $dayData):
+        <?php foreach ($allUpcomingDates as $date):
             $dayName = $daysHr[date('l', strtotime($date))] ?? date('l', strtotime($date));
             $dateFormatted = date('j.n.', strtotime($date));
+            $dayShifts = $upcomingShiftsByDay[$date] ?? null;
+            $dayEvents = $eventsByDay[$date] ?? [];
 
             // Kompaktna dežurstva za taj dan
-            $shiftsCompact = '';
-            foreach ($dayData['shifts'] as $s) {
-                $title = $s['title'] ?? '';
-                $firstName = '';
-                if (!empty($s['assigned_people'])) {
-                    $firstName = explode(' ', $s['assigned_people'])[0];
-                } elseif (strpos($title, ' - ') !== false) {
-                    $parts = explode(' - ', $title);
-                    $firstName = explode(' ', end($parts))[0];
-                }
-                if (stripos($title, 'jutarn') !== false && $firstName) {
-                    $shiftsCompact .= "J-$firstName ";
-                } elseif (stripos($title, 'popodnevn') !== false && $firstName) {
-                    $shiftsCompact .= "P-$firstName ";
-                } elseif ((stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) && $firstName) {
-                    $shiftsCompact .= "V-$firstName ";
-                }
+            $shiftsCompactStr = '';
+            if ($dayShifts) {
+                if ($dayShifts['morning']) $shiftsCompactStr .= 'J-' . e($dayShifts['morning']) . ' ';
+                if ($dayShifts['afternoon']) $shiftsCompactStr .= 'P-' . e($dayShifts['afternoon']) . ' ';
+                if ($dayShifts['full']) $shiftsCompactStr .= 'V-' . e($dayShifts['full']) . ' ';
             }
         ?>
         <div class="upcoming-day-header">
             <span class="upcoming-day-name"><?= $dayName ?>, <?= $dateFormatted ?></span>
-            <?php if ($shiftsCompact): ?>
-            <span class="upcoming-shifts"><?= trim($shiftsCompact) ?></span>
+            <?php if ($shiftsCompactStr): ?>
+            <span class="upcoming-shifts"><?= trim($shiftsCompactStr) ?></span>
             <?php endif; ?>
         </div>
-        <?php if (!empty($dayData['events'])): ?>
+        <?php if (!empty($dayEvents)): ?>
         <div class="list-items">
-            <?php foreach ($dayData['events'] as $event): ?>
+            <?php foreach ($dayEvents as $event): ?>
             <a href="event-edit.php?id=<?= $event['id'] ?>" class="list-item <?= getUserColorClass($event['assigned_people'] ?? '') ?>">
                 <div class="list-item-content">
                     <div class="list-item-title">

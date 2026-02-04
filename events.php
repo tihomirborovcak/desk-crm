@@ -58,65 +58,24 @@ foreach ($events as $event) {
     $eventsByDate[$date][] = $event;
 }
 
-// Grupiraj dežurstva po datumu
+// Grupiraj dežurstva po datumu - iz shifts tablice
 $shiftsByDate = [];
-
-// 1. Iz events tablice (event_type='dezurstvo')
-foreach ($events as $evt) {
-    if ($evt['event_type'] === 'dezurstvo') {
-        $date = $evt['event_date'];
-        if (!isset($shiftsByDate[$date])) {
-            $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
-        }
-        $title = $evt['title'];
-        $firstName = '';
-        if ($evt['assigned_people']) {
-            $firstName = explode(' ', $evt['assigned_people'])[0];
-        } elseif (strpos($title, ' - ') !== false) {
-            $parts = explode(' - ', $title);
-            $fullName = end($parts);
-            $firstName = explode(' ', $fullName)[0];
-        }
-
-        if (stripos($title, 'jutarn') !== false) {
-            $shiftsByDate[$date]['morning'] = $firstName ?: 'Da';
-        } elseif (stripos($title, 'popodnevn') !== false) {
-            $shiftsByDate[$date]['afternoon'] = $firstName ?: 'Da';
-        } elseif (stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false || stripos($title, 'cijeli') !== false) {
-            $shiftsByDate[$date]['full'] = $firstName ?: 'Da';
-        }
+$stmtShifts = $db->prepare("
+    SELECT s.shift_date, s.shift_type, u.full_name
+    FROM shifts s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.shift_date BETWEEN ? AND ?
+");
+$stmtShifts->execute([$monthStart, $monthEnd]);
+while ($shift = $stmtShifts->fetch()) {
+    $date = $shift['shift_date'];
+    if (!isset($shiftsByDate[$date])) {
+        $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
     }
-}
-
-// 2. Iz shifts tablice (ako postoji)
-try {
-    $stmtShifts = $db->prepare("
-        SELECT s.*, u.full_name
-        FROM shifts s
-        JOIN users u ON s.user_id = u.id
-        WHERE s.shift_date BETWEEN ? AND ?
-    ");
-    $stmtShifts->execute([$monthStart, $monthEnd]);
-    $oldShifts = $stmtShifts->fetchAll();
-
-    foreach ($oldShifts as $shift) {
-        $date = $shift['shift_date'];
-        if (!isset($shiftsByDate[$date])) {
-            $shiftsByDate[$date] = ['morning' => null, 'afternoon' => null, 'full' => null];
-        }
-        $firstName = explode(' ', $shift['full_name'])[0];
-        $type = $shift['shift_type'];
-
-        if ($type === 'morning' && !$shiftsByDate[$date]['morning']) {
-            $shiftsByDate[$date]['morning'] = $firstName;
-        } elseif ($type === 'afternoon' && !$shiftsByDate[$date]['afternoon']) {
-            $shiftsByDate[$date]['afternoon'] = $firstName;
-        } elseif ($type === 'full' && !$shiftsByDate[$date]['full']) {
-            $shiftsByDate[$date]['full'] = $firstName;
-        }
+    $firstName = explode(' ', $shift['full_name'])[0];
+    if (!$shiftsByDate[$date][$shift['shift_type']]) {
+        $shiftsByDate[$date][$shift['shift_type']] = $firstName;
     }
-} catch (Exception $e) {
-    // Shifts tablica možda ne postoji - ignoriraj
 }
 
 // Kalendar podaci
@@ -145,12 +104,10 @@ include 'includes/header.php';
 
 <div class="d-flex" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
     <h1>📅 Kalendar</h1>
-    <?php if ($isEditorRole): ?>
     <div class="d-flex gap-1">
         <button class="btn btn-outline" data-modal="shiftModal">+ Dežurstvo</button>
         <a href="event-edit.php" class="btn btn-primary">+ Novi događaj</a>
     </div>
-    <?php endif; ?>
 </div>
 
 <!-- Modal za brzo dežurstvo -->
@@ -373,7 +330,6 @@ include 'includes/header.php';
             <span><span class="legend-dot type-kultura"></span> Kultura</span>
             <span><span class="legend-dot type-politika"></span> Politika</span>
             <span><span class="legend-dot type-drustvo"></span> Društvo</span>
-            <span><span class="legend-dot type-dezurstvo"></span> Dežurstvo</span>
             <span><span class="legend-dot type-ostalo"></span> Ostalo</span>
             <span style="margin-left: 1rem;"><span class="warn-badge-legend">!</span> Nema dodjele</span>
             <span><span class="skip-badge-legend">✗</span> Ne idemo</span>
@@ -403,26 +359,15 @@ $daysHrFull = [
             $dayName = $daysHrFull[date('l', strtotime($date))] ?? '';
             $dateFormatted = date('j.n.', strtotime($date));
 
-            // Kompaktna dežurstva
+            // Kompaktna dežurstva iz shifts tablice
+            $dayShiftsData = $shiftsByDate[$date] ?? null;
             $shiftsCompact = '';
-            $regularEvents = [];
-            foreach ($dayEvents as $evt) {
-                if ($evt['event_type'] === 'dezurstvo') {
-                    $title = $evt['title'] ?? '';
-                    $firstName = '';
-                    if (!empty($evt['assigned_people'])) {
-                        $firstName = explode(' ', $evt['assigned_people'])[0];
-                    } elseif (strpos($title, ' - ') !== false) {
-                        $parts = explode(' - ', $title);
-                        $firstName = explode(' ', end($parts))[0];
-                    }
-                    if (stripos($title, 'jutarn') !== false && $firstName) $shiftsCompact .= "J-$firstName ";
-                    elseif (stripos($title, 'popodnevn') !== false && $firstName) $shiftsCompact .= "P-$firstName ";
-                    elseif ((stripos($title, 'večern') !== false || stripos($title, 'vecern') !== false) && $firstName) $shiftsCompact .= "V-$firstName ";
-                } else {
-                    $regularEvents[] = $evt;
-                }
+            if ($dayShiftsData) {
+                if ($dayShiftsData['morning']) $shiftsCompact .= 'J-' . e($dayShiftsData['morning']) . ' ';
+                if ($dayShiftsData['afternoon']) $shiftsCompact .= 'P-' . e($dayShiftsData['afternoon']) . ' ';
+                if ($dayShiftsData['full']) $shiftsCompact .= 'V-' . e($dayShiftsData['full']) . ' ';
             }
+            $regularEvents = $dayEvents;
         ?>
         <div class="all-events-day-header">
             <span class="all-events-day-name"><?= $dayName ?>, <?= $dateFormatted ?></span>

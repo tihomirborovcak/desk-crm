@@ -248,7 +248,6 @@ include 'includes/header.php';
                         <option value="kultura" <?= ($event['event_type'] ?? $_GET['type'] ?? '') === 'kultura' ? 'selected' : '' ?>>Kultura</option>
                         <option value="politika" <?= ($event['event_type'] ?? $_GET['type'] ?? '') === 'politika' ? 'selected' : '' ?>>Politika</option>
                         <option value="drustvo" <?= ($event['event_type'] ?? $_GET['type'] ?? '') === 'drustvo' ? 'selected' : '' ?>>Društvo</option>
-                        <option value="dezurstvo" <?= ($event['event_type'] ?? $_GET['type'] ?? '') === 'dezurstvo' ? 'selected' : '' ?>>📅 Dežurstvo</option>
                         <option value="ostalo" <?= ($event['event_type'] ?? $_GET['type'] ?? 'ostalo') === 'ostalo' ? 'selected' : '' ?>>Ostalo</option>
                     </select>
                 </div>
