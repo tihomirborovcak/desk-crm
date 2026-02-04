@@ -207,7 +207,7 @@ Pravila:
     return callGeminiApi($url, $auth['token'], [
         'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
         'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
-        'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 4000]
+        'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 4000, 'thinkingConfig' => ['thinkingBudget' => 0]]
     ], 90);
 }
 
@@ -539,7 +539,7 @@ Pravila:
     $result = callGeminiApi($url, $auth['token'], [
         'contents' => [['role' => 'user', 'parts' => $parts]],
         'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
-        'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 8000]
+        'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 8000, 'thinkingConfig' => ['thinkingBudget' => 0]]
     ], 120);
 
     // Cleanup temp direktorija od ZIP-ova
@@ -582,7 +582,7 @@ Pravila:
     return callGeminiApi($url, $auth['token'], [
         'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
         'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
-        'generationConfig' => ['temperature' => 0.8, 'maxOutputTokens' => 4000]
+        'generationConfig' => ['temperature' => 0.8, 'maxOutputTokens' => 4000, 'thinkingConfig' => ['thinkingBudget' => 0]]
     ], 90);
 }
 

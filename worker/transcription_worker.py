@@ -306,7 +306,8 @@ Vrati SAMO ispravljeni SRT, bez objašnjenja."""
                 'contents': [{'role': 'user', 'parts': [{'text': prompt}]}],
                 'generationConfig': {
                     'temperature': 0.1,
-                    'maxOutputTokens': 8000
+                    'maxOutputTokens': 8000,
+                    'thinkingConfig': {'thinkingBudget': 0}
                 }
             },
             timeout=60

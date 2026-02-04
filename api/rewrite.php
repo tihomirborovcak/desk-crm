@@ -199,7 +199,8 @@ curl_setopt_array($ch, [
         ],
         'generationConfig' => [
             'temperature' => 0.7,
-            'maxOutputTokens' => 8192
+            'maxOutputTokens' => 8192,
+            'thinkingConfig' => ['thinkingBudget' => 0]
         ]
     ])
 ]);

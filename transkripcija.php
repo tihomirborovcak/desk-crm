@@ -269,7 +269,8 @@ Pravila:
         ],
         'generationConfig' => [
             'temperature' => 0.1,
-            'maxOutputTokens' => 8000
+            'maxOutputTokens' => 32000,
+            'thinkingConfig' => ['thinkingBudget' => 0]
         ]
     ]);
 
@@ -400,7 +401,8 @@ VAŽNO ZA FORMATIRANJE:
         ],
         'generationConfig' => [
             'temperature' => 0.7,
-            'maxOutputTokens' => 4000
+            'maxOutputTokens' => 16000,
+            'thinkingConfig' => ['thinkingBudget' => 0]
         ]
     ]);
 
