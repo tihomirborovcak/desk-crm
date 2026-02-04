@@ -5,6 +5,10 @@
 
 define('PAGE_TITLE', 'Transkripcija');
 
+// Spriječi keširanje stranice
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 require_once 'includes/auth.php';
 require_once 'includes/functions.php';
 
@@ -480,17 +484,23 @@ $lockFile = sys_get_temp_dir() . '/desk_crm_transcription.lock';
 $lockActive = false;
 $lockUser = '';
 
+// Debug log
+file_put_contents('/tmp/transkripcija_debug.log', date('Y-m-d H:i:s') . ' - Page load. Lock file: ' . $lockFile . ' Exists: ' . (file_exists($lockFile) ? 'YES' : 'NO') . "\n", FILE_APPEND);
+
 if (file_exists($lockFile)) {
     $lockData = json_decode(file_get_contents($lockFile), true);
+    file_put_contents('/tmp/transkripcija_debug.log', date('Y-m-d H:i:s') . ' - Lock data: ' . json_encode($lockData) . ' Age: ' . (time() - ($lockData['time'] ?? 0)) . "s\n", FILE_APPEND);
     // Lock istječe nakon 5 minuta
     if ($lockData && (time() - $lockData['time']) < 300) {
         $lockActive = true;
         $lockUser = $lockData['user'] ?? 'Nepoznat';
     } else {
         // Istekao lock, obriši
-        unlink($lockFile);
+        @unlink($lockFile);
     }
 }
+
+file_put_contents('/tmp/transkripcija_debug.log', date('Y-m-d H:i:s') . ' - lockActive: ' . ($lockActive ? 'TRUE' : 'FALSE') . "\n", FILE_APPEND);
 
 // Obrada uploada
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
