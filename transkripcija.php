@@ -507,8 +507,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyC
                 continue;
             }
 
+            // Kompresiraj ako je veći od 20MB
+            $audioPath = $tmpName;
+            $compressedPath = null;
+            if ($fileSize > 20 * 1024 * 1024) {
+                $compressedPath = sys_get_temp_dir() . '/compressed_' . uniqid() . '.mp3';
+                $cmd = 'ffmpeg -i ' . escapeshellarg($tmpName) . ' -ac 1 -ar 16000 -b:a 64k -y ' . escapeshellarg($compressedPath) . ' 2>&1';
+                exec($cmd, $output, $returnCode);
+                if ($returnCode === 0 && file_exists($compressedPath)) {
+                    $audioPath = $compressedPath;
+                }
+            }
+
             $audioFileNames[] = $fileName;
-            $result = transcribeAudio($tmpName, $fileName);
+            $result = transcribeAudio($audioPath, $fileName);
+
+            // Obriši kompresiranu datoteku
+            if ($compressedPath && file_exists($compressedPath)) {
+                unlink($compressedPath);
+            }
 
             if (isset($result['error'])) {
                 $errors[] = "$fileName: " . $result['error'];
