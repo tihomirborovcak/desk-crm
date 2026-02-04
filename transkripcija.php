@@ -28,6 +28,20 @@ $error = null;
 $success = null;
 $audioFileName = null;
 $audioTempPath = null;
+$autoSavedId = null;
+
+// Preuzmi rezultate iz session-a (POST-redirect-GET pattern)
+if (isset($_SESSION['transcription_result'])) {
+    $r = $_SESSION['transcription_result'];
+    unset($_SESSION['transcription_result']);
+    $transcription = $r['transcription'] ?? null;
+    $article = $r['article'] ?? null;
+    $error = $r['error'] ?? null;
+    $audioFileName = $r['audioFileName'] ?? null;
+    $audioTempPath = $r['audioTempPath'] ?? null;
+    $autoSavedId = $r['autoSavedId'] ?? null;
+    $activeTab = $r['activeTab'] ?? $activeTab;
+}
 
 // Direktorij za audio datoteke
 $audioUploadDir = UPLOAD_PATH . 'audio/' . date('Y/m/');
@@ -458,11 +472,11 @@ VAŽNO ZA FORMATIRANJE:
 }
 
 // Obrada - napravi članak
-$autoSavedId = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'article' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $rawText = $_POST['raw_text'] ?? '';
     $audioFileName = $_POST['audio_filename'] ?? '';
     $audioTempPath = $_POST['audio_path'] ?? '';
+    $activeTab = $_POST['tab'] ?? 'single';
     $customInstructions = trim($_POST['custom_instructions'] ?? '');
     if (!empty($rawText)) {
         $result = makeArticle($rawText, $customInstructions);
@@ -478,6 +492,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $autoSavedId = saveTranscription($autoTitle, $rawText, $article, $audioFileName, $audioTempPath, 1);
         }
     }
+
+    // Spremi u session i redirect
+    $_SESSION['transcription_result'] = [
+        'transcription' => $transcription,
+        'article' => $article,
+        'audioFileName' => $audioFileName,
+        'audioTempPath' => $audioTempPath,
+        'autoSavedId' => $autoSavedId,
+        'error' => $error,
+        'activeTab' => $activeTab
+    ];
+    header('Location: transkripcija.php?tab=' . urlencode($activeTab));
+    exit;
 }
 
 // Lock datoteka za sprječavanje istovremenih transkripcija
@@ -594,6 +621,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (file_exists($lockFile)) {
             unlink($lockFile);
         }
+
+        // Spremi u session i redirect (izbjegava bijeli ekran)
+        $_SESSION['transcription_result'] = [
+            'transcription' => $transcription,
+            'audioFileName' => $audioFileName,
+            'audioTempPath' => $audioTempPath,
+            'error' => $error,
+            'activeTab' => 'multi'
+        ];
+        header('Location: transkripcija.php?tab=multi');
+        exit;
     }
 }
 
@@ -689,6 +727,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyC
         if (file_exists($lockFile)) {
             unlink($lockFile);
         }
+
+        // Spremi u session i redirect
+        $_SESSION['transcription_result'] = [
+            'transcription' => $transcription,
+            'audioFileName' => $audioFileName,
+            'audioTempPath' => $audioTempPath,
+            'error' => $error,
+            'activeTab' => 'single'
+        ];
+        header('Location: transkripcija.php?tab=single');
+        exit;
     }
 }
 
@@ -1104,10 +1153,8 @@ function renumberTones() {
 }
 
 document.querySelectorAll('form[enctype]').forEach(function(form) {
-form.addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const btn = document.getElementById('submitBtn');
+form.addEventListener('submit', function() {
+    const btn = form.querySelector('button[type="submit"]');
     btn.textContent = 'Šaljem datoteke...';
     btn.disabled = true;
 
@@ -1130,72 +1177,37 @@ form.addEventListener('submit', function(e) {
     });
     const sizeMB = (totalSize / 1024 / 1024).toFixed(1);
 
-    statusDiv.innerHTML = '<strong>Uploading...</strong><br>' + fileCount + ' datoteka (' + sizeMB + ' MB)';
+    statusDiv.innerHTML = '<strong>Upload u tijeku...</strong><br>' + fileCount + ' datoteka (' + sizeMB + ' MB)';
 
     const messages = [
-        { time: 3, btn: 'Uploading audio...', msg: '<strong>Upload u tijeku...</strong><br>Šaljem ' + fileCount + ' datoteka (' + sizeMB + ' MB) na server.' },
-        { time: 8, btn: 'Pripremam audio...', msg: '<strong>Priprema...</strong><br>Server je primio datoteke. Priprema audio za transkripciju.' },
-        { time: 15, btn: 'Transkribiram...', msg: '<strong>Transkripcija u tijeku...</strong><br>AI obrađuje audio. Ovo može potrajati ovisno o duljini snimke.' },
-        { time: 30, btn: 'Još transkribiram...', msg: '<strong>Još radim...</strong><br>Dulje snimke zahtijevaju više vremena. Molimo pričekajte.' },
-        { time: 60, btn: 'Obrađujem...', msg: '<strong>Obrada traje dulje od očekivanog...</strong><br>Velika datoteka se obrađuje. Ne zatvarajte stranicu.' },
-        { time: 120, btn: 'Još malo...', msg: '<strong>Skoro gotovo...</strong><br>Obrada je u završnoj fazi. Hvala na strpljenju.' },
-        { time: 180, btn: 'Završavam...', msg: '<strong>Obrada traje dugo...</strong><br>Ako se ništa ne dogodi u sljedećih minutu, probajte ponovno s manjom datotekom.' }
+        { time: 3, msg: '<strong>Upload u tijeku...</strong><br>Šaljem ' + fileCount + ' datoteka (' + sizeMB + ' MB) na server.' },
+        { time: 8, msg: '<strong>Priprema...</strong><br>Server je primio datoteke. Priprema audio za transkripciju.' },
+        { time: 15, msg: '<strong>Transkripcija u tijeku...</strong><br>AI obrađuje audio. Ovo može potrajati ovisno o duljini snimke.' },
+        { time: 30, msg: '<strong>Još radim...</strong><br>Dulje snimke zahtijevaju više vremena. Molimo pričekajte.' },
+        { time: 60, msg: '<strong>Obrada traje dulje od očekivanog...</strong><br>Velika datoteka se obrađuje. Ne zatvarajte stranicu.' },
+        { time: 120, msg: '<strong>Skoro gotovo...</strong><br>Obrada je u završnoj fazi. Hvala na strpljenju.' },
+        { time: 180, msg: '<strong>Obrada traje dugo...</strong><br>Ako se ništa ne dogodi u sljedećih minutu, probajte ponovno s manjom datotekom.' }
     ];
 
     let elapsed = 0;
-    const timer = setInterval(function() {
+    setInterval(function() {
         elapsed++;
+        const mins = Math.floor(elapsed / 60);
+        const secs = String(elapsed % 60).padStart(2, '0');
         for (let i = messages.length - 1; i >= 0; i--) {
             if (elapsed >= messages[i].time) {
-                btn.textContent = messages[i].btn;
-                statusDiv.innerHTML = messages[i].msg + '<br><small style="color: #6b7280;">Proteklo: ' + Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0') + '</small>';
+                statusDiv.innerHTML = messages[i].msg + '<br><small style="color: #6b7280;">Proteklo: ' + mins + ':' + secs + '</small>';
                 break;
             }
         }
     }, 1000);
-
-    const formData = new FormData(form);
-    fetch(form.action || window.location.href, {
-        method: 'POST',
-        body: formData
-    }).then(function(response) {
-        return response.text();
-    }).then(function(html) {
-        clearInterval(timer);
-        document.open();
-        document.write(html);
-        document.close();
-    }).catch(function(err) {
-        clearInterval(timer);
-        btn.textContent = 'Transkribiraj';
-        btn.disabled = false;
-        statusDiv.innerHTML = '<strong style="color: #dc2626;">Greška:</strong> ' + err.message + '<br>Pokušajte ponovno.';
-    });
 });
 });
 
-document.getElementById('articleForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const form = this;
+document.getElementById('articleForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('articleBtn');
     btn.textContent = 'Pišem članak...';
     btn.disabled = true;
-
-    const formData = new FormData(form);
-    fetch(form.action || window.location.href, {
-        method: 'POST',
-        body: formData
-    }).then(function(response) {
-        return response.text();
-    }).then(function(html) {
-        document.open();
-        document.write(html);
-        document.close();
-    }).catch(function(err) {
-        btn.textContent = 'Napiši članak';
-        btn.disabled = false;
-        alert('Greška: ' + err.message);
-    });
 });
 
 function copyTranscript() {
