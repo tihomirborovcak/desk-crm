@@ -179,7 +179,7 @@ function generirajSliku($prompt) {
     }
 
     // Spremi prompt u txt datoteku
-    file_put_contents(__DIR__ . '/uploads/' . $baseFilename . '.txt', $prompt);
+    file_put_contents(__DIR__ . '/uploads/' . $baseFilename . '.txt', "EN: " . $prompt);
 
     return ['url' => 'uploads/' . $filename, 'filename' => $filename];
 }
@@ -432,16 +432,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
         if (empty($prompt)) {
             $error = 'Unesite opis slike';
         } else {
+            $promptHr = $prompt;
+            $promptEn = null;
+
             if (isset($_POST['translate']) && $_POST['translate'] === '1') {
-                $prompt = prevedNaEngleski($prompt);
+                $promptEn = prevedNaEngleski($prompt);
+                $promptForApi = $promptEn;
+            } else {
+                $promptForApi = $prompt;
             }
 
-            $result = generirajSliku($prompt);
+            $result = generirajSliku($promptForApi);
 
             if (isset($result['error'])) {
                 $error = $result['error'];
             } else {
                 $generatedImage = $result['url'];
+                // Spremi u bazu
+                try {
+                    $db = getDB();
+                    $stmt = $db->prepare("INSERT INTO ai_images (prompt_hr, prompt_en, image_filename, image_path, mode, created_by) VALUES (?, ?, ?, ?, 'imagen', ?)");
+                    $stmt->execute([$promptHr, $promptEn, $result['filename'] ?? null, $result['url'] ?? null, $_SESSION['user_id'] ?? null]);
+                } catch (PDOException $e) {}
                 logActivity('ai_image_generate', 'ai', null);
             }
         }
