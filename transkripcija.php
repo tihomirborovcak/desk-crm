@@ -524,6 +524,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $allTranscriptions = [];
         $errors = [];
         $audioFileNames = [];
+        $audioPaths = [];
 
         for ($i = 0; $i < $fileCount; $i++) {
             if (empty($files['tmp_name'][$i])) continue;
@@ -555,7 +556,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            $audioFileNames[] = $fileName;
+            $audioFileNames[] = $description . ' (' . $fileName . ')';
             $result = transcribeAudio($audioPath, $fileName);
 
             if ($compressedPath && file_exists($compressedPath)) {
@@ -568,12 +569,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $header = mb_strtoupper($description);
                 $allTranscriptions[] = $header . ":\n" . $result['text'];
 
-                if (empty($audioTempPath)) {
-                    $savedAudioName = date('Y-m-d_His_') . bin2hex(random_bytes(4)) . '.' . $ext;
-                    $savedAudioPath = $audioUploadDir . $savedAudioName;
-                    if (copy($tmpName, $savedAudioPath)) {
-                        $audioTempPath = str_replace(UPLOAD_PATH, '', $savedAudioPath);
-                    }
+                // Spremi svaki audio trajno
+                $savedAudioName = date('Y-m-d_His_') . bin2hex(random_bytes(4)) . '.' . $ext;
+                $savedAudioPath = $audioUploadDir . $savedAudioName;
+                if (copy($tmpName, $savedAudioPath)) {
+                    $audioPaths[] = str_replace(UPLOAD_PATH, '', $savedAudioPath);
                 }
             }
         }
@@ -581,6 +581,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if (!empty($allTranscriptions)) {
             $transcription = implode("\n\n", $allTranscriptions);
             $audioFileName = implode(', ', $audioFileNames);
+            $audioTempPath = implode(', ', $audioPaths);
             logActivity('audio_transcribe', 'ai', null);
         }
 
