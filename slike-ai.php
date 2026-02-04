@@ -328,7 +328,7 @@ function prevedNaEngleski($text) {
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'You are a translator. Translate the following Croatian text to English. Output ONLY the translation, nothing else. Keep it as a good image generation prompt - detailed and descriptive.'
+                    'content' => 'You are a translator and image prompt expert. Translate the following Croatian text to English. Output ONLY the translation, nothing else. Make it a great photorealistic image generation prompt - add details about lighting, composition and photographic style. Always include that it should look like a real photograph taken with a professional camera (e.g. DSLR, 35mm lens, natural lighting, photojournalistic style). Keep the original meaning but enhance it for realistic image generation.'
                 ],
                 ['role' => 'user', 'content' => $text]
             ],
@@ -463,7 +463,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $promptEn = prevedNaEngleski($prompt);
                 $promptForApi = $promptEn;
             } else {
-                $promptForApi = $prompt;
+                $promptForApi = $prompt . '. Photorealistic, professional DSLR photograph, natural lighting, sharp focus, high detail.';
             }
 
             $result = generirajSliku($promptForApi);
