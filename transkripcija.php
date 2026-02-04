@@ -475,11 +475,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// Lock datoteka za sprječavanje istovremenih transkripcija
+$lockFile = sys_get_temp_dir() . '/desk_crm_transcription.lock';
+$lockActive = false;
+$lockUser = '';
+
+if (file_exists($lockFile)) {
+    $lockData = json_decode(file_get_contents($lockFile), true);
+    // Lock istječe nakon 5 minuta
+    if ($lockData && (time() - $lockData['time']) < 300) {
+        $lockActive = true;
+        $lockUser = $lockData['user'] ?? 'Nepoznat';
+    } else {
+        // Istekao lock, obriši
+        unlink($lockFile);
+    }
+}
+
 // Obrada uploada
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
-    if (empty($_FILES['audio']['tmp_name'][0])) {
+    if ($lockActive) {
+        $error = 'Transkripcija je trenutno u tijeku (korisnik: ' . $lockUser . '). Pokušajte za par minuta.';
+    } elseif (empty($_FILES['audio']['tmp_name'][0])) {
         $error = 'Odaberite audio datoteku';
     } else {
+        // Postavi lock
+        file_put_contents($lockFile, json_encode([
+            'time' => time(),
+            'user' => $_SESSION['user_name'] ?? $_SESSION['username'] ?? 'Nepoznat'
+        ]));
         $files = $_FILES['audio'];
         $fileCount = count($files['tmp_name']);
         $allowedExts = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'mpeg', 'mpga', 'ogg', 'flac', 'aac'];
@@ -555,6 +579,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyC
         } elseif (empty($allTranscriptions)) {
             $error = 'Transkripcija nije uspjela';
         }
+
+        // Otključaj
+        if (file_exists($lockFile)) {
+            unlink($lockFile);
+        }
     }
 }
 
@@ -565,6 +594,20 @@ include 'includes/header.php';
     <h1>Transkripcija</h1>
 </div>
 
+<?php if ($lockActive): ?>
+<div class="card">
+    <div class="card-body" style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; text-align: center; padding: 2rem;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" style="margin-bottom: 1rem;">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <h3 style="color: #ea580c; margin-bottom: 0.5rem;">Transkripcija u tijeku</h3>
+        <p style="color: #9a3412; margin: 0;">Korisnik <strong><?= e($lockUser) ?></strong> trenutno koristi transkripciju. Pričekajte da završi pa pokušajte ponovno.</p>
+        <p style="color: #9a3412; margin-top: 0.5rem;"><small>Stranica će se automatski osvježiti za 30 sekundi.</small></p>
+    </div>
+</div>
+<script>setTimeout(function(){ location.reload(); }, 30000);</script>
+<?php else: ?>
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Audio u tekst (Gemini)</h2>
@@ -741,6 +784,8 @@ include 'includes/header.php';
 </div>
 <?php endif; ?>
 
+<?php endif; /* endif lockActive */ ?>
+
 <?php
 // Popis spremljenih transkripcija
 $savedTranscriptions = getSavedTranscriptions(10);
@@ -805,8 +850,52 @@ if (!empty($savedTranscriptions)):
 <script>
 document.querySelector('form[enctype]')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
-    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Transkribiram...';
+    const spinnerHtml = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> ';
+    btn.innerHTML = spinnerHtml + 'Šaljem datoteke...';
     btn.disabled = true;
+
+    // Dodaj status poruku ispod buttona
+    let statusDiv = document.getElementById('transcriptionStatus');
+    if (!statusDiv) {
+        statusDiv = document.createElement('div');
+        statusDiv.id = 'transcriptionStatus';
+        statusDiv.style.cssText = 'margin-top: 1rem; padding: 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; font-size: 0.9rem;';
+        btn.parentNode.appendChild(statusDiv);
+    }
+
+    const fileInput = document.querySelector('input[name="audio[]"]');
+    const fileCount = fileInput ? fileInput.files.length : 1;
+    let totalSize = 0;
+    if (fileInput) {
+        for (let i = 0; i < fileInput.files.length; i++) {
+            totalSize += fileInput.files[i].size;
+        }
+    }
+    const sizeMB = (totalSize / 1024 / 1024).toFixed(1);
+
+    statusDiv.innerHTML = '<strong>Uploading...</strong><br>' + fileCount + ' datoteka (' + sizeMB + ' MB)';
+
+    const messages = [
+        { time: 3, btn: 'Uploading audio...', msg: '<strong>Upload u tijeku...</strong><br>Šaljem ' + fileCount + ' datoteka (' + sizeMB + ' MB) na server.' },
+        { time: 8, btn: 'Pripremam audio...', msg: '<strong>Priprema...</strong><br>Server je primio datoteke. Priprema audio za transkripciju.' },
+        { time: 15, btn: 'Transkribiram...', msg: '<strong>Transkripcija u tijeku...</strong><br>AI obrađuje audio. Ovo može potrajati ovisno o duljini snimke.' },
+        { time: 30, btn: 'Još transkribiram...', msg: '<strong>Još radim...</strong><br>Dulje snimke zahtijevaju više vremena. Molimo pričekajte.' },
+        { time: 60, btn: 'Obrađujem...', msg: '<strong>Obrada traje dulje od očekivanog...</strong><br>Velika datoteka se obrađuje. Ne zatvarajte stranicu.' },
+        { time: 120, btn: 'Još malo...', msg: '<strong>Skoro gotovo...</strong><br>Obrada je u završnoj fazi. Hvala na strpljenju.' },
+        { time: 180, btn: 'Završavam...', msg: '<strong>Obrada traje dugo...</strong><br>Ako se ništa ne dogodi u sljedećih minutu, probajte ponovno s manjom datotekom.' }
+    ];
+
+    let elapsed = 0;
+    const timer = setInterval(function() {
+        elapsed++;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (elapsed >= messages[i].time) {
+                btn.innerHTML = spinnerHtml + messages[i].btn;
+                statusDiv.innerHTML = messages[i].msg + '<br><small style="color: #6b7280;">Proteklo: ' + Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0') + '</small>';
+                break;
+            }
+        }
+    }, 1000);
 });
 
 document.getElementById('articleForm')?.addEventListener('submit', function() {
