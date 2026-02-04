@@ -1104,10 +1104,11 @@ function renumberTones() {
 }
 
 document.querySelectorAll('form[enctype]').forEach(function(form) {
-form.addEventListener('submit', function() {
+form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
     const btn = document.getElementById('submitBtn');
-    const spinnerHtml = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> ';
-    btn.innerHTML = spinnerHtml + 'Šaljem datoteke...';
+    btn.textContent = 'Šaljem datoteke...';
     btn.disabled = true;
 
     let statusDiv = document.getElementById('transcriptionStatus');
@@ -1146,19 +1147,55 @@ form.addEventListener('submit', function() {
         elapsed++;
         for (let i = messages.length - 1; i >= 0; i--) {
             if (elapsed >= messages[i].time) {
-                btn.innerHTML = spinnerHtml + messages[i].btn;
+                btn.textContent = messages[i].btn;
                 statusDiv.innerHTML = messages[i].msg + '<br><small style="color: #6b7280;">Proteklo: ' + Math.floor(elapsed / 60) + ':' + String(elapsed % 60).padStart(2, '0') + '</small>';
                 break;
             }
         }
     }, 1000);
+
+    const formData = new FormData(form);
+    fetch(form.action || window.location.href, {
+        method: 'POST',
+        body: formData
+    }).then(function(response) {
+        return response.text();
+    }).then(function(html) {
+        clearInterval(timer);
+        document.open();
+        document.write(html);
+        document.close();
+    }).catch(function(err) {
+        clearInterval(timer);
+        btn.textContent = 'Transkribiraj';
+        btn.disabled = false;
+        statusDiv.innerHTML = '<strong style="color: #dc2626;">Greška:</strong> ' + err.message + '<br>Pokušajte ponovno.';
+    });
 });
 });
 
-document.getElementById('articleForm')?.addEventListener('submit', function() {
+document.getElementById('articleForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = this;
     const btn = document.getElementById('articleBtn');
-    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> Pišem članak...';
+    btn.textContent = 'Pišem članak...';
     btn.disabled = true;
+
+    const formData = new FormData(form);
+    fetch(form.action || window.location.href, {
+        method: 'POST',
+        body: formData
+    }).then(function(response) {
+        return response.text();
+    }).then(function(html) {
+        document.open();
+        document.write(html);
+        document.close();
+    }).catch(function(err) {
+        btn.textContent = 'Napiši članak';
+        btn.disabled = false;
+        alert('Greška: ' + err.message);
+    });
 });
 
 function copyTranscript() {
