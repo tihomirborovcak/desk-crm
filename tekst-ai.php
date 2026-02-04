@@ -586,6 +586,36 @@ Pravila:
     ], 90);
 }
 
+// Spremi preradu u bazu
+function saveRewrite($mode, $title, $inputText, $instructions, $outputText) {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("INSERT INTO ai_rewrites (mode, title, input_text, instructions, output_text, created_by) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$mode, $title ?: null, $inputText ?: null, $instructions, $outputText, $_SESSION['user_id'] ?? null]);
+        return $db->lastInsertId();
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+// Dohvati spremljene prerade
+function getSavedRewrites($limit = 20) {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("
+            SELECT r.*, u.full_name as author_name
+            FROM ai_rewrites r
+            LEFT JOIN users u ON r.created_by = u.id
+            ORDER BY r.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$limit]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
 // Obrada forme
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $originalText = trim($_POST['original_text'] ?? '');
@@ -606,6 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $error = $result['error'];
             } else {
                 $resultText = cleanAiOutput($result['text']);
+                saveRewrite('dokumenti', null, null, $instructions, $resultText);
                 logActivity('ai_text_from_docs', 'ai', null);
             }
         }
@@ -620,6 +651,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $error = $result['error'];
             } else {
                 $resultText = cleanAiOutput($result['text']);
+                saveRewrite('novi', null, null, $instructions, $resultText);
                 logActivity('ai_text_generate', 'ai', null);
             }
         }
@@ -637,6 +669,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $error = $result['error'];
             } else {
                 $resultText = cleanAiOutput($result['text']);
+                saveRewrite('prerada', $title, $originalText, $instructions, $resultText);
                 logActivity('ai_text_process', 'ai', null);
             }
         }
@@ -883,6 +916,53 @@ Npr:
 </div>
 <?php endif; ?>
 
+<?php
+$savedRewrites = getSavedRewrites(15);
+if (!empty($savedRewrites)):
+?>
+<div class="card mt-2">
+    <div class="card-header">
+        <h2 class="card-title">Spremljene prerade</h2>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Naslov / Upute</th>
+                    <th>Vrsta</th>
+                    <th>Datum</th>
+                    <th>Autor</th>
+                    <th style="width: 100px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($savedRewrites as $rw): ?>
+                <tr>
+                    <td>
+                        <strong><?= e($rw['title'] ?: mb_substr($rw['instructions'], 0, 60) . (mb_strlen($rw['instructions']) > 60 ? '...' : '')) ?></strong>
+                        <?php if ($rw['title'] && $rw['instructions']): ?>
+                        <br><small class="text-muted"><?= e(mb_substr($rw['instructions'], 0, 80)) ?><?= mb_strlen($rw['instructions']) > 80 ? '...' : '' ?></small>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php
+                        $modeLabels = ['prerada' => 'Prerada', 'novi' => 'Novi tekst', 'dokumenti' => 'Dokumenti'];
+                        echo e($modeLabels[$rw['mode']] ?? $rw['mode']);
+                        ?>
+                    </td>
+                    <td><?= formatDateTime($rw['created_at']) ?></td>
+                    <td><?= e($rw['author_name'] ?? '') ?></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline" onclick="showRewrite(<?= $rw['id'] ?>)">Otvori</button>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Primjeri uputa -->
 <div class="card mt-2">
     <div class="card-header">
@@ -1069,6 +1149,40 @@ function useInstruction(el) {
 function setNewInstruction(text) {
     document.querySelector('#newTextForm textarea[name="instructions"]').value = text;
 }
+
+function showRewrite(id) {
+    fetch('api/get-rewrite.php?id=' + id)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { alert(data.error || 'Greška'); return; }
+            const rw = data.rewrite;
+            let html = '';
+            if (rw.title) html += '<p><strong>Naslov:</strong> ' + escHtml(rw.title) + '</p>';
+            if (rw.input_text) html += '<p><strong>Ulazni tekst:</strong></p><div class="result-text" style="max-height:200px;margin-bottom:1rem;">' + escHtml(rw.input_text) + '</div>';
+            if (rw.instructions) html += '<p><strong>Upute:</strong> ' + escHtml(rw.instructions) + '</p>';
+            html += '<p><strong>Rezultat:</strong></p><div class="result-text" style="max-height:300px;">' + escHtml(rw.output_text) + '</div>';
+            html += '<div style="margin-top:0.5rem;font-size:0.85rem;color:var(--gray-600);">Znakova: <strong>' + rw.output_text.length + '</strong></div>';
+            html += '<div style="margin-top:1rem;display:flex;gap:0.5rem;">';
+            html += '<button class="btn btn-success" onclick="navigator.clipboard.writeText(' + JSON.stringify(rw.output_text) + ').then(()=>alert(\'Kopirano!\'))">Kopiraj rezultat</button>';
+            html += '<button class="btn btn-outline" onclick="document.getElementById(\'rewriteModal\').style.display=\'none\'">Zatvori</button>';
+            html += '</div>';
+            document.getElementById('rewriteModalBody').innerHTML = html;
+            document.getElementById('rewriteModal').style.display = 'flex';
+        });
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML.replace(/\n/g, '<br>');
+}
 </script>
+
+<!-- Modal za prikaz prerade -->
+<div id="rewriteModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:white;border-radius:12px;padding:1.5rem;max-width:800px;width:90%;max-height:85vh;overflow-y:auto;">
+        <div id="rewriteModalBody"></div>
+    </div>
+</div>
 
 <?php include 'includes/footer.php'; ?>
