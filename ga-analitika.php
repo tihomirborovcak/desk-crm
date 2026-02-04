@@ -1042,18 +1042,23 @@ if (isset($reportData['previous']['rows'])) {
 foreach ($currentArticles as $path => $data) {
     $prevViews = $previousArticles[$path] ?? 0;
     $change = calcChange($data['views'], $prevViews);
-    $trending[$path] = [
-        'title' => $data['title'],
-        'path' => $path,
-        'current' => $data['views'],
-        'previous' => $prevViews,
-        'change' => $change
-    ];
+    $diff = $data['views'] - $prevViews;
+    // Samo članci koji su imali pregleda i prije (inače je sve "novo" i +100%)
+    if ($prevViews > 0 && $diff > 0) {
+        $trending[$path] = [
+            'title' => $data['title'],
+            'path' => $path,
+            'current' => $data['views'],
+            'previous' => $prevViews,
+            'change' => $change,
+            'diff' => $diff
+        ];
+    }
 }
 
-// Sortiraj po promjeni (najviši rast)
+// Sortiraj po apsolutnom rastu (najviše novih pregleda)
 uasort($trending, function($a, $b) {
-    return $b['change'] - $a['change'];
+    return $b['diff'] - $a['diff'];
 });
 
 $trending = array_slice($trending, 0, 30, true);
