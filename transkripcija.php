@@ -20,6 +20,7 @@ requireLogin();
 
 set_time_limit(300);
 
+$activeTab = $_GET['tab'] ?? $_POST['tab'] ?? 'single';
 $transcription = null;
 $correctedText = null;
 $article = null;
@@ -502,7 +503,100 @@ if (file_exists($lockFile)) {
 
 file_put_contents('/tmp/transkripcija_debug.log', date('Y-m-d H:i:s') . ' - lockActive: ' . ($lockActive ? 'TRUE' : 'FALSE') . "\n", FILE_APPEND);
 
-// Obrada uploada
+// Obrada uploada - više tonova
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'multi_transcribe' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+    $activeTab = 'multi';
+    if ($lockActive) {
+        $error = 'Transkripcija je trenutno u tijeku (korisnik: ' . $lockUser . '). Pokušajte za par minuta.';
+    } elseif (empty($_FILES['audio_multi']['tmp_name'][0])) {
+        $error = 'Odaberite barem jednu audio datoteku';
+    } else {
+        file_put_contents($lockFile, json_encode([
+            'time' => time(),
+            'user' => $_SESSION['user_name'] ?? $_SESSION['username'] ?? 'Nepoznat'
+        ]));
+
+        $files = $_FILES['audio_multi'];
+        $descriptions = $_POST['descriptions'] ?? [];
+        $fileCount = count($files['tmp_name']);
+        $allowedExts = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'mpeg', 'mpga', 'ogg', 'flac', 'aac'];
+
+        $allTranscriptions = [];
+        $errors = [];
+        $audioFileNames = [];
+
+        for ($i = 0; $i < $fileCount; $i++) {
+            if (empty($files['tmp_name'][$i])) continue;
+
+            $fileName = $files['name'][$i];
+            $fileSize = $files['size'][$i];
+            $tmpName = $files['tmp_name'][$i];
+            $description = trim($descriptions[$i] ?? 'Ton ' . ($i + 1));
+
+            if ($fileSize > 100 * 1024 * 1024) {
+                $errors[] = "$fileName: prevelika (max 100MB)";
+                continue;
+            }
+
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedExts)) {
+                $errors[] = "$fileName: nedozvoljeni format";
+                continue;
+            }
+
+            $audioPath = $tmpName;
+            $compressedPath = null;
+            if ($fileSize > 20 * 1024 * 1024) {
+                $compressedPath = sys_get_temp_dir() . '/compressed_' . uniqid() . '.mp3';
+                $cmd = 'ffmpeg -i ' . escapeshellarg($tmpName) . ' -ac 1 -ar 16000 -b:a 64k -y ' . escapeshellarg($compressedPath) . ' 2>&1';
+                exec($cmd, $output, $returnCode);
+                if ($returnCode === 0 && file_exists($compressedPath)) {
+                    $audioPath = $compressedPath;
+                }
+            }
+
+            $audioFileNames[] = $fileName;
+            $result = transcribeAudio($audioPath, $fileName);
+
+            if ($compressedPath && file_exists($compressedPath)) {
+                unlink($compressedPath);
+            }
+
+            if (isset($result['error'])) {
+                $errors[] = "$fileName: " . $result['error'];
+            } else {
+                $header = mb_strtoupper($description);
+                $allTranscriptions[] = $header . ":\n" . $result['text'];
+
+                if (empty($audioTempPath)) {
+                    $savedAudioName = date('Y-m-d_His_') . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $savedAudioPath = $audioUploadDir . $savedAudioName;
+                    if (copy($tmpName, $savedAudioPath)) {
+                        $audioTempPath = str_replace(UPLOAD_PATH, '', $savedAudioPath);
+                    }
+                }
+            }
+        }
+
+        if (!empty($allTranscriptions)) {
+            $transcription = implode("\n\n", $allTranscriptions);
+            $audioFileName = implode(', ', $audioFileNames);
+            logActivity('audio_transcribe', 'ai', null);
+        }
+
+        if (!empty($errors)) {
+            $error = implode('; ', $errors);
+        } elseif (empty($allTranscriptions)) {
+            $error = 'Transkripcija nije uspjela';
+        }
+
+        if (file_exists($lockFile)) {
+            unlink($lockFile);
+        }
+    }
+}
+
+// Obrada uploada - pojedinačna
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     if ($lockActive) {
         $error = 'Transkripcija je trenutno u tijeku (korisnik: ' . $lockUser . '). Pokušajte za par minuta.';
@@ -618,6 +712,13 @@ include 'includes/header.php';
 </div>
 <script>setTimeout(function(){ location.reload(); }, 30000);</script>
 <?php else: ?>
+<!-- Tabovi -->
+<div class="tabs" style="margin-bottom: 1rem;">
+    <a href="?tab=single" class="tab <?= $activeTab === 'single' ? 'active' : '' ?>">Transkripcija</a>
+    <a href="?tab=multi" class="tab <?= $activeTab === 'multi' ? 'active' : '' ?>">Više tonova</a>
+</div>
+
+<?php if ($activeTab === 'single'): ?>
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Audio u tekst (Gemini)</h2>
@@ -652,6 +753,69 @@ include 'includes/header.php';
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
+
+<?php if ($activeTab === 'multi'): ?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Više tonova s jednog događaja</h2>
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data" id="multiForm">
+            <?= csrfField() ?>
+            <input type="hidden" name="action" value="multi_transcribe">
+            <input type="hidden" name="tab" value="multi">
+
+            <div id="toneRows">
+                <div class="tone-row">
+                    <div class="tone-row-header">
+                        <span class="tone-number">Ton 1</span>
+                    </div>
+                    <div class="tone-row-fields">
+                        <div class="form-group" style="flex: 1; min-width: 200px;">
+                            <label class="form-label">Opis *</label>
+                            <input type="text" name="descriptions[]" class="form-control" placeholder="Npr: Izjava župana" required>
+                        </div>
+                        <div class="form-group" style="flex: 2; min-width: 200px;">
+                            <label class="form-label">Audio datoteka *</label>
+                            <input type="file" name="audio_multi[]" class="form-control" accept=".mp3,.mp4,.m4a,.wav,.webm,.mpeg,.mpga,.ogg,.flac,.aac" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin: 1rem 0; display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-outline" onclick="addToneRow()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="16"/>
+                        <line x1="8" y1="12" x2="16" y2="12"/>
+                    </svg>
+                    Dodaj ton
+                </button>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                        <line x1="8" y1="23" x2="16" y2="23"/>
+                    </svg>
+                    Transkribiraj sve
+                </button>
+            </div>
+        </form>
+
+        <?php if ($error): ?>
+        <div class="alert alert-danger" style="margin-top: 1rem;">
+            <?= e($error) ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($transcription):
     // Očisti transkript za prikaz
@@ -678,6 +842,7 @@ include 'includes/header.php';
             <form method="POST" id="articleForm">
                 <?= csrfField() ?>
                 <input type="hidden" name="action" value="article">
+                <input type="hidden" name="tab" value="<?= e($activeTab) ?>">
                 <input type="hidden" name="raw_text" value="<?= e($transcriptClean) ?>">
                 <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
                 <input type="hidden" name="audio_path" value="<?= e($audioTempPath ?? '') ?>">
@@ -770,6 +935,7 @@ include 'includes/header.php';
         <form method="POST" id="saveForm">
             <?= csrfField() ?>
             <input type="hidden" name="action" value="save">
+            <input type="hidden" name="tab" value="<?= e($activeTab) ?>">
             <input type="hidden" name="transcript_b64" value="<?= base64_encode($transcriptClean ?? '') ?>">
             <input type="hidden" name="article_b64" value="<?= base64_encode($articleClean ?? '') ?>">
             <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
@@ -855,16 +1021,94 @@ if (!empty($savedTranscriptions)):
     overflow-y: auto;
     white-space: pre-wrap;
 }
+.tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--gray-200);
+}
+.tab {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--gray-500);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.2s, border-color 0.2s;
+}
+.tab:hover { color: var(--primary); text-decoration: none; }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tone-row {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+.tone-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.tone-number {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--primary);
+}
+.tone-row-fields {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.tone-remove {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: bold;
+    padding: 0 0.25rem;
+    line-height: 1;
+}
+.tone-remove:hover { color: #a71d2a; }
 </style>
 
 <script>
-document.querySelector('form[enctype]')?.addEventListener('submit', function() {
+// Više tonova - dodavanje/micanje redova
+var toneCounter = 1;
+function addToneRow() {
+    toneCounter++;
+    var container = document.getElementById('toneRows');
+    var row = document.createElement('div');
+    row.className = 'tone-row';
+    row.innerHTML = '<div class="tone-row-header"><span class="tone-number">Ton ' + toneCounter + '</span><button type="button" class="tone-remove" onclick="removeToneRow(this)" title="Ukloni">&times;</button></div><div class="tone-row-fields"><div class="form-group" style="flex: 1; min-width: 200px;"><label class="form-label">Opis *</label><input type="text" name="descriptions[]" class="form-control" placeholder="Npr: Izjava pročelnika" required></div><div class="form-group" style="flex: 2; min-width: 200px;"><label class="form-label">Audio datoteka *</label><input type="file" name="audio_multi[]" class="form-control" accept=".mp3,.mp4,.m4a,.wav,.webm,.mpeg,.mpga,.ogg,.flac,.aac" required></div></div>';
+    container.appendChild(row);
+    renumberTones();
+}
+function removeToneRow(btn) {
+    var row = btn.closest('.tone-row');
+    var container = document.getElementById('toneRows');
+    if (container.children.length > 1) {
+        row.remove();
+        renumberTones();
+    }
+}
+function renumberTones() {
+    var rows = document.querySelectorAll('#toneRows .tone-row');
+    toneCounter = rows.length;
+    rows.forEach(function(row, i) {
+        row.querySelector('.tone-number').textContent = 'Ton ' + (i + 1);
+    });
+}
+
+document.querySelectorAll('form[enctype]').forEach(function(form) {
+form.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
     const spinnerHtml = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin-right:8px;"></span> ';
     btn.innerHTML = spinnerHtml + 'Šaljem datoteke...';
     btn.disabled = true;
 
-    // Dodaj status poruku ispod buttona
     let statusDiv = document.getElementById('transcriptionStatus');
     if (!statusDiv) {
         statusDiv = document.createElement('div');
@@ -873,14 +1117,15 @@ document.querySelector('form[enctype]')?.addEventListener('submit', function() {
         btn.parentNode.appendChild(statusDiv);
     }
 
-    const fileInput = document.querySelector('input[name="audio[]"]');
-    const fileCount = fileInput ? fileInput.files.length : 1;
+    const fileInputs = form.querySelectorAll('input[type="file"]');
+    let fileCount = 0;
     let totalSize = 0;
-    if (fileInput) {
-        for (let i = 0; i < fileInput.files.length; i++) {
-            totalSize += fileInput.files[i].size;
+    fileInputs.forEach(function(fi) {
+        for (let i = 0; i < fi.files.length; i++) {
+            fileCount++;
+            totalSize += fi.files[i].size;
         }
-    }
+    });
     const sizeMB = (totalSize / 1024 / 1024).toFixed(1);
 
     statusDiv.innerHTML = '<strong>Uploading...</strong><br>' + fileCount + ' datoteka (' + sizeMB + ' MB)';
@@ -906,6 +1151,7 @@ document.querySelector('form[enctype]')?.addEventListener('submit', function() {
             }
         }
     }, 1000);
+});
 });
 
 document.getElementById('articleForm')?.addEventListener('submit', function() {
