@@ -115,6 +115,59 @@ function getGoogleAccessToken() {
     ];
 }
 
+// Helper: Gemini API poziv s retry logikom za 429 greške
+function callGeminiApi($url, $token, $payload, $timeout = 120) {
+    $maxRetries = 3;
+    $retryDelay = 5;
+
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $token
+            ],
+            CURLOPT_POSTFIELDS => json_encode($payload)
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            return ['error' => 'Greška: ' . $curlError];
+        }
+
+        $data = json_decode($response, true);
+
+        // Ako je 429 (rate limit), pokušaj ponovo
+        if ($httpCode === 429 && $attempt < $maxRetries) {
+            sleep($retryDelay * $attempt);
+            continue;
+        }
+
+        if ($httpCode !== 200) {
+            $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+            if ($httpCode === 429) {
+                $errMsg .= ' (pokušano ' . $maxRetries . ' puta)';
+            }
+            return ['error' => 'Gemini API greška: ' . $errMsg];
+        }
+
+        if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+            return ['error' => 'Nema odgovora od Gemini-ja'];
+        }
+
+        return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+    }
+
+    return ['error' => 'Gemini API greška: Rate limit nakon ' . $maxRetries . ' pokušaja'];
+}
+
 // Google Gemini prerada teksta
 function preradi($text, $instructions, $title = '') {
     $auth = getGoogleAccessToken();
@@ -151,53 +204,11 @@ Pravila:
     $titlePart = $title ? "ORIGINALNI NASLOV: " . $title . "\n\n" : "";
     $userPrompt = $titlePart . "ORIGINALNI TEKST:\n" . $text . "\n\nUPUTE ZA PRERADU:\n" . $instructions . "\n\nPreradi tekst prema uputama. Smisli NOVI zanimljiv naslov za portal (ne koristi originalni naslov). Započni odgovor s 'NASLOV:' pa novi naslov, pa prazan red, pa prerađeni tekst.";
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_TIMEOUT => 90,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $auth['token']
-        ],
-        CURLOPT_POSTFIELDS => json_encode([
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [['text' => $userPrompt]]
-                ]
-            ],
-            'systemInstruction' => [
-                'parts' => [['text' => $systemPrompt]]
-            ],
-            'generationConfig' => [
-                'temperature' => 0.7,
-                'maxOutputTokens' => 4000
-            ]
-        ])
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    if ($curlError) {
-        return ['error' => 'Greška: ' . $curlError];
-    }
-
-    $data = json_decode($response, true);
-
-    if ($httpCode !== 200) {
-        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
-        return ['error' => 'Gemini API greška: ' . $errMsg];
-    }
-
-    if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
-        return ['error' => 'Nema odgovora od Gemini-ja'];
-    }
-
-    return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+    return callGeminiApi($url, $auth['token'], [
+        'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
+        'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
+        'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 4000]
+    ], 90);
 }
 
 // Raspakuj ZIP i vrati listu fajlova
@@ -525,58 +536,18 @@ Pravila:
         return ['error' => 'Nije učitan nijedan podržani dokument'];
     }
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_TIMEOUT => 120,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $auth['token']
-        ],
-        CURLOPT_POSTFIELDS => json_encode([
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => $parts
-                ]
-            ],
-            'systemInstruction' => [
-                'parts' => [['text' => $systemPrompt]]
-            ],
-            'generationConfig' => [
-                'temperature' => 0.7,
-                'maxOutputTokens' => 8000
-            ]
-        ])
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    if ($curlError) {
-        return ['error' => 'Greška: ' . $curlError];
-    }
-
-    $data = json_decode($response, true);
-
-    if ($httpCode !== 200) {
-        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
-        return ['error' => 'Gemini API greška: ' . $errMsg];
-    }
-
-    if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
-        return ['error' => 'Nema odgovora od Gemini-ja'];
-    }
+    $result = callGeminiApi($url, $auth['token'], [
+        'contents' => [['role' => 'user', 'parts' => $parts]],
+        'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
+        'generationConfig' => ['temperature' => 0.7, 'maxOutputTokens' => 8000]
+    ], 120);
 
     // Cleanup temp direktorija od ZIP-ova
     foreach ($tempDirs as $dir) {
         cleanupTempDir($dir);
     }
 
-    return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+    return $result;
 }
 
 // Google Gemini - generiraj novi tekst
@@ -608,53 +579,11 @@ Pravila:
 
     $userPrompt = "UPUTE:\n" . $instructions . "\n\nNapiši tekst prema uputama. Vrati SAMO tekst, bez dodatnih objašnjenja.";
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_TIMEOUT => 90,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $auth['token']
-        ],
-        CURLOPT_POSTFIELDS => json_encode([
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [['text' => $userPrompt]]
-                ]
-            ],
-            'systemInstruction' => [
-                'parts' => [['text' => $systemPrompt]]
-            ],
-            'generationConfig' => [
-                'temperature' => 0.8,
-                'maxOutputTokens' => 4000
-            ]
-        ])
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
-
-    if ($curlError) {
-        return ['error' => 'Greška: ' . $curlError];
-    }
-
-    $data = json_decode($response, true);
-
-    if ($httpCode !== 200) {
-        $errMsg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
-        return ['error' => 'Gemini API greška: ' . $errMsg];
-    }
-
-    if (!isset($data['candidates'][0]['content']['parts'][0]['text'])) {
-        return ['error' => 'Nema odgovora od Gemini-ja'];
-    }
-
-    return ['text' => $data['candidates'][0]['content']['parts'][0]['text']];
+    return callGeminiApi($url, $auth['token'], [
+        'contents' => [['role' => 'user', 'parts' => [['text' => $userPrompt]]]],
+        'systemInstruction' => ['parts' => [['text' => $systemPrompt]]],
+        'generationConfig' => ['temperature' => 0.8, 'maxOutputTokens' => 4000]
+    ], 90);
 }
 
 // Obrada forme
