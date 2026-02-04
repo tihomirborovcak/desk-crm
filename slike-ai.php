@@ -353,6 +353,18 @@ function dohvatiSlike() {
     $uploadDir = __DIR__ . '/uploads/';
     $images = [];
 
+    // Dohvati promptove iz baze (filename -> prompt_hr, prompt_en)
+    $dbPrompts = [];
+    try {
+        $db = getDB();
+        $stmt = $db->query("SELECT image_filename, prompt_hr, prompt_en FROM ai_images");
+        while ($row = $stmt->fetch()) {
+            if ($row['image_filename']) {
+                $dbPrompts[$row['image_filename']] = $row;
+            }
+        }
+    } catch (PDOException $e) {}
+
     if (is_dir($uploadDir)) {
         $files = glob($uploadDir . 'imagen_*.png');
 
@@ -363,15 +375,27 @@ function dohvatiSlike() {
 
         foreach ($files as $file) {
             $filename = basename($file);
-            $txtFile = str_replace('.png', '.txt', $file);
-            $prompt = file_exists($txtFile) ? file_get_contents($txtFile) : '';
+
+            // Probaj iz baze, fallback na txt
+            $promptHr = '';
+            $promptEn = '';
+            if (isset($dbPrompts[$filename])) {
+                $promptHr = $dbPrompts[$filename]['prompt_hr'] ?? '';
+                $promptEn = $dbPrompts[$filename]['prompt_en'] ?? '';
+            } else {
+                $txtFile = str_replace('.png', '.txt', $file);
+                if (file_exists($txtFile)) {
+                    $promptEn = file_get_contents($txtFile);
+                }
+            }
 
             $images[] = [
                 'filename' => $filename,
                 'url' => 'uploads/' . $filename,
                 'date' => date('d.m.Y H:i', filemtime($file)),
                 'size' => round(filesize($file) / 1024) . ' KB',
-                'prompt' => $prompt
+                'prompt_hr' => $promptHr,
+                'prompt_en' => $promptEn
             ];
         }
     }
@@ -648,8 +672,11 @@ include 'includes/header.php';
                 <a href="<?= e($img['url']) ?>" target="_blank">
                     <img src="<?= e($img['url']) ?>" alt="AI slika" loading="lazy">
                 </a>
-                <?php if ($img['prompt']): ?>
-                <div class="ai-image-prompt"><?= e($img['prompt']) ?></div>
+                <?php if ($img['prompt_hr']): ?>
+                <div class="ai-image-prompt"><?= e($img['prompt_hr']) ?></div>
+                <?php endif; ?>
+                <?php if ($img['prompt_en']): ?>
+                <div class="ai-image-prompt" style="font-size:0.75rem;color:var(--gray-500);margin-top:2px;">EN: <?= e($img['prompt_en']) ?></div>
                 <?php endif; ?>
                 <div class="ai-image-info">
                     <span class="ai-image-date"><?= e($img['date']) ?></span>
