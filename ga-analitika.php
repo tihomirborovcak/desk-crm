@@ -616,8 +616,9 @@ if ($compareData && isset($compareData['rows'][0])) {
 $realtimeUsers = 0;
 $realtimePages = [];
 if ($realtimeData && isset($realtimeData['rows'])) {
+    // Ukupno korisnika iz totals (uključuje SVE, ne samo limit)
+    $realtimeUsers = (int)($realtimeData['totals'][0]['metricValues'][0]['value'] ?? 0);
     foreach ($realtimeData['rows'] as $row) {
-        $realtimeUsers += (int)($row['metricValues'][0]['value'] ?? 0);
         $realtimePages[] = [
             'page' => $row['dimensionValues'][0]['value'] ?? '',
             'users' => (int)($row['metricValues'][0]['value'] ?? 0)

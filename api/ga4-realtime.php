@@ -82,7 +82,7 @@ curl_setopt_array($ch, [
     CURLOPT_POSTFIELDS => json_encode([
         'dimensions' => [['name' => 'unifiedScreenName']],
         'metrics' => [['name' => 'activeUsers']],
-        'limit' => 10
+        'limit' => 15
     ])
 ]);
 
@@ -97,11 +97,12 @@ if ($httpCode !== 200 || !isset($data['rows'])) {
     exit;
 }
 
-$totalUsers = 0;
+// Ukupno korisnika iz totals (uključuje SVE stranice, ne samo limit)
+$totalUsers = (int)($data['totals'][0]['metricValues'][0]['value'] ?? 0);
+
 $pages = [];
 foreach ($data['rows'] as $row) {
     $users = (int)($row['metricValues'][0]['value'] ?? 0);
-    $totalUsers += $users;
     $pages[] = [
         'title' => $row['dimensionValues'][0]['value'] ?? '',
         'users' => $users
