@@ -182,6 +182,47 @@ $stmt = $db->prepare("
 $stmt->execute([$userId]);
 $myEvents = $stmt->fetchAll();
 
+// Moja dežurstva (nadolazeća) - iz OBJE tablice
+$myShifts = [];
+
+// 1. Iz events tablice (event_type='dezurstvo')
+$stmt = $db->prepare("
+    SELECT e.id, e.title, e.event_date, e.event_time, e.end_time, 'event' as source
+    FROM events e
+    JOIN event_assignments ea ON e.id = ea.event_id
+    WHERE ea.user_id = ? AND e.event_date >= CURDATE() AND e.event_type = 'dezurstvo'
+    ORDER BY e.event_date, e.event_time
+");
+$stmt->execute([$userId]);
+$myShifts = array_merge($myShifts, $stmt->fetchAll());
+
+// 2. Iz shifts tablice
+try {
+    $stmt = $db->prepare("
+        SELECT s.id,
+               CASE s.shift_type
+                   WHEN 'morning' THEN '☀️ Jutarnja smjena'
+                   WHEN 'afternoon' THEN '🌤️ Popodnevna smjena'
+                   WHEN 'full' THEN '🌙 Večernja smjena'
+               END as title,
+               s.shift_date as event_date,
+               NULL as event_time,
+               NULL as end_time,
+               'shift' as source
+        FROM shifts s
+        WHERE s.user_id = ? AND s.shift_date >= CURDATE()
+        ORDER BY s.shift_date
+    ");
+    $stmt->execute([$userId]);
+    $myShifts = array_merge($myShifts, $stmt->fetchAll());
+} catch (PDOException $e) {
+    // shifts tablica možda ne postoji
+}
+
+// Sortiraj po datumu
+usort($myShifts, fn($a, $b) => $a['event_date'] <=> $b['event_date']);
+$myShifts = array_slice($myShifts, 0, 10);
+
 // Danas na dežurstvu - iz OBJE tablice (events i shifts)
 $todayShifts = [];
 
@@ -402,6 +443,32 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
             <?php endif; ?>
         </div>
     </div>
+
+    <!-- Moja dežurstva -->
+    <?php if (!empty($myShifts)): ?>
+    <div class="card" style="border-left: 4px solid #f59e0b;">
+        <div class="card-header" style="background: #fef3c7;">
+            <h2 class="card-title">🕐 Moja dežurstva</h2>
+            <a href="events.php" class="btn btn-sm btn-outline">Kalendar</a>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <div class="list-items">
+                <?php foreach ($myShifts as $shift):
+                    $shiftDayName = $daysHr[date('l', strtotime($shift['event_date']))];
+                ?>
+                <a href="event-edit.php?id=<?= $shift['id'] ?>" class="list-item" style="padding: 1rem;">
+                    <div class="list-item-content">
+                        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem;">
+                            <?= $shiftDayName ?>, <?= date('j.n.Y.', strtotime($shift['event_date'])) ?>
+                        </div>
+                        <div class="list-item-title" style="font-size: 1rem; color: #666;"><?= e($shift['title']) ?></div>
+                    </div>
+                </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Moji eventi -->
     <div class="card">
