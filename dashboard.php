@@ -362,6 +362,22 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
 </div>
 
 
+<!-- GA4 Real-time -->
+<div class="card" style="border-left: 4px solid #ea4335;">
+    <div class="card-header" style="background: #fef2f2;">
+        <h2 class="card-title" style="display:flex;align-items:center;gap:0.5rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea4335" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span id="ga4Title">Zagorje.com - uživo</span>
+        </h2>
+        <a href="ga-analitika.php" class="btn btn-sm btn-outline">GA4</a>
+    </div>
+    <div class="card-body" id="ga4RealtimeBody">
+        <div style="text-align:center;padding:1rem;color:var(--gray-500);">
+            <span class="spinner" style="width:20px;height:20px;border-width:2px;margin-right:8px;"></span> Učitavam...
+        </div>
+    </div>
+</div>
+
 <!-- Taskovi za sve -->
 <?php if (!empty($tasksForAll)): ?>
 <div class="card">
@@ -850,5 +866,48 @@ if ($shiftsCompact['morning'] || $shiftsCompact['afternoon'] || $shiftsCompact['
 .user-rikard { background: #fed7aa !important; }
 .user-sabina { background: #dbeafe !important; }
 </style>
+
+<script>
+function loadGA4Realtime() {
+    fetch('api/ga4-realtime.php')
+        .then(r => r.json())
+        .then(data => {
+            const body = document.getElementById('ga4RealtimeBody');
+            if (!data.success) {
+                body.innerHTML = '<div style="padding:0.5rem;color:var(--gray-500);font-size:0.85rem;">Nije moguće učitati podatke</div>';
+                return;
+            }
+            let html = '<div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;">';
+            html += '<div style="font-size:2.2rem;font-weight:700;color:#ea4335;">' + data.totalUsers.toLocaleString('hr') + '</div>';
+            html += '<div style="font-size:0.9rem;color:var(--gray-600);">aktivnih korisnika upravo sada</div>';
+            html += '</div>';
+            if (data.pages && data.pages.length > 0) {
+                html += '<div style="font-size:0.8rem;font-weight:600;color:var(--gray-500);margin-bottom:0.4rem;">Trenutno čitaju:</div>';
+                html += '<div style="font-size:0.82rem;">';
+                data.pages.forEach(function(p) {
+                    html += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--gray-100);">';
+                    html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:0.5rem;">' + escHtml(p.title) + '</span>';
+                    html += '<span style="font-weight:600;color:#ea4335;white-space:nowrap;">(' + p.users + ')</span>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+            body.innerHTML = html;
+            document.getElementById('ga4Title').innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea4335" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Zagorje.com - ' + data.totalUsers.toLocaleString('hr') + ' uživo';
+        })
+        .catch(function() {
+            document.getElementById('ga4RealtimeBody').innerHTML = '<div style="padding:0.5rem;color:var(--gray-500);font-size:0.85rem;">Greška pri učitavanju</div>';
+        });
+}
+
+function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+loadGA4Realtime();
+setInterval(loadGA4Realtime, 30000);
+</script>
 
 <?php include 'includes/footer.php'; ?>
