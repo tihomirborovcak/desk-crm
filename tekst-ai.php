@@ -776,7 +776,8 @@ Npr:
 
             <div class="form-group">
                 <label class="form-label">Originalni tekst *</label>
-                <textarea name="original_text" class="form-control" rows="8" placeholder="Zalijepite tekst koji želite preraditi..."><?= e($originalText) ?></textarea>
+                <textarea name="original_text" class="form-control" rows="8" placeholder="Zalijepite tekst koji želite preraditi..." id="originalTextArea"><?= e($originalText) ?></textarea>
+                <small class="form-text" id="originalTextCount"><?php if ($originalText): $oc = mb_strlen($originalText); $ow = str_word_count($originalText, 0, 'čćžšđČĆŽŠĐ'); ?>Znakova: <?= number_format($oc, 0, ',', '.') ?> | Riječi: <?= number_format($ow, 0, ',', '.') ?><?php endif; ?></small>
             </div>
 
             <div class="form-group">
@@ -1071,6 +1072,21 @@ if (!empty($savedRewrites)):
 </style>
 
 <script>
+// Brojač znakova i riječi za originalni tekst
+const origArea = document.getElementById('originalTextArea');
+const origCount = document.getElementById('originalTextCount');
+if (origArea && origCount) {
+    function updateOrigCount() {
+        const t = origArea.value;
+        if (t.trim() === '') { origCount.textContent = ''; return; }
+        const chars = t.length;
+        const words = t.trim().split(/\s+/).length;
+        origCount.textContent = 'Znakova: ' + chars.toLocaleString('hr') + ' | Riječi: ' + words.toLocaleString('hr');
+    }
+    origArea.addEventListener('input', updateOrigCount);
+    origArea.addEventListener('paste', function() { setTimeout(updateOrigCount, 0); });
+}
+
 // Loading state za prerada formu
 document.getElementById('textForm')?.addEventListener('submit', function() {
     const btn = document.getElementById('submitBtn');
