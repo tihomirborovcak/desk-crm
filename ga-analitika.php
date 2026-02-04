@@ -272,6 +272,7 @@ $error = null;
 $reportData = null;
 $compareData = null;
 $realtimeData = null;
+$mobileBrands = null;
 
 if (!empty(GA4_PROPERTY_ID)) {
     switch ($reportType) {
@@ -394,6 +395,9 @@ if (!empty(GA4_PROPERTY_ID)) {
             $reportData = getGA4Report($startDate, $endDate,
                 ['deviceCategory'],
                 ['screenPageViews', 'totalUsers', 'sessions'], 10);
+            $mobileBrands = getGA4Report($startDate, $endDate,
+                ['mobileDeviceBranding'],
+                ['totalUsers', 'sessions'], 20);
             break;
 
         case 'landing':
@@ -1385,6 +1389,58 @@ foreach ($reportData['rows'] as $row) {
         </div>
     </div>
 </div>
+
+<?php if (!empty($mobileBrands) && isset($mobileBrands['rows'])): ?>
+<?php
+$brandIcons = ['apple' => '', 'samsung' => '', 'xiaomi' => '', 'huawei' => '', 'motorola' => '', 'oneplus' => '', 'google' => '', 'oppo' => '', 'vivo' => '', 'realme' => '', 'nokia' => '', 'sony' => '', 'lg' => '', 'lenovo' => ''];
+$brandRows = [];
+$totalBrandUsers = 0;
+foreach ($mobileBrands['rows'] as $row) {
+    $brand = $row['dimensionValues'][0]['value'] ?? '(nepoznato)';
+    if (strtolower($brand) === '(not set)') continue;
+    $users = (int)($row['metricValues'][0]['value'] ?? 0);
+    $sessions = (int)($row['metricValues'][1]['value'] ?? 0);
+    $brandRows[] = ['brand' => $brand, 'users' => $users, 'sessions' => $sessions];
+    $totalBrandUsers += $users;
+}
+?>
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📱 Tip mobitela</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table" style="font-size: 0.8rem;">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Marka</th>
+                    <th style="text-align: right;">Korisnici</th>
+                    <th style="text-align: right;">Sesije</th>
+                    <th style="text-align: right;">Udio</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($brandRows as $br):
+                    $pct = $totalBrandUsers > 0 ? round($br['users'] / $totalBrandUsers * 100, 1) : 0;
+                ?>
+                <tr>
+                    <td><strong><?= e($br['brand']) ?></strong></td>
+                    <td style="text-align: right;"><?= number_format($br['users']) ?></td>
+                    <td style="text-align: right;"><?= number_format($br['sessions']) ?></td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
+                            <div style="width: 60px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+                                <div style="width: <?= $pct ?>%; height: 100%; background: #10b981;"></div>
+                            </div>
+                            <span style="min-width: 40px; text-align: right;"><?= $pct ?>%</span>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php elseif ($reportType === 'landing' && $reportData && isset($reportData['rows'])): ?>
 <!-- LANDING PAGES -->
