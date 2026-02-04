@@ -69,43 +69,55 @@ if (isset($auth['error'])) {
 }
 
 $url = 'https://analyticsdata.googleapis.com/v1beta/properties/' . GA4_PROPERTY_ID . ':runRealtimeReport';
+$headers = [
+    'Authorization: Bearer ' . $auth['token'],
+    'Content-Type: application/json'
+];
 
+// Upit 1: ukupan broj korisnika (bez dimenzija = jedan red s totalom)
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
     CURLOPT_TIMEOUT => 15,
-    CURLOPT_HTTPHEADER => [
-        'Authorization: Bearer ' . $auth['token'],
-        'Content-Type: application/json'
-    ],
+    CURLOPT_HTTPHEADER => $headers,
+    CURLOPT_POSTFIELDS => json_encode([
+        'metrics' => [['name' => 'activeUsers']]
+    ])
+]);
+$totalResponse = curl_exec($ch);
+curl_close($ch);
+$totalData = json_decode($totalResponse, true);
+$totalUsers = (int)($totalData['rows'][0]['metricValues'][0]['value'] ?? 0);
+
+// Upit 2: top stranice
+$ch2 = curl_init($url);
+curl_setopt_array($ch2, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_TIMEOUT => 15,
+    CURLOPT_HTTPHEADER => $headers,
     CURLOPT_POSTFIELDS => json_encode([
         'dimensions' => [['name' => 'unifiedScreenName']],
         'metrics' => [['name' => 'activeUsers']],
-        'limit' => 15
+        'limit' => 10
     ])
 ]);
+$pagesResponse = curl_exec($ch2);
+$httpCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+curl_close($ch2);
+$pagesData = json_decode($pagesResponse, true);
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-$data = json_decode($response, true);
-
-if ($httpCode !== 200 || !isset($data['rows'])) {
+if ($httpCode !== 200 || !isset($pagesData['rows'])) {
     echo json_encode(['success' => false, 'error' => 'GA4 API error']);
     exit;
 }
 
-// Ukupno korisnika iz totals (uključuje SVE stranice, ne samo limit)
-$totalUsers = (int)($data['totals'][0]['metricValues'][0]['value'] ?? 0);
-
 $pages = [];
-foreach ($data['rows'] as $row) {
-    $users = (int)($row['metricValues'][0]['value'] ?? 0);
+foreach ($pagesData['rows'] as $row) {
     $pages[] = [
         'title' => $row['dimensionValues'][0]['value'] ?? '',
-        'users' => $users
+        'users' => (int)($row['metricValues'][0]['value'] ?? 0)
     ];
 }
 

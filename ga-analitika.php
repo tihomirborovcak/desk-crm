@@ -144,38 +144,49 @@ function getGA4Realtime() {
     }
 
     $url = 'https://analyticsdata.googleapis.com/v1beta/properties/' . GA4_PROPERTY_ID . ':runRealtimeReport';
-
-    $requestBody = [
-        'dimensions' => [
-            ['name' => 'unifiedScreenName']
-        ],
-        'metrics' => [
-            ['name' => 'activeUsers']
-        ],
-        'limit' => 15
+    $headers = [
+        'Authorization: Bearer ' . $auth['token'],
+        'Content-Type: application/json'
     ];
 
+    // Upit 1: ukupan broj korisnika (bez dimenzija)
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $auth['token'],
-            'Content-Type: application/json'
-        ],
-        CURLOPT_POSTFIELDS => json_encode($requestBody)
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_POSTFIELDS => json_encode([
+            'metrics' => [['name' => 'activeUsers']]
+        ])
     ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $totalResp = curl_exec($ch);
     curl_close($ch);
+    $totalData = json_decode($totalResp, true);
+    $totalActiveUsers = (int)($totalData['rows'][0]['metricValues'][0]['value'] ?? 0);
 
-    $data = json_decode($response, true);
+    // Upit 2: top stranice
+    $ch2 = curl_init($url);
+    curl_setopt_array($ch2, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_POSTFIELDS => json_encode([
+            'dimensions' => [['name' => 'unifiedScreenName']],
+            'metrics' => [['name' => 'activeUsers']],
+            'limit' => 15
+        ])
+    ]);
+    $pagesResp = curl_exec($ch2);
+    $httpCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+    curl_close($ch2);
+
+    $data = json_decode($pagesResp, true);
 
     if ($httpCode !== 200) {
         return ['error' => $data['error']['message'] ?? 'API error: ' . $httpCode];
     }
 
+    $data['totalActiveUsers'] = $totalActiveUsers;
     return $data;
 }
 
@@ -615,14 +626,15 @@ if ($compareData && isset($compareData['rows'][0])) {
 
 $realtimeUsers = 0;
 $realtimePages = [];
-if ($realtimeData && isset($realtimeData['rows'])) {
-    // Ukupno korisnika iz totals (uključuje SVE, ne samo limit)
-    $realtimeUsers = (int)($realtimeData['totals'][0]['metricValues'][0]['value'] ?? 0);
-    foreach ($realtimeData['rows'] as $row) {
-        $realtimePages[] = [
-            'page' => $row['dimensionValues'][0]['value'] ?? '',
-            'users' => (int)($row['metricValues'][0]['value'] ?? 0)
-        ];
+if ($realtimeData) {
+    $realtimeUsers = (int)($realtimeData['totalActiveUsers'] ?? 0);
+    if (isset($realtimeData['rows'])) {
+        foreach ($realtimeData['rows'] as $row) {
+            $realtimePages[] = [
+                'page' => $row['dimensionValues'][0]['value'] ?? '',
+                'users' => (int)($row['metricValues'][0]['value'] ?? 0)
+            ];
+        }
     }
 }
 ?>
