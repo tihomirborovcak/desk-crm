@@ -34,14 +34,27 @@ if (!is_dir($audioUploadDir)) {
 function getSavedTranscriptions($limit = 20) {
     try {
         $db = getDB();
-        $stmt = $db->prepare("
-            SELECT t.*, u.full_name as author_name
-            FROM transcriptions t
-            LEFT JOIN users u ON t.created_by = u.id
-            ORDER BY t.created_at DESC
-            LIMIT ?
-        ");
-        $stmt->execute([$limit]);
+        // Admin vidi sve, ostali samo one koje nisu admin_only
+        if (isAdmin()) {
+            $stmt = $db->prepare("
+                SELECT t.*, u.full_name as author_name
+                FROM transcriptions t
+                LEFT JOIN users u ON t.created_by = u.id
+                ORDER BY t.created_at DESC
+                LIMIT ?
+            ");
+            $stmt->execute([$limit]);
+        } else {
+            $stmt = $db->prepare("
+                SELECT t.*, u.full_name as author_name
+                FROM transcriptions t
+                LEFT JOIN users u ON t.created_by = u.id
+                WHERE t.admin_only = 0
+                ORDER BY t.created_at DESC
+                LIMIT ?
+            ");
+            $stmt->execute([$limit]);
+        }
         return $stmt->fetchAll();
     } catch (PDOException $e) {
         // Tablica ne postoji
@@ -50,16 +63,23 @@ function getSavedTranscriptions($limit = 20) {
 }
 
 // Spremi transkripciju
-function saveTranscription($title, $transcript, $article, $audioFilename, $audioPath = null) {
+function saveTranscription($title, $transcript, $article, $audioFilename, $audioPath = null, $adminOnly = 0) {
     $db = getDB();
 
     $stmt = $db->prepare("
-        INSERT INTO transcriptions (title, transcript, article, audio_filename, audio_path, created_by)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO transcriptions (title, transcript, article, audio_filename, audio_path, admin_only, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$title, $transcript, $article, $audioFilename, $audioPath, $_SESSION['user_id']]);
+    $stmt->execute([$title, $transcript, $article, $audioFilename, $audioPath, $adminOnly, $_SESSION['user_id']]);
 
     return $db->lastInsertId();
+}
+
+// Ažuriraj transkripciju - postavi vidljivu za sve
+function updateTranscriptionVisibility($id, $title) {
+    $db = getDB();
+    $stmt = $db->prepare("UPDATE transcriptions SET title = ?, admin_only = 0 WHERE id = ?");
+    $stmt->execute([$title, $id]);
 }
 
 // Obrada spremanja
@@ -69,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $articleToSave = base64_decode($_POST['article_b64'] ?? '');
     $audioFile = $_POST['audio_filename'] ?? '';
     $audioPath = $_POST['audio_path'] ?? '';
+    $existingId = (int)($_POST['auto_saved_id'] ?? 0);
 
     if (empty($title)) {
         $error = 'Unesite naslov za spremanje';
@@ -79,7 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $transcription = $transcriptToSave;
         $article = $articleToSave;
     } else {
-        $newId = saveTranscription($title, $transcriptToSave, $articleToSave, $audioFile, $audioPath);
+        if ($existingId > 0) {
+            // Ažuriraj postojeći auto-spremljeni zapis - učini ga vidljivim svima
+            updateTranscriptionVisibility($existingId, $title);
+        } else {
+            // Nema auto-spremljenog, spremi kao novo (vidljivo svima)
+            saveTranscription($title, $transcriptToSave, $articleToSave, $audioFile, $audioPath, 0);
+        }
         $success = 'Transkripcija spremljena!';
         logActivity('transcription_save', 'ai', null);
     }
@@ -426,6 +453,7 @@ VAŽNO ZA FORMATIRANJE:
 }
 
 // Obrada - napravi članak
+$autoSavedId = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'article' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $rawText = $_POST['raw_text'] ?? '';
     $audioFileName = $_POST['audio_filename'] ?? '';
@@ -439,6 +467,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         } else {
             $article = $result['text'];
             $transcription = $rawText;
+
+            // Automatski spremi za admina (admin_only = 1)
+            $autoTitle = 'Auto: ' . date('d.m.Y H:i') . ' - ' . mb_substr($audioFileName, 0, 50);
+            $autoSavedId = saveTranscription($autoTitle, $rawText, $article, $audioFileName, $audioTempPath, 1);
         }
     }
 }
@@ -463,9 +495,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action']) && verifyC
             $fileSize = $files['size'][$i];
             $tmpName = $files['tmp_name'][$i];
 
-            // Max 20MB za Gemini inline audio
-            if ($fileSize > 20 * 1024 * 1024) {
-                $errors[] = "$fileName: prevelika (max 20MB)";
+            // Max 100MB za Gemini inline audio
+            if ($fileSize > 100 * 1024 * 1024) {
+                $errors[] = "$fileName: prevelika (max 100MB)";
                 continue;
             }
 
@@ -527,7 +559,7 @@ include 'includes/header.php';
             <div class="form-group">
                 <label class="form-label">Audio datoteke *</label>
                 <input type="file" name="audio[]" class="form-control" accept=".mp3,.mp4,.m4a,.wav,.webm,.mpeg,.mpga,.ogg,.flac,.aac" multiple required>
-                <small class="form-text">Dozvoljeni formati: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC, AAC (max 20MB po datoteci)</small>
+                <small class="form-text">Dozvoljeni formati: MP3, MP4, M4A, WAV, WEBM, OGG, FLAC, AAC (max 100MB po datoteci)</small>
             </div>
 
             <div class="form-group">
@@ -672,6 +704,7 @@ include 'includes/header.php';
             <input type="hidden" name="article_b64" value="<?= base64_encode($articleClean ?? '') ?>">
             <input type="hidden" name="audio_filename" value="<?= e($audioFileName ?? '') ?>">
             <input type="hidden" name="audio_path" value="<?= e($audioTempPath ?? '') ?>">
+            <input type="hidden" name="auto_saved_id" value="<?= (int)($autoSavedId ?? 0) ?>">
 
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label class="form-label">Naslov *</label>
@@ -715,6 +748,9 @@ if (!empty($savedTranscriptions)):
                 <tr>
                     <td>
                         <strong><?= e($saved['title']) ?></strong>
+                        <?php if (!empty($saved['admin_only'])): ?>
+                        <span style="background: #dc3545; color: white; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 8px;">Samo admin</span>
+                        <?php endif; ?>
                         <?php if ($saved['audio_filename']): ?>
                         <br><small class="text-muted"><?= e($saved['audio_filename']) ?></small>
                         <?php endif; ?>
