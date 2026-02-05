@@ -20,6 +20,35 @@ $articleTitle = '';
 $articleUrl = $_GET['url'] ?? '';
 $autoFetch = !empty($articleUrl);
 
+// Funkcija za detekciju reklamnog teksta
+function isAdText($text) {
+    $text = mb_strtolower($text);
+    $adPatterns = [
+        'sponzorirani sadržaj', 'sponsored', 'oglašavanje', 'reklama',
+        'klikni ovdje', 'click here', 'saznaj više', 'learn more',
+        'prijavite se', 'subscribe', 'pretplatite se', 'newsletter',
+        'popust', 'discount', 'akcija', 'special offer', 'promo kod',
+        'kupi sada', 'buy now', 'naruči', 'order now', 'shop now',
+        'besplatna dostava', 'free shipping', 'gratis',
+        'cookies', 'kolačići', 'privatnost', 'privacy policy',
+        'prihvaćam', 'i accept', 'slažem se', 'i agree',
+        'pratite nas', 'follow us', 'like us', 'share this',
+        'pročitajte još', 'read more', 'related articles', 'povezani članci',
+        'advertisement', 'advert', 'ad break',
+        'copyright ©', 'sva prava pridržana', 'all rights reserved'
+    ];
+    foreach ($adPatterns as $pattern) {
+        if (mb_strpos($text, $pattern) !== false) {
+            return true;
+        }
+    }
+    // Ako paragraf ima previše linkova/poziva na akciju
+    if (preg_match_all('/https?:\/\/|www\.|\.hr|\.com|\.net/i', $text) > 2) {
+        return true;
+    }
+    return false;
+}
+
 // Funkcija za dohvat HTML-a
 function fetchHtml($url) {
     $ctx = stream_context_create([
@@ -57,14 +86,27 @@ function extractArticleContent($html, $url) {
         }
     }
 
-    // Ukloni nepotrebne elemente
+    // Ukloni nepotrebne elemente (reklame, navigacija, itd.)
     $removeSelectors = [
         '//script', '//style', '//nav', '//header', '//footer',
-        '//aside', '//form', '//*[contains(@class, "comment")]',
+        '//aside', '//form', '//iframe', '//noscript',
+        '//*[contains(@class, "comment")]',
         '//*[contains(@class, "share")]', '//*[contains(@class, "social")]',
         '//*[contains(@class, "related")]', '//*[contains(@class, "sidebar")]',
         '//*[contains(@class, "advertisement")]', '//*[contains(@class, "ad-")]',
-        '//*[contains(@class, "newsletter")]', '//*[contains(@class, "subscription")]'
+        '//*[contains(@class, "advert")]', '//*[contains(@class, "ads")]',
+        '//*[contains(@class, "banner")]', '//*[contains(@class, "promo")]',
+        '//*[contains(@class, "sponsor")]', '//*[contains(@class, "commercial")]',
+        '//*[contains(@class, "newsletter")]', '//*[contains(@class, "subscription")]',
+        '//*[contains(@class, "widget")]', '//*[contains(@class, "popup")]',
+        '//*[contains(@class, "modal")]', '//*[contains(@class, "cookie")]',
+        '//*[contains(@class, "gdpr")]', '//*[contains(@class, "consent")]',
+        '//*[contains(@id, "ad")]', '//*[contains(@id, "banner")]',
+        '//*[contains(@id, "sponsor")]', '//*[contains(@id, "promo")]',
+        '//*[@data-ad]', '//*[@data-advertisement]',
+        '//ins[contains(@class, "adsbygoogle")]',
+        '//*[contains(@class, "google-auto-placed")]',
+        '//*[contains(@class, "wp-block-embed")]'
     ];
 
     foreach ($removeSelectors as $selector) {
@@ -98,7 +140,7 @@ function extractArticleContent($html, $url) {
             $pNodes = $xpath->query(".//p", $nodes->item(0));
             foreach ($pNodes as $p) {
                 $text = trim($p->textContent);
-                if (strlen($text) > 30) { // Ignoriraj kratke paragrafe
+                if (strlen($text) > 30 && !isAdText($text)) {
                     $paragraphs[] = $text;
                 }
             }
@@ -115,7 +157,7 @@ function extractArticleContent($html, $url) {
         $pNodes = $xpath->query("//p");
         foreach ($pNodes as $p) {
             $text = trim($p->textContent);
-            if (strlen($text) > 50) {
+            if (strlen($text) > 50 && !isAdText($text)) {
                 $paragraphs[] = $text;
             }
         }
