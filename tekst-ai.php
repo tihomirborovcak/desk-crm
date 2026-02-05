@@ -918,6 +918,8 @@ Npr:
 <?php endif; ?>
 
 <?php
+// Spremljene prerade vide samo admin i urednik
+if (isAdmin() || isEditor()):
 $savedRewrites = getSavedRewrites(15);
 if (!empty($savedRewrites)):
 ?>
@@ -962,7 +964,8 @@ if (!empty($savedRewrites)):
         </table>
     </div>
 </div>
-<?php endif; ?>
+<?php endif; // savedRewrites ?>
+<?php endif; // isAdmin || isEditor ?>
 
 <!-- Primjeri uputa -->
 <div class="card mt-2">
