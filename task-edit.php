@@ -24,13 +24,19 @@ if ($id) {
     $stmt = $db->prepare("SELECT * FROM tasks WHERE id = ?");
     $stmt->execute([$id]);
     $task = $stmt->fetch();
-    
+
     if (!$task) {
         redirectWith('tasks.php', 'danger', 'Task nije pronađen');
     }
-    
+
+    // Dohvati assignee-e za ovaj task
+    $stmt = $db->prepare("SELECT user_id FROM task_assignees WHERE task_id = ?");
+    $stmt->execute([$id]);
+    $taskAssignees = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
     define('PAGE_TITLE', 'Uredi task');
 } else {
+    $taskAssignees = [$userId]; // Kreator je automatski assignee
     define('PAGE_TITLE', 'Novi task');
 }
 
@@ -42,11 +48,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $title = trim($_POST['title'] ?? '');
     $description = trim($_POST['description'] ?? '');
-    $assignedTo = intval($_POST['assigned_to'] ?? 0) ?: null;
+    $assignees = $_POST['assignees'] ?? [];
     $priority = $_POST['priority'] ?? 'normal';
     $status = $_POST['status'] ?? 'pending';
     $dueDate = $_POST['due_date'] ?? null;
     $dueTime = $_POST['due_time'] ?? null;
+
+    // Kreator mora uvijek biti među assignee-ima
+    if (!in_array($userId, $assignees)) {
+        $assignees[] = $userId;
+    }
     
     $errors = [];
     
@@ -56,30 +67,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (empty($errors)) {
         try {
+            $db->beginTransaction();
+
             if ($id) {
                 $stmt = $db->prepare("
-                    UPDATE tasks SET 
-                        title = ?, description = ?, assigned_to = ?, 
+                    UPDATE tasks SET
+                        title = ?, description = ?,
                         priority = ?, status = ?, due_date = ?, due_time = ?,
                         completed_at = CASE WHEN ? = 'done' AND status != 'done' THEN NOW() ELSE completed_at END
                     WHERE id = ?
                 ");
-                $stmt->execute([$title, $description, $assignedTo, $priority, $status, $dueDate ?: null, $dueTime ?: null, $status, $id]);
-                
+                $stmt->execute([$title, $description, $priority, $status, $dueDate ?: null, $dueTime ?: null, $status, $id]);
+
+                // Ažuriraj assignee-e
+                $db->prepare("DELETE FROM task_assignees WHERE task_id = ?")->execute([$id]);
+                $insertStmt = $db->prepare("INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)");
+                foreach ($assignees as $uid) {
+                    $insertStmt->execute([$id, $uid]);
+                }
+
+                $db->commit();
                 logActivity('task_update', 'task', $id);
                 redirectWith("task-edit.php?id=$id", 'success', 'Task je spremljen');
             } else {
                 $stmt = $db->prepare("
-                    INSERT INTO tasks (title, description, assigned_to, created_by, priority, status, due_date, due_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tasks (title, description, created_by, priority, status, due_date, due_time)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$title, $description, $assignedTo, $userId, $priority, $status, $dueDate ?: null, $dueTime ?: null]);
-                
+                $stmt->execute([$title, $description, $userId, $priority, $status, $dueDate ?: null, $dueTime ?: null]);
+
                 $newId = $db->lastInsertId();
+
+                // Dodaj assignee-e
+                $insertStmt = $db->prepare("INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)");
+                foreach ($assignees as $uid) {
+                    $insertStmt->execute([$newId, $uid]);
+                }
+
+                $db->commit();
                 logActivity('task_create', 'task', $newId);
                 redirectWith('tasks.php', 'success', 'Task je kreiran');
             }
         } catch (Exception $e) {
+            $db->rollBack();
             $errors[] = 'Greška: ' . $e->getMessage();
         }
     }
@@ -154,15 +184,25 @@ include 'includes/header.php';
             </div>
             
             <div class="form-group">
-                <label class="form-label" for="assigned_to">Dodijeljeno</label>
-                <select id="assigned_to" name="assigned_to" class="form-control">
-                    <option value="">Svi</option>
-                    <?php foreach ($users as $u): ?>
-                    <option value="<?= $u['id'] ?>" <?= ($task['assigned_to'] ?? '') == $u['id'] ? 'selected' : '' ?>>
-                        <?= e($u['full_name']) ?> (<?= translateRole($u['role']) ?>)
-                    </option>
+                <label class="form-label">Dodijeljeno</label>
+                <div class="assignees-checkboxes" style="display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0.5rem; background: var(--gray-50); border-radius: var(--radius);">
+                    <?php foreach ($users as $u):
+                        $isCreator = ($task['created_by'] ?? $userId) == $u['id'];
+                        $isChecked = in_array($u['id'], $taskAssignees);
+                    ?>
+                    <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; <?= $isCreator ? 'font-weight: 600;' : '' ?>">
+                        <input type="checkbox" name="assignees[]" value="<?= $u['id'] ?>"
+                               <?= $isChecked ? 'checked' : '' ?>
+                               <?= $isCreator ? 'checked disabled' : '' ?>>
+                        <?= e($u['full_name']) ?>
+                        <?php if ($isCreator): ?>
+                        <span style="font-size: 0.7rem; color: var(--gray-500);">(kreator)</span>
+                        <input type="hidden" name="assignees[]" value="<?= $u['id'] ?>">
+                        <?php endif; ?>
+                    </label>
                     <?php endforeach; ?>
-                </select>
+                </div>
+                <small class="text-muted">Kreator taska je uvijek uključen</small>
             </div>
             
             <div class="form-group">

@@ -37,7 +37,7 @@ if ($status) {
 }
 
 if ($assigned) {
-    $where[] = "t.assigned_to = ?";
+    $where[] = "t.id IN (SELECT task_id FROM task_assignees WHERE user_id = ?)";
     $params[] = $assigned;
 }
 
@@ -57,14 +57,12 @@ $totalPages = ceil($total / $perPage);
 // Dohvati taskove
 $offset = ($page - 1) * $perPage;
 $sql = "
-    SELECT t.*, 
-           ua.full_name as assigned_name,
+    SELECT t.*,
            uc.full_name as creator_name
-    FROM tasks t 
-    LEFT JOIN users ua ON t.assigned_to = ua.id 
+    FROM tasks t
     LEFT JOIN users uc ON t.created_by = uc.id
     $whereClause
-    ORDER BY 
+    ORDER BY
         CASE t.status WHEN 'in_progress' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END,
         CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
         t.due_date ASC,
@@ -74,6 +72,24 @@ $sql = "
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $tasks = $stmt->fetchAll();
+
+// Dohvati assignee-e za sve taskove
+$taskIds = array_column($tasks, 'id');
+$taskAssigneesMap = [];
+if ($taskIds) {
+    $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+    $stmt = $db->prepare("
+        SELECT ta.task_id, u.full_name
+        FROM task_assignees ta
+        JOIN users u ON ta.user_id = u.id
+        WHERE ta.task_id IN ($placeholders)
+        ORDER BY u.full_name
+    ");
+    $stmt->execute($taskIds);
+    foreach ($stmt->fetchAll() as $row) {
+        $taskAssigneesMap[$row['task_id']][] = $row['full_name'];
+    }
+}
 
 $users = getUsers();
 
@@ -180,9 +196,11 @@ include 'includes/header.php';
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                     <circle cx="12" cy="7" r="4"/>
                 </svg>
-                <?php if ($task['assigned_name']): ?>
-                <?= e($task['assigned_name']) ?>
-                <?php else: ?>
+                <?php
+                $assignees = $taskAssigneesMap[$task['id']] ?? [];
+                if (count($assignees) > 0):
+                    echo e(implode(', ', $assignees));
+                else: ?>
                 <span class="badge badge-info">Svi</span>
                 <?php endif; ?>
             </span>
