@@ -42,8 +42,9 @@ function isAdText($text) {
             return true;
         }
     }
-    // Ako paragraf ima previše linkova/poziva na akciju
-    if (preg_match_all('/https?:\/\/|www\.|\.hr|\.com|\.net/i', $text) > 2) {
+    // Ako paragraf ima previše URL-ova (više od 3) i kratak je - vjerojatno je footer/linkovi
+    $urlCount = preg_match_all('/https?:\/\/[^\s]+/i', $text);
+    if ($urlCount > 3 && mb_strlen($text) < 200) {
         return true;
     }
     return false;
@@ -118,14 +119,26 @@ function extractArticleContent($html, $url) {
 
     // Pokušaj pronaći glavni sadržaj članka
     $contentSelectors = [
+        // 24sata.hr - specifični selektor (article__content BEZ _block/_container/_wrap)
+        "//*[contains(@class, 'article__content') and contains(@class, 'article_content_container')]",
+        "//*[@class='article__content']",
+        // Index.hr
+        "//*[contains(@class, 'txt')]",
+        // Jutarnji/Vecernji
         "//*[contains(@class, 'article-body')]",
         "//*[contains(@class, 'article-content')]",
         "//*[contains(@class, 'article__body')]",
+        // Net.hr, Tportal
         "//*[contains(@class, 'story-body')]",
+        "//*[contains(@class, 'story__body')]",
+        // WordPress
         "//*[contains(@class, 'post-content')]",
         "//*[contains(@class, 'entry-content')]",
+        // Generički
         "//*[contains(@class, 'content-body')]",
         "//*[contains(@class, 'text-body')]",
+        "//*[contains(@class, 'news-body')]",
+        "//*[contains(@class, 'news__body')]",
         "//article",
         "//*[@itemprop='articleBody']",
         "//main",
