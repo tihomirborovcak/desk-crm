@@ -187,7 +187,7 @@ include 'includes/header.php';
         </div>
         
         <?php if ($task['description']): ?>
-        <p class="text-sm text-muted" style="margin: 0.5rem 0;"><?= e(truncate($task['description'], 100)) ?></p>
+        <p class="text-sm text-muted" style="margin: 0.5rem 0; white-space: pre-wrap;"><?= e($task['description']) ?></p>
         <?php endif; ?>
         
         <div class="mobile-card-meta">
