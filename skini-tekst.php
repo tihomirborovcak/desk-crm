@@ -177,6 +177,10 @@ function extractArticleContent($html, $url) {
         $content = implode("\n\n", $paragraphs);
     }
 
+    // Dekodiraj HTML entitete (npr. &Zcaron; -> Ž, &cacute; -> ć)
+    $title = html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
     return [
         'title' => $title,
         'content' => $content
