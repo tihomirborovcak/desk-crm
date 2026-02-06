@@ -163,70 +163,58 @@ include 'includes/header.php';
     </div>
 </div>
 
-<!-- Mobilna lista događaja -->
+<!-- Mobilna lista događaja - dan ispod dana -->
 <div class="mobile-events-list mt-2">
-    <?php if (empty($events)): ?>
-    <div class="card">
-        <div class="card-body text-center text-muted">
-            Nema događaja za ovaj mjesec
-        </div>
-    </div>
-    <?php else: ?>
     <?php
-    $currentDate = '';
-    foreach ($events as $evt):
-        $evtDate = $evt['event_date'];
-        if ($evtDate !== $currentDate):
-            $currentDate = $evtDate;
-            $dayShifts = $shiftsByDate[$evtDate] ?? null;
+    // Hrvatski nazivi dana
+    $daysHrFullMobile = [
+        'Monday' => 'Pon', 'Tuesday' => 'Uto', 'Wednesday' => 'Sri',
+        'Thursday' => 'Čet', 'Friday' => 'Pet', 'Saturday' => 'Sub', 'Sunday' => 'Ned'
+    ];
+
+    // Iteriraj kroz sve dane u mjesecu
+    for ($day = 1; $day <= $daysInMonth; $day++):
+        $date = $month . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
+        $dayName = $daysHrFullMobile[date('l', strtotime($date))] ?? '';
+        $isToday = $date === $today;
+        $isWeekend = (date('N', strtotime($date)) >= 6);
+        $dayShifts = $shiftsByDate[$date] ?? ['morning' => null, 'afternoon' => null, 'full' => null];
+        $dayEvents = $eventsByDate[$date] ?? [];
+
+        // Filtriraj događaje (bez dežurstava iz events tablice)
+        $regularEvents = array_filter($dayEvents, function($e) {
+            return $e['event_type'] !== 'dezurstvo';
+        });
     ?>
-    <div class="mobile-day-header">
-        <span class="mobile-day-date"><?= date('l, j.n.', strtotime($evtDate)) ?></span>
-        <?php if ($dayShifts && ($dayShifts['morning'] || $dayShifts['afternoon'] || $dayShifts['full'])): ?>
-        <span class="mobile-shifts">
-            <?php if ($dayShifts['morning']): ?>J-<?= e($dayShifts['morning']) ?> <?php endif; ?>
-            <?php if ($dayShifts['afternoon']): ?>P-<?= e($dayShifts['afternoon']) ?> <?php endif; ?>
-            <?php if ($dayShifts['full']): ?>C-<?= e($dayShifts['full']) ?><?php endif; ?>
-        </span>
+    <div class="mobile-day-card <?= $isToday ? 'today' : '' ?> <?= $isWeekend ? 'weekend' : '' ?>">
+        <div class="mobile-day-header-row">
+            <div class="mobile-day-info">
+                <span class="mobile-day-num"><?= $day ?></span>
+                <span class="mobile-day-name"><?= $dayName ?></span>
+            </div>
+            <div class="mobile-day-shifts">
+                <div class="mobile-shift"><span class="shift-lbl">J:</span> <?= $dayShifts['morning'] ? e($dayShifts['morning']) : '—' ?></div>
+                <div class="mobile-shift"><span class="shift-lbl">P:</span> <?= $dayShifts['afternoon'] ? e($dayShifts['afternoon']) : '—' ?></div>
+                <div class="mobile-shift"><span class="shift-lbl">V:</span> <?= $dayShifts['full'] ? e($dayShifts['full']) : '—' ?></div>
+            </div>
+        </div>
+        <?php if (!empty($regularEvents)): ?>
+        <div class="mobile-day-events">
+            <?php foreach ($regularEvents as $evt): ?>
+            <a href="event-edit.php?id=<?= $evt['id'] ?>" class="mobile-evt type-<?= $evt['event_type'] ?> <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?>">
+                <?php if ($evt['event_time']): ?><span class="evt-time"><?= date('H:i', strtotime($evt['event_time'])) ?></span><?php endif; ?>
+                <span class="evt-title"><?= e($evt['title']) ?></span>
+                <?php if ($evt['assigned_people'] && empty($evt['skip_coverage'])): ?>
+                <span class="evt-who"><?= e($evt['assigned_people']) ?></span>
+                <?php elseif (empty($evt['skip_coverage']) && !$evt['assigned_count']): ?>
+                <span class="evt-warn">!</span>
+                <?php endif; ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
         <?php endif; ?>
     </div>
-    <?php endif; ?>
-
-    <?php if ($evt['event_type'] === 'dezurstvo') continue; // Dežurstva su prikazana kompaktno u headeru ?>
-
-    <div class="mobile-event-card type-<?= $evt['event_type'] ?> <?= !empty($evt['skip_coverage']) ? 'skipped' : '' ?> <?= getUserColorClass($evt['assigned_people'] ?? '') ?>">
-        <div class="mobile-event-header">
-            <div class="mobile-event-title">
-                <?php if (!empty($evt['skip_coverage'])): ?>
-                <span class="badge badge-secondary">NE IDEMO</span>
-                <?php elseif ($evt['importance'] === 'must_cover'): ?>
-                <span class="badge badge-danger">OBAVEZNO</span>
-                <?php elseif ($evt['importance'] === 'important'): ?>
-                <span class="badge badge-warning">VAŽNO</span>
-                <?php endif; ?>
-                <a href="event-edit.php?id=<?= $evt['id'] ?>"><?= e($evt['title']) ?></a>
-            </div>
-            <?php if ($isEditorRole): ?>
-            <a href="event-edit.php?id=<?= $evt['id'] ?>&delete=1" class="btn-delete-evt" data-confirm="Obrisati događaj?" title="Obriši">×</a>
-            <?php endif; ?>
-        </div>
-
-        <div class="mobile-event-meta">
-            <?php if ($evt['event_time']): ?>
-            <span>🕐 <?= date('H:i', strtotime($evt['event_time'])) ?><?= $evt['end_time'] ? '-' . date('H:i', strtotime($evt['end_time'])) : '' ?></span>
-            <?php endif; ?>
-            <?php if ($evt['location']): ?>
-            <span>📍 <?= e(truncate($evt['location'], 20)) ?></span>
-            <?php endif; ?>
-            <?php if ($evt['assigned_people'] && empty($evt['skip_coverage'])): ?>
-            <span>👥 <?= e($evt['assigned_people']) ?></span>
-            <?php elseif (empty($evt['skip_coverage']) && !$evt['assigned_count']): ?>
-            <span class="text-danger">⚠️ Nitko</span>
-            <?php endif; ?>
-        </div>
-    </div>
-    <?php endforeach; ?>
-    <?php endif; ?>
+    <?php endfor; ?>
 </div>
 
 <!-- Desktop kalendar -->
@@ -415,7 +403,7 @@ $daysHrFull = [
 .mobile-events-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 2px;
 }
 
 /* Desktop kalendar */
@@ -444,82 +432,121 @@ $daysHrFull = [
     min-width: 900px;
 }
 
-.mobile-day-header {
+/* NOVI MOBILNI PRIKAZ - dan ispod dana */
+.mobile-day-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.mobile-day-card.today {
+    border-color: var(--primary);
+    border-width: 2px;
+}
+.mobile-day-card.weekend {
+    background: #f0fdf4;
+}
+.mobile-day-header-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.3rem 0;
-    border-bottom: 2px solid var(--primary);
-    margin-top: 0.5rem;
-    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
 }
-.mobile-day-date {
-    font-weight: 600;
+.mobile-day-card.today .mobile-day-header-row {
+    background: #dbeafe;
+}
+.mobile-day-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.mobile-day-num {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    min-width: 28px;
+}
+.mobile-day-card.today .mobile-day-num {
+    color: var(--primary);
+}
+.mobile-day-name {
     font-size: 0.85rem;
-    color: var(--gray-600);
+    color: var(--gray-500);
+    font-weight: 500;
 }
-.mobile-shifts {
-    font-size: 0.55rem;
-    color: #0ca678;
+.mobile-day-shifts {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+}
+.mobile-shift {
     background: rgba(32, 201, 151, 0.15);
-    padding: 1px 4px;
-    border-radius: 2px;
+    color: #0ca678;
+    padding: 2px 6px;
+    border-radius: 4px;
     white-space: nowrap;
 }
-.mobile-event-card {
-    background: var(--white);
-    border-radius: var(--radius);
-    padding: 0.5rem 0.75rem;
-    box-shadow: var(--shadow);
-    border-left: 4px solid var(--gray-400);
+.shift-lbl {
+    font-weight: 700;
 }
-.mobile-event-header {
+.mobile-day-events {
+    padding: 0.5rem;
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 4px;
 }
-.btn-delete-evt {
-    color: #dc3545;
-    font-size: 1.2rem;
-    font-weight: bold;
-    line-height: 1;
-    padding: 0 0.25rem;
+.mobile-evt {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    background: var(--gray-50);
+    border-radius: 4px;
+    border-left: 3px solid var(--gray-400);
     text-decoration: none;
-}
-.btn-delete-evt:hover {
-    color: #a71d2a;
-}
-.mobile-event-card.type-press { border-left-color: #dc3545; }
-.mobile-event-card.type-sport { border-left-color: #28a745; }
-.mobile-event-card.type-kultura { border-left-color: #6f42c1; }
-.mobile-event-card.type-politika { border-left-color: #fd7e14; }
-.mobile-event-card.type-drustvo { border-left-color: #17a2b8; }
-.mobile-event-card.type-dezurstvo { border-left-color: #20c997; background: rgba(32,201,151,0.05); }
-.mobile-event-card.type-ostalo { border-left-color: #6c757d; }
-.mobile-event-card.skipped {
-    opacity: 0.6;
-    border-left-color: var(--gray-400);
-}
-.mobile-event-date {
-    font-size: 0.75rem;
-    color: var(--gray-500);
-    margin-bottom: 0.25rem;
-}
-.mobile-event-title {
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-}
-.mobile-event-title a {
     color: var(--dark);
+    font-size: 0.8rem;
 }
-.mobile-event-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    font-size: 0.75rem;
+.mobile-evt:hover {
+    background: var(--gray-100);
+}
+.mobile-evt.skipped {
+    opacity: 0.5;
+}
+.mobile-evt.skipped .evt-title {
+    text-decoration: line-through;
+}
+.mobile-evt.type-press { border-left-color: #dc3545; }
+.mobile-evt.type-sport { border-left-color: #28a745; }
+.mobile-evt.type-kultura { border-left-color: #6f42c1; }
+.mobile-evt.type-politika { border-left-color: #fd7e14; }
+.mobile-evt.type-drustvo { border-left-color: #17a2b8; }
+.mobile-evt.type-ostalo { border-left-color: #6c757d; }
+.mobile-evt .evt-time {
+    font-weight: 600;
     color: var(--gray-600);
-    margin-top: 0.25rem;
+    flex-shrink: 0;
+}
+.mobile-evt .evt-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mobile-evt .evt-who {
+    font-size: 0.7rem;
+    color: var(--gray-500);
+    flex-shrink: 0;
+}
+.mobile-evt .evt-warn {
+    background: #ffc107;
+    color: #000;
+    font-weight: bold;
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 3px;
 }
 .calendar-header {
     background: var(--gray-100);
