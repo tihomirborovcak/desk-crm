@@ -8,9 +8,6 @@ require_once 'includes/functions.php';
 
 requireLogin();
 
-if (!isEditor()) {
-    redirectWith('events.php', 'danger', 'Nemate ovlasti');
-}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     redirectWith('events.php', 'danger', 'Nevažeći zahtjev');

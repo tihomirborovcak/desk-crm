@@ -142,6 +142,7 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     Transkripcija
                 </a>
 
+                <?php if (isAdmin()): ?>
                 <a href="video-titlovi.php" class="nav-item <?= $currentPage === 'video-titlovi' ? 'active' : '' ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="2" y="6" width="20" height="12" rx="2"/>
@@ -150,6 +151,7 @@ $userInitials = mb_substr($user['full_name'] ?? 'U', 0, 1);
                     </svg>
                     Video Titlovi
                 </a>
+                <?php endif; ?>
 
                 <a href="tekst-ai.php" class="nav-item <?= $currentPage === 'tekst-ai' ? 'active' : '' ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

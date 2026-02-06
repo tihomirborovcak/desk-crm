@@ -52,17 +52,47 @@ function isAdText($text) {
 
 // Funkcija za dohvat HTML-a
 function fetchHtml($url) {
-    $ctx = stream_context_create([
-        'http' => [
-            'timeout' => 20,
-            'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Language: hr,en;q=0.5\r\n"
-        ],
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false
+    // Koristimo curl za bolju kontrolu nad requestom
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_ENCODING => '',
+        CURLOPT_HTTPHEADER => [
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language: hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control: no-cache',
+            'Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+            'Sec-Ch-Ua-Mobile: ?0',
+            'Sec-Ch-Ua-Platform: "Windows"',
+            'Sec-Fetch-Dest: document',
+            'Sec-Fetch-Mode: navigate',
+            'Sec-Fetch-Site: none',
+            'Sec-Fetch-User: ?1',
+            'Upgrade-Insecure-Requests: 1',
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ]
     ]);
-    return @file_get_contents($url, false, $ctx);
+
+    $html = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    // Debug log
+    error_log("fetchHtml: URL=$url, HTTP=$httpCode, Error=$error, HTML length=" . strlen($html));
+
+    if ($httpCode !== 200 || empty($html)) {
+        return false;
+    }
+
+    return $html;
 }
 
 // Funkcija za ekstrakciju glavnog teksta iz HTML-a
@@ -119,15 +149,20 @@ function extractArticleContent($html, $url) {
 
     // Pokušaj pronaći glavni sadržaj članka
     $contentSelectors = [
+        // Jutarnji.hr / Hanza Media portali - specifični selektori
+        "//*[contains(@class, 'excerpt')]",
+        "//*[contains(@class, 'itemFullText')]",
+        "//*[contains(@class, 'item__body')]",
+        "//*[contains(@class, 'item__wrap-body')]",
+        // Vecernji.hr
+        "//*[contains(@class, 'article__body')]",
+        "//*[contains(@class, 'article-body')]",
+        "//*[contains(@class, 'article-content')]",
         // 24sata.hr - specifični selektor (article__content BEZ _block/_container/_wrap)
         "//*[contains(@class, 'article__content') and contains(@class, 'article_content_container')]",
         "//*[@class='article__content']",
         // Index.hr
         "//*[contains(@class, 'txt')]",
-        // Jutarnji/Vecernji
-        "//*[contains(@class, 'article-body')]",
-        "//*[contains(@class, 'article-content')]",
-        "//*[contains(@class, 'article__body')]",
         // Net.hr, Tportal
         "//*[contains(@class, 'story-body')]",
         "//*[contains(@class, 'story__body')]",
@@ -147,10 +182,12 @@ function extractArticleContent($html, $url) {
     $content = '';
     foreach ($contentSelectors as $selector) {
         $nodes = $xpath->query($selector);
+        error_log("Selector: $selector, Found: " . $nodes->length);
         if ($nodes->length > 0) {
             // Uzmi paragraphe iz pronađenog elementa
             $paragraphs = [];
             $pNodes = $xpath->query(".//p", $nodes->item(0));
+            error_log("Paragraphs found: " . $pNodes->length);
             foreach ($pNodes as $p) {
                 $text = trim($p->textContent);
                 if (strlen($text) > 30 && !isAdText($text)) {
@@ -159,6 +196,7 @@ function extractArticleContent($html, $url) {
             }
             if (count($paragraphs) > 0) {
                 $content = implode("\n\n", $paragraphs);
+                error_log("Content extracted, length: " . strlen($content));
                 break;
             }
         }
@@ -331,7 +369,7 @@ function rewriteWithGemini($text, $title) {
 
 // Funkcija za obradu URL-a
 function processUrl($url, $rewrite = false) {
-    $result = ['error' => null, 'title' => '', 'content' => '', 'rewritten' => ''];
+    $result = ['error' => null, 'title' => '', 'content' => '', 'rewritten' => '', 'debug' => ''];
 
     if (empty($url)) {
         $result['error'] = 'Molimo unesite URL članka.';
@@ -351,10 +389,27 @@ function processUrl($url, $rewrite = false) {
         return $result;
     }
 
+    // Debug - prvih 500 znakova HTML-a
+    $result['debug'] = "HTML dohvaćen: " . strlen($html) . " bajtova\n";
+    $result['debug'] .= "Prvih 300 znakova: " . substr($html, 0, 300) . "\n\n";
+
+    // Provjeri ima li uopće item__body ili itemFullText u HTML-u
+    if (strpos($html, 'item__body') !== false) {
+        $result['debug'] .= "PRONAĐENO: item__body\n";
+    }
+    if (strpos($html, 'itemFullText') !== false) {
+        $result['debug'] .= "PRONAĐENO: itemFullText\n";
+    }
+    if (strpos($html, 'excerpt') !== false) {
+        $result['debug'] .= "PRONAĐENO: excerpt\n";
+    }
+
     // Ekstrahiraj sadržaj
     $extracted = extractArticleContent($html, $url);
     $result['title'] = $extracted['title'];
     $result['content'] = $extracted['content'];
+    $result['debug'] .= "\nNaslov: " . $result['title'] . "\n";
+    $result['debug'] .= "Sadržaj duljina: " . strlen($result['content']) . "\n";
 
     if (empty($result['content'])) {
         $result['error'] = 'Nije pronađen tekst članka na stranici.';
@@ -375,6 +430,7 @@ function processUrl($url, $rewrite = false) {
 }
 
 // Obrada forme (POST)
+$debugInfo = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $articleUrl = trim($_POST['url'] ?? '');
     $rewrite = isset($_POST['rewrite']) && $_POST['rewrite'] === '1';
@@ -384,6 +440,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $articleTitle = $result['title'];
     $originalText = $result['content'];
     $processedText = $result['rewritten'];
+    $debugInfo = $result['debug'] ?? '';
 }
 // Auto-fetch kad je URL proslijeđen preko GET
 elseif ($autoFetch) {
@@ -391,6 +448,7 @@ elseif ($autoFetch) {
     $error = $result['error'];
     $articleTitle = $result['title'];
     $originalText = $result['content'];
+    $debugInfo = $result['debug'] ?? '';
 }
 
 define('PAGE_TITLE', 'Skini tekst');
@@ -417,6 +475,11 @@ include 'includes/header.php';
 <div style="background: #fee2e2; border: 1px solid #fecaca; color: #dc2626; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
     <?= e($error) ?>
 </div>
+<?php endif; ?>
+
+<?php if (!empty($debugInfo)): ?>
+<div style="background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap;"><strong>DEBUG:</strong>
+<?= e($debugInfo) ?></div>
 <?php endif; ?>
 
 <?php if ($originalText): ?>

@@ -15,3 +15,6 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 
 -- Ako tablica već postoji, dodaj stupac audio_path
 -- ALTER TABLE transcriptions ADD COLUMN audio_path VARCHAR(500) AFTER audio_filename;
+
+-- admin_only: 1 = samo admin vidi, 0 = svi vide
+-- ALTER TABLE transcriptions ADD COLUMN admin_only TINYINT(1) DEFAULT 0 AFTER audio_path;
