@@ -97,9 +97,14 @@ function fetchHtml($url) {
 
 // Funkcija za ekstrakciju glavnog teksta iz HTML-a
 function extractArticleContent($html, $url) {
+    // Očisti HTML prije parsiranja
+    $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+
     $dom = new DOMDocument();
+    $dom->preserveWhiteSpace = false;
+    $dom->formatOutput = true;
     libxml_use_internal_errors(true);
-    @$dom->loadHTML('<?xml encoding="UTF-8">' . $html);
+    @$dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
     libxml_clear_errors();
 
     $xpath = new DOMXPath($dom);
