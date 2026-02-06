@@ -69,6 +69,22 @@ Uvijek `html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8')` za hrvatske 
 - Fix: trending usporedba s nulom
 - Redizajn: Apple-style CSS (manji nav, tighter spacing)
 - Dodano: "Više tonova" tab za multi-audio transkripciju
+- AI promptovi prebačeni na engleski (tekst-ai.php, transkripcija.php) - Gemini bolje razumije
+- Dodana pravila za pravopis i formatiranje u AI promptove
+- Dodano filtriranje reklamnog sadržaja u AI promptovima
+- Fix: jutarnji.hr ekstrakcija teksta (vidi dolje)
+
+### jutarnji.hr / Hanza Media portali
+Problem: DOMDocument/XPath ne parsira njihov HTML ispravno (vraća 0 nodes).
+Rješenje:
+1. Koristiti curl umjesto file_get_contents s punim browser headerima (Sec-Ch-Ua, Sec-Fetch-*)
+2. Regex fallback kad DOM ne radi - traži klase `itemFullText`, `excerpt`, `item__body`
+3. Izvlači `<p>` tagove regexom iz matchanog HTML-a
+Datoteke: `skini-tekst.php`, `api/fetch-article.php`
+
+## Workflow
+- Sve promjene odmah deployati na server (ne raditi samo lokalno)
+- Deploy komanda: `git add -A && git commit -m "msg" && git push origin main && ssh root@5.75.156.67 "cd /home/zagorje-promocija/htdocs/www.zagorje-promocija.com/desk-crm && git fetch origin && git reset --hard origin/main"`
 
 ## Upload i fajlovi
 - **UPLOAD_PATH**: `/home/zagorje-promocija/htdocs/www.zagorje-promocija.com/desk-crm/uploads/`
