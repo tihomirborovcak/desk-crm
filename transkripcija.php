@@ -452,8 +452,14 @@ VAŽNO ZA FORMATIRANJE:
             return ['error' => 'Nema odgovora od Gemini-ja'];
         }
 
-        // Agresivno čišćenje praznih redova
+        // Agresivno čišćenje praznih redova i markdown formatiranja
         $resultText = $data['candidates'][0]['content']['parts'][0]['text'];
+
+        // Ukloni markdown formatiranje (zvjezdice za bold/italic)
+        $resultText = preg_replace('/\*\*(.+?)\*\*/s', '$1', $resultText);  // **bold** -> bold
+        $resultText = preg_replace('/\*([^*\n]+)\*/s', '$1', $resultText);  // *italic* -> italic
+        $resultText = str_replace('**', '', $resultText);                   // preostali **
+        $resultText = preg_replace('/^#+\s*/m', '', $resultText);           // ### heading -> ukloni
 
         // Ukloni Unicode line separatore i paragraph separatore
         $resultText = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $resultText);
