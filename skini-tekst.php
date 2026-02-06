@@ -437,28 +437,10 @@ function processUrl($url, $rewrite = false) {
         return $result;
     }
 
-    // Debug - prvih 500 znakova HTML-a
-    $result['debug'] = "HTML dohvaćen: " . strlen($html) . " bajtova\n";
-    $result['debug'] .= "Prvih 300 znakova: " . substr($html, 0, 300) . "\n\n";
-
-    // Provjeri ima li uopće item__body ili itemFullText u HTML-u
-    if (strpos($html, 'item__body') !== false) {
-        $result['debug'] .= "PRONAĐENO: item__body\n";
-    }
-    if (strpos($html, 'itemFullText') !== false) {
-        $result['debug'] .= "PRONAĐENO: itemFullText\n";
-    }
-    if (strpos($html, 'excerpt') !== false) {
-        $result['debug'] .= "PRONAĐENO: excerpt\n";
-    }
-
     // Ekstrahiraj sadržaj
     $extracted = extractArticleContent($html, $url);
     $result['title'] = $extracted['title'];
     $result['content'] = $extracted['content'];
-    $result['debug'] .= "\nNaslov: " . $result['title'] . "\n";
-    $result['debug'] .= "Sadržaj duljina: " . strlen($result['content']) . "\n";
-    $result['debug'] .= "\nSELEKTORI:\n" . ($GLOBALS['selectorDebug'] ?? 'N/A') . "\n";
 
     if (empty($result['content'])) {
         $result['error'] = 'Nije pronađen tekst članka na stranici.';
@@ -479,7 +461,6 @@ function processUrl($url, $rewrite = false) {
 }
 
 // Obrada forme (POST)
-$debugInfo = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
     $articleUrl = trim($_POST['url'] ?? '');
     $rewrite = isset($_POST['rewrite']) && $_POST['rewrite'] === '1';
@@ -489,7 +470,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $articleTitle = $result['title'];
     $originalText = $result['content'];
     $processedText = $result['rewritten'];
-    $debugInfo = $result['debug'] ?? '';
 }
 // Auto-fetch kad je URL proslijeđen preko GET
 elseif ($autoFetch) {
@@ -497,7 +477,6 @@ elseif ($autoFetch) {
     $error = $result['error'];
     $articleTitle = $result['title'];
     $originalText = $result['content'];
-    $debugInfo = $result['debug'] ?? '';
 }
 
 define('PAGE_TITLE', 'Skini tekst');
@@ -526,10 +505,6 @@ include 'includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php if (!empty($debugInfo)): ?>
-<div style="background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap;"><strong>DEBUG:</strong>
-<?= e($debugInfo) ?></div>
-<?php endif; ?>
 
 <?php if ($originalText): ?>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
