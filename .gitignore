@@ -43,3 +43,4 @@ logs/
 *~
 config.local.php
 google-credentials.json
+CLAUDE_NOTES.md
