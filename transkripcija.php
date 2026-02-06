@@ -461,10 +461,19 @@ VAŽNO ZA FORMATIRANJE:
         $resultText = str_replace('**', '', $resultText);                   // preostali **
         $resultText = preg_replace('/^#+\s*/m', '', $resultText);           // ### heading -> ukloni
 
+        // Ukloni placeholder datume i dateline formate
+        $resultText = preg_replace('/\[Datum\]/i', '', $resultText);
+        $resultText = preg_replace('/\[datum objave\]/i', '', $resultText);
+        $resultText = preg_replace('/^[A-ZČĆŽŠĐ][a-zčćžšđ]+,?\s*\[?[Dd]atum\]?\s*[–-]\s*/m', '', $resultText);
+        // Ukloni "MJESTO, datum –" na početku (npr. "Krapina, 5. veljače –")
+        $resultText = preg_replace('/^[A-ZČĆŽŠĐ][a-zčćžšđ]+,\s*\d{1,2}\.\s*[a-zčćžšđ]+\.?\s*(\d{4}\.)?\s*[–-]\s*/mu', '', $resultText);
+        // Ukloni "MJESTO –" na početku retka
+        $resultText = preg_replace('/^[A-ZČĆŽŠĐ]{2,}[A-ZČĆŽŠĐa-zčćžšđ]*\s*[–-]\s*/m', '', $resultText);
+
         // Popravi Title Case u naslovima (prvi red) - samo prva riječ veliko slovo
         $lines = explode("\n", $resultText);
         if (!empty($lines[0])) {
-            $firstLine = $lines[0];
+            $firstLine = trim($lines[0]);
             // Ako izgleda kao Title Case (većina riječi počinje velikim slovom)
             $words = explode(' ', $firstLine);
             $upperCount = 0;
