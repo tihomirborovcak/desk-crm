@@ -180,27 +180,34 @@ function extractArticleContent($html, $url) {
     ];
 
     $content = '';
+    $debugSelectors = [];
     foreach ($contentSelectors as $selector) {
         $nodes = $xpath->query($selector);
-        error_log("Selector: $selector, Found: " . $nodes->length);
+        $debugSelectors[] = "$selector => " . $nodes->length . " nodes";
         if ($nodes->length > 0) {
             // Uzmi paragraphe iz pronađenog elementa
             $paragraphs = [];
             $pNodes = $xpath->query(".//p", $nodes->item(0));
-            error_log("Paragraphs found: " . $pNodes->length);
+            $debugSelectors[] = "  -> p tags: " . $pNodes->length;
             foreach ($pNodes as $p) {
                 $text = trim($p->textContent);
-                if (strlen($text) > 30 && !isAdText($text)) {
+                $len = strlen($text);
+                $isAd = isAdText($text);
+                if ($len > 30 && !$isAd) {
                     $paragraphs[] = $text;
+                } else {
+                    $debugSelectors[] = "  -> SKIP p (len=$len, isAd=$isAd): " . substr($text, 0, 50);
                 }
             }
+            $debugSelectors[] = "  -> Valid paragraphs: " . count($paragraphs);
             if (count($paragraphs) > 0) {
                 $content = implode("\n\n", $paragraphs);
-                error_log("Content extracted, length: " . strlen($content));
                 break;
             }
         }
     }
+    // Store debug info for display
+    $GLOBALS['selectorDebug'] = implode("\n", $debugSelectors);
 
     // Fallback - uzmi sve paragrafe
     if (empty($content)) {
@@ -410,6 +417,7 @@ function processUrl($url, $rewrite = false) {
     $result['content'] = $extracted['content'];
     $result['debug'] .= "\nNaslov: " . $result['title'] . "\n";
     $result['debug'] .= "Sadržaj duljina: " . strlen($result['content']) . "\n";
+    $result['debug'] .= "\nSELEKTORI:\n" . ($GLOBALS['selectorDebug'] ?? 'N/A') . "\n";
 
     if (empty($result['content'])) {
         $result['error'] = 'Nije pronađen tekst članka na stranici.';
