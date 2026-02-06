@@ -1069,14 +1069,28 @@ if (!empty($savedTranscriptions)):
         <h2 class="card-title">Spremljene transkripcije</h2>
     </div>
     <div class="card-body saved-trans-list">
-        <?php foreach ($savedTranscriptions as $saved): ?>
+        <?php foreach ($savedTranscriptions as $saved):
+            // Provjeri broj tonova
+            $audioFiles = !empty($saved['audio_filename']) ? array_filter(array_map('trim', explode(',', $saved['audio_filename']))) : [];
+            $toneCount = count($audioFiles);
+        ?>
         <a href="transkripcija-view.php?id=<?= $saved['id'] ?>" class="saved-trans-item">
             <div class="saved-trans-title">
                 <?= e($saved['title']) ?>
+                <?php if ($toneCount > 1): ?>
+                <span class="badge-tones"><?= $toneCount ?> tonova</span>
+                <?php endif; ?>
                 <?php if (!empty($saved['admin_only'])): ?>
                 <span class="badge-admin">Admin</span>
                 <?php endif; ?>
             </div>
+            <?php if ($toneCount > 1): ?>
+            <div class="saved-trans-tones">
+                <?php foreach ($audioFiles as $af): ?>
+                <span class="tone-name"><?= e($af) ?></span>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
             <div class="saved-trans-meta">
                 <span><?= formatDateTime($saved['created_at'], 'd.m. H:i') ?></span>
                 <span><?= e($saved['author_name']) ?></span>
@@ -1196,6 +1210,27 @@ if (!empty($savedTranscriptions)):
     padding: 1px 5px;
     border-radius: 3px;
     font-weight: 500;
+}
+.badge-tones {
+    background: #0d6efd;
+    color: white;
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+.saved-trans-tones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+.tone-name {
+    font-size: 0.65rem;
+    color: var(--gray-500);
+    background: var(--gray-100);
+    padding: 1px 4px;
+    border-radius: 2px;
 }
 
 /* Mobilne prilagodbe */
