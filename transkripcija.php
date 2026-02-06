@@ -370,6 +370,7 @@ Writing rules:
 - Extract ALL key statements and facts - do not omit anything important
 - Only ignore repetitions, stuttering and completely irrelevant parts
 - If multiple speakers, clearly indicate who said what
+- If transcription has labeled sections (like 'IZJAVA ŽUPANA:', 'IZJAVA PROČELNIKA:'), use those labels to identify speakers and integrate all statements into one coherent article
 
 SPELLING - EXTREMELY IMPORTANT:
 - Use CORRECT Croatian spelling - check every letter
