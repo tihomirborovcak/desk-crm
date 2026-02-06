@@ -385,9 +385,10 @@ LEAD (2-3 rečenice - sažetak najvažnijeg)
 TIJELO ČLANKA (svi detalji, izjave s citatima, kontekst, pozadina)
 
 VAŽNO ZA FORMATIRANJE:
-- Koristi SAMO JEDAN prazan red između odlomaka
-- NIKADA ne stavljaj više od jednog praznog reda između rečenica ili odlomaka
-- Tekst treba biti kompaktan i čitljiv";
+- NE koristi podnaslove unutar članka - piši kontinuirani tekst
+- NE stavljaj prazne redove između odlomaka
+- Tekst treba biti kompaktan - odlomak ispod odlomka bez razmaka
+- Samo naslov na vrhu, zatim odmah lead i tijelo članka";
 
     // Dodaj korisničke upute ako postoje
     if (!empty($customInstructions)) {
