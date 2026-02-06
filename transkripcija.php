@@ -370,7 +370,12 @@ Pravila pisanja:
 - Izvuci SVE ključne izjave i činjenice - ne ispuštaj ništa važno
 - Ignoriraj samo ponavljanja, mucanja i potpuno nevažne dijelove
 - Ako ima više govornika, jasno navedi tko je što rekao
-- Koristi pravilan hrvatski jezik i pravopis
+
+PRAVOPIS - IZUZETNO VAŽNO:
+- Koristi ISPRAVAN hrvatski pravopis - pazi na svako slovo
+- Pažljivo provjeri sve riječi prije završetka
+- Česte greške koje MORAŠ izbjeći: izzazov (ispravno: izazov), proffesija (ispravno: profesija)
+- Ako nisi siguran kako se riječ piše, koristi jednostavniju alternativu
 
 Format:
 NASLOV (kratak, informativan)
