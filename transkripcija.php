@@ -461,6 +461,23 @@ VAŽNO ZA FORMATIRANJE:
         $resultText = str_replace('**', '', $resultText);                   // preostali **
         $resultText = preg_replace('/^#+\s*/m', '', $resultText);           // ### heading -> ukloni
 
+        // Popravi Title Case u naslovima (prvi red) - samo prva riječ veliko slovo
+        $lines = explode("\n", $resultText);
+        if (!empty($lines[0])) {
+            $firstLine = $lines[0];
+            // Ako izgleda kao Title Case (većina riječi počinje velikim slovom)
+            $words = explode(' ', $firstLine);
+            $upperCount = 0;
+            foreach ($words as $w) {
+                if (preg_match('/^[A-ZČĆŽŠĐ]/u', $w)) $upperCount++;
+            }
+            // Ako >60% riječi počinje velikim slovom, pretvori u sentence case
+            if (count($words) > 2 && $upperCount / count($words) > 0.6) {
+                $lines[0] = mb_strtoupper(mb_substr($firstLine, 0, 1)) . mb_strtolower(mb_substr($firstLine, 1));
+            }
+            $resultText = implode("\n", $lines);
+        }
+
         // Ukloni Unicode line separatore i paragraph separatore
         $resultText = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $resultText);
         // Normaliziraj sve vrste line breakova
