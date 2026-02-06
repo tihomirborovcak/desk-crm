@@ -28,29 +28,49 @@ if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
     exit;
 }
 
-// Dohvati HTML
-$ctx = stream_context_create([
-    'http' => [
-        'timeout' => 20,
-        'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nAccept-Language: hr,en;q=0.5\r\n"
-    ],
-    'ssl' => [
-        'verify_peer' => false,
-        'verify_peer_name' => false
+// Dohvati HTML s curl (bolje za jutarnji.hr i slične portale)
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_URL => $url,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_MAXREDIRS => 5,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_CONNECTTIMEOUT => 10,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => 0,
+    CURLOPT_ENCODING => '',
+    CURLOPT_HTTPHEADER => [
+        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language: hr-HR,hr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control: no-cache',
+        'Sec-Ch-Ua: "Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile: ?0',
+        'Sec-Ch-Ua-Platform: "Windows"',
+        'Sec-Fetch-Dest: document',
+        'Sec-Fetch-Mode: navigate',
+        'Sec-Fetch-Site: none',
+        'Sec-Fetch-User: ?1',
+        'Upgrade-Insecure-Requests: 1',
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     ]
 ]);
 
-$html = @file_get_contents($url, false, $ctx);
+$html = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
 
-if (!$html) {
+if ($httpCode !== 200 || empty($html)) {
     echo json_encode(['success' => false, 'error' => 'Nije moguće dohvatiti stranicu']);
     exit;
 }
 
 // Parsiraj HTML
+$html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
 $dom = new DOMDocument();
+$dom->preserveWhiteSpace = false;
 libxml_use_internal_errors(true);
-@$dom->loadHTML('<?xml encoding="UTF-8">' . $html);
+@$dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
 libxml_clear_errors();
 
 $xpath = new DOMXPath($dom);
@@ -106,9 +126,9 @@ if (strpos($url, '24sata.hr') !== false) {
     ];
 } elseif (strpos($url, 'jutarnji.hr') !== false) {
     $portalSelectors = [
-        "//*[contains(@class, 'article__body')]",
-        "//*[contains(@class, 'article-body')]",
-        "//*[contains(@class, 'single__content')]",
+        "//*[contains(@class, 'excerpt')]",
+        "//*[contains(@class, 'itemFullText')]",
+        "//*[contains(@class, 'item__body')]",
     ];
 } elseif (strpos($url, 'vecernji.hr') !== false) {
     $portalSelectors = [
@@ -172,6 +192,43 @@ if (empty($content)) {
         }
     }
     $content = implode("\n\n", $paragraphs);
+}
+
+// Regex fallback za jutarnji.hr i slične portale gdje DOM ne radi
+if (empty($content)) {
+    // Funkcija za provjeru reklamnog teksta
+    $isAdText = function($text) {
+        $text = mb_strtolower($text);
+        $adPatterns = ['sponzorirani', 'sponsored', 'reklama', 'newsletter', 'pretplatite', 'cookies', 'kolačići', 'pratite nas', 'follow us', 'copyright'];
+        foreach ($adPatterns as $pattern) {
+            if (mb_strpos($text, $pattern) !== false) return true;
+        }
+        return false;
+    };
+
+    // Probaj izvući iz itemFullText ili excerpt (jutarnji.hr)
+    if (preg_match('/<div[^>]*class="[^"]*(?:itemFullText|excerpt)[^"]*"[^>]*>(.*?)<\/div>\s*<div[^>]*class="[^"]*(?:piano|position_item)/is', $html, $match)) {
+        $innerHtml = $match[1];
+    } else if (preg_match('/<div[^>]*class="[^"]*item__body[^"]*"[^>]*>(.*?)<\/div>\s*<div[^>]*class="[^"]*item__/is', $html, $match)) {
+        $innerHtml = $match[1];
+    } else {
+        $innerHtml = $html;
+    }
+
+    // Izvuci sve <p> tagove regexom
+    if (preg_match_all('/<p[^>]*>(.*?)<\/p>/is', $innerHtml, $pMatches)) {
+        $paragraphs = [];
+        foreach ($pMatches[1] as $pHtml) {
+            $text = trim(strip_tags($pHtml));
+            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if (strlen($text) > 30 && !$isAdText($text)) {
+                $paragraphs[] = $text;
+            }
+        }
+        if (count($paragraphs) > 0) {
+            $content = implode("\n\n", $paragraphs);
+        }
+    }
 }
 
 // Dekodiraj HTML entitete i očisti whitespace
