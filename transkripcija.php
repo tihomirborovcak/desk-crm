@@ -495,8 +495,8 @@ VAŽNO ZA FORMATIRANJE:
         $resultText = preg_replace('/^[ \t]+$/m', '', $resultText);
         // Ukloni razmake na kraju redova
         $resultText = preg_replace('/[ \t]+$/m', '', $resultText);
-        // Ukloni višestruke prazne redove (2+ uzastopna newlinea = max 1 prazan red)
-        $resultText = preg_replace('/\n{2,}/', "\n\n", $resultText);
+        // Ukloni sve prazne redove - odlomci idu direktno jedan ispod drugog
+        $resultText = preg_replace('/\n{2,}/', "\n", $resultText);
         $resultText = trim($resultText);
 
         return ['text' => $resultText];
