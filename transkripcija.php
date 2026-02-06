@@ -464,28 +464,32 @@ VAŽNO ZA FORMATIRANJE:
         // Ukloni placeholder datume i dateline formate
         $resultText = preg_replace('/\[Datum\]/i', '', $resultText);
         $resultText = preg_replace('/\[datum objave\]/i', '', $resultText);
+        // Ukloni "Mjesto, – " ili "Mjesto, [datum] –" na početku
+        $resultText = preg_replace('/^[A-ZČĆŽŠĐ][a-zčćžšđ]+,\s*[–-]\s*/m', '', $resultText);
         $resultText = preg_replace('/^[A-ZČĆŽŠĐ][a-zčćžšđ]+,?\s*\[?[Dd]atum\]?\s*[–-]\s*/m', '', $resultText);
         // Ukloni "MJESTO, datum –" na početku (npr. "Krapina, 5. veljače –")
         $resultText = preg_replace('/^[A-ZČĆŽŠĐ][a-zčćžšđ]+,\s*\d{1,2}\.\s*[a-zčćžšđ]+\.?\s*(\d{4}\.)?\s*[–-]\s*/mu', '', $resultText);
         // Ukloni "MJESTO –" na početku retka
         $resultText = preg_replace('/^[A-ZČĆŽŠĐ]{2,}[A-ZČĆŽŠĐa-zčćžšđ]*\s*[–-]\s*/m', '', $resultText);
 
-        // Popravi Title Case u naslovima (prvi red) - samo prva riječ veliko slovo
+        // Popravi Title Case u SVIM redovima - samo prva riječ veliko slovo
         $lines = explode("\n", $resultText);
-        if (!empty($lines[0])) {
-            $firstLine = trim($lines[0]);
+        foreach ($lines as $i => $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+
             // Ako izgleda kao Title Case (većina riječi počinje velikim slovom)
-            $words = explode(' ', $firstLine);
+            $words = explode(' ', $line);
             $upperCount = 0;
             foreach ($words as $w) {
                 if (preg_match('/^[A-ZČĆŽŠĐ]/u', $w)) $upperCount++;
             }
-            // Ako >60% riječi počinje velikim slovom, pretvori u sentence case
-            if (count($words) > 2 && $upperCount / count($words) > 0.6) {
-                $lines[0] = mb_strtoupper(mb_substr($firstLine, 0, 1)) . mb_strtolower(mb_substr($firstLine, 1));
+            // Ako >50% riječi počinje velikim slovom i ima barem 3 riječi, pretvori u sentence case
+            if (count($words) >= 3 && $upperCount / count($words) > 0.5) {
+                $lines[$i] = mb_strtoupper(mb_substr($line, 0, 1)) . mb_strtolower(mb_substr($line, 1));
             }
-            $resultText = implode("\n", $lines);
         }
+        $resultText = implode("\n", $lines);
 
         // Ukloni Unicode line separatore i paragraph separatore
         $resultText = str_replace(["\u{2028}", "\u{2029}", "\u{0085}"], "\n", $resultText);
