@@ -227,6 +227,42 @@ function extractArticleContent($html, $url) {
         $content = implode("\n\n", $paragraphs);
     }
 
+    // Regex fallback ako DOM ne radi
+    if (empty($content)) {
+        $debugSelectors[] = "DOM failed, trying regex...";
+
+        // Probaj izvući iz itemFullText ili excerpt
+        if (preg_match('/<div[^>]*class="[^"]*(?:itemFullText|excerpt)[^"]*"[^>]*>(.*?)<\/div>\s*<div[^>]*class="[^"]*(?:piano|position_item)/is', $html, $match)) {
+            $innerHtml = $match[1];
+            $debugSelectors[] = "Regex matched itemFullText/excerpt, length: " . strlen($innerHtml);
+        } else if (preg_match('/<div[^>]*class="[^"]*item__body[^"]*"[^>]*>(.*?)<\/div>\s*<div[^>]*class="[^"]*item__/is', $html, $match)) {
+            $innerHtml = $match[1];
+            $debugSelectors[] = "Regex matched item__body, length: " . strlen($innerHtml);
+        } else {
+            $innerHtml = $html;
+            $debugSelectors[] = "No regex match, using full HTML";
+        }
+
+        // Izvuci sve <p> tagove regexom
+        if (preg_match_all('/<p[^>]*>(.*?)<\/p>/is', $innerHtml, $pMatches)) {
+            $debugSelectors[] = "Regex found " . count($pMatches[1]) . " p tags";
+            $paragraphs = [];
+            foreach ($pMatches[1] as $pHtml) {
+                $text = trim(strip_tags($pHtml));
+                $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if (strlen($text) > 30 && !isAdText($text)) {
+                    $paragraphs[] = $text;
+                }
+            }
+            if (count($paragraphs) > 0) {
+                $content = implode("\n\n", $paragraphs);
+                $debugSelectors[] = "Regex extracted " . count($paragraphs) . " valid paragraphs";
+            }
+        }
+
+        $GLOBALS['selectorDebug'] = implode("\n", $debugSelectors);
+    }
+
     // Dekodiraj HTML entitete (npr. &Zcaron; -> Ž, &cacute; -> ć)
     $title = html_entity_decode($title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
