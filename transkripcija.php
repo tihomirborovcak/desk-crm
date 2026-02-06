@@ -1023,37 +1023,21 @@ if (!empty($savedTranscriptions)):
     <div class="card-header">
         <h2 class="card-title">Spremljene transkripcije</h2>
     </div>
-    <div class="card-body" style="padding: 0;">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Naslov</th>
-                    <th>Datum</th>
-                    <th>Autor</th>
-                    <th style="width: 100px;"></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($savedTranscriptions as $saved): ?>
-                <tr>
-                    <td>
-                        <strong><?= e($saved['title']) ?></strong>
-                        <?php if (!empty($saved['admin_only'])): ?>
-                        <span style="background: #dc3545; color: white; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 8px;">Samo admin</span>
-                        <?php endif; ?>
-                        <?php if ($saved['audio_filename']): ?>
-                        <br><small class="text-muted"><?= e($saved['audio_filename']) ?></small>
-                        <?php endif; ?>
-                    </td>
-                    <td><?= formatDateTime($saved['created_at']) ?></td>
-                    <td><?= e($saved['author_name']) ?></td>
-                    <td>
-                        <a href="transkripcija-view.php?id=<?= $saved['id'] ?>" class="btn btn-sm btn-outline">Otvori</a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+    <div class="card-body saved-trans-list">
+        <?php foreach ($savedTranscriptions as $saved): ?>
+        <a href="transkripcija-view.php?id=<?= $saved['id'] ?>" class="saved-trans-item">
+            <div class="saved-trans-title">
+                <?= e($saved['title']) ?>
+                <?php if (!empty($saved['admin_only'])): ?>
+                <span class="badge-admin">Admin</span>
+                <?php endif; ?>
+            </div>
+            <div class="saved-trans-meta">
+                <span><?= formatDateTime($saved['created_at'], 'd.m. H:i') ?></span>
+                <span><?= e($saved['author_name']) ?></span>
+            </div>
+        </a>
+        <?php endforeach; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -1124,6 +1108,88 @@ if (!empty($savedTranscriptions)):
     line-height: 1;
 }
 .tone-remove:hover { color: #a71d2a; }
+
+/* Spremljene transkripcije - mobilno prilagođeno */
+.saved-trans-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem !important;
+}
+.saved-trans-item {
+    display: block;
+    padding: 0.6rem 0.75rem;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--dark);
+}
+.saved-trans-item:hover {
+    background: var(--gray-100);
+    text-decoration: none;
+}
+.saved-trans-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.saved-trans-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.7rem;
+    color: var(--gray-500);
+}
+.badge-admin {
+    background: #dc3545;
+    color: white;
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+/* Mobilne prilagodbe */
+@media (max-width: 640px) {
+    .page-header h1 {
+        font-size: 1.25rem;
+    }
+    .card-title {
+        font-size: 0.95rem;
+    }
+    .tabs {
+        flex-wrap: wrap;
+    }
+    .tab {
+        padding: 0.5rem 0.8rem;
+        font-size: 0.8rem;
+    }
+    .tone-row-fields {
+        flex-direction: column;
+    }
+    .form-label {
+        font-size: 0.8rem;
+    }
+    .btn {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+    }
+    .transcription-text {
+        font-size: 0.85rem;
+        padding: 0.75rem;
+        max-height: 300px;
+    }
+    .saved-trans-title {
+        font-size: 0.8rem;
+    }
+    .saved-trans-meta {
+        font-size: 0.65rem;
+    }
+}
 </style>
 
 <script>
